@@ -1,5 +1,5 @@
 import debug from "debug";
-import { fileTypeFromStream } from "file-type";
+import { fileTypeFromFile } from "file-type";
 import fs from "fs";
 import pfs from "fs/promises";
 import path from "path";
@@ -49,6 +49,7 @@ export async function readFile(hash) {
   return fs.createReadStream(path.join(DATA_DIR, file));
 }
 
+const saving = new Set();
 /**
  *
  * @param {string} hash
@@ -57,32 +58,33 @@ export async function readFile(hash) {
  */
 export async function saveFile(hash, stream) {
   if (files.some((f) => f.startsWith(hash))) return;
-  log("Saving file", hash);
+  if (saving.has(hash)) return;
+  log("Saving file", hash, stream.readableEnded);
+  saving.add(hash);
 
   const tmpFile = path.join(writeDir, hash);
   stream.pipe(fs.createWriteStream(tmpFile));
-
-  let ext = "";
-  const type = await fileTypeFromStream(stream);
-  if (type) {
-    log("Detected type", type.mime);
-    ext = type.ext;
-  }
-
   stream.on("end", async () => {
     log("Downloaded", hash);
+    let ext = "";
+    const type = await fileTypeFromFile(tmpFile);
+    if (type) {
+      log("Detected type", type.mime);
+      ext = type.ext;
+    }
+
     db.data.expiration[hash] = dayjs().add(5, "minute").unix();
     // TODO: verify hash
 
     const filename = hash + (ext ? "." + ext : "");
     await pfs.rename(tmpFile, path.join(DATA_DIR, filename));
     files.push(filename);
+    saving.delete(hash);
   });
 }
 
 export async function prune() {
   const now = dayjs();
-  log("Pruning files");
   for (const [hash, date] of Object.entries(db.data.expiration)) {
     if (dayjs.unix(date).isAfter(now)) {
       const file = files.find((f) => f.startsWith(hash));
