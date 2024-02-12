@@ -1,0 +1,28 @@
+{
+  "name": "sha-cdn",
+  "version": "0.1.0",
+  "main": "index.js",
+  "type": "module",
+  "author": "hzrd149",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "DEBUG=* nodemon --ignore '**/data/**' src/index.js",
+    "format": "prettier -w ."
+  },
+  "dependencies": {
+    "@nostr-dev-kit/ndk": "^2.4.0",
+    "dayjs": "^1.11.10",
+    "debug": "^4.3.4",
+    "dotenv": "^16.4.1",
+    "file-type": "^19.0.0",
+    "koa": "^2.15.0",
+    "koa-static": "^5.0.0",
+    "lowdb": "^7.0.1",
+    "websocket-polyfill": "^0.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3",
+    "prettier": "^3.2.5"
+  }
+}
