@@ -1,3 +1,3 @@
-# sha-cdn
+# blobstr
 
-A simple HTTP server that serve files based on sha256 and nostr
+A http file server with a nostr twist
