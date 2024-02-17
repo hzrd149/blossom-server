@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "target": "es2020",
+    "moduleResolution": "NodeNext",
+    "outDir": "build",
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["src"]
+}

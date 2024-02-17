@@ -1,5 +1,5 @@
 {
-  "name": "sha-cdn",
+  "name": "blobstr",
   "version": "0.1.0",
   "main": "index.js",
   "type": "module",
@@ -7,22 +7,37 @@
   "license": "MIT",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "DEBUG=* nodemon --ignore '**/data/**' src/index.js",
+    "build": "tsc",
+    "dev": "DEBUG=* nodemon --ignore '**/data/**' build/index.js",
     "format": "prettier -w ."
   },
+  "bin": "build/index.js",
+  "files": [
+    "build",
+    "public"
+  ],
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.4.0",
     "dayjs": "^1.11.10",
     "debug": "^4.3.4",
-    "dotenv": "^16.4.1",
     "file-type": "^19.0.0",
     "koa": "^2.15.0",
     "koa-static": "^5.0.0",
+    "lilconfig": "^3.1.0",
     "lowdb": "^7.0.1",
-    "websocket-polyfill": "^0.0.3"
+    "mime": "^4.0.1",
+    "nostr-tools": "^2.2.1",
+    "websocket-polyfill": "^0.0.3",
+    "yaml": "^2.3.4"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@types/debug": "^4.1.12",
+    "@types/koa": "^2.14.0",
+    "@types/koa-static": "^4.0.4",
+    "@types/node": "^20.11.19",
     "nodemon": "^3.0.3",
-    "prettier": "^3.2.5"
+    "prettier": "^3.2.5",
+    "typescript": "^5.3.3"
   }
 }

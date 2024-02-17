@@ -1,0 +1,29 @@
+discovery:
+  # find files by querying nostr relays
+  nostr:
+    enabled: true
+    relays:
+      - wss://nostrue.com
+      - wss://relay.damus.io
+      - wss://nostr.wine
+      - wss://nos.lol
+      - wss://nostr-pub.wellorder.net
+  # find files by asking upstream CDNs
+  upstream:
+    enabled: true
+    domains:
+      - https://cdn.satellite.earth
+      - https://image.nostr.build
+      - https://video.nostr.build
+
+cache:
+  dir: ./data
+  rules:
+    - type: text/*
+      expiration: 1 month
+    - type: image/*
+      expiration: 1 week
+    - type: video/*
+      expiration: 5 days
+    - type: "*"
+      expiration: 1 day

@@ -6,16 +6,23 @@ WORKDIR /app
 # Install dependencies
 COPY ./package*.json .
 COPY ./yarn.lock .
+ENV NODE_ENV=development
+RUN yarn install
+COPY . .
+RUN yarn build
+
+FROM node:20.11
+
 ENV NODE_ENV=production
+COPY ./package*.json .
+COPY ./yarn.lock .
 RUN yarn install
 
-COPY . .
+COPY --from=builder ./app/build ./build
 
 VOLUME [ "/data" ]
+EXPOSE 3000
 
 ENV DEBUG="cdn,cdn:*"
-ENV DATA_DIR="/data"
-ENV PARENT_CDNS="https://cdn.satellite.earth"
-ENV RELAYS="wss://nostrue.com,wss://relay.damus.io,wss://nostr.wine,wss://nos.lol,wss://nostr-pub.wellorder.net"
 
 ENTRYPOINT [ "node", "src/index.js" ]
