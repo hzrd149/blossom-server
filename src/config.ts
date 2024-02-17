@@ -1,8 +1,9 @@
 import { lilconfig } from "lilconfig";
 import yaml from "yaml";
 
-export type Rule = { type?: string; expiration: string; pubkeys?: string[] };
+export type Rule = { type?: string; pubkeys?: string[]; expiration: string };
 export type Config = {
+  publicDomain: string;
   discovery: {
     nostr: {
       enabled: boolean;
@@ -16,6 +17,14 @@ export type Config = {
   cache: {
     dir: string;
     rules: Rule[];
+  };
+  upload: {
+    enabled: boolean;
+    rules: Rule[];
+  };
+  tor: {
+    enabled: boolean;
+    proxy: string;
   };
 };
 

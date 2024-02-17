@@ -1,18 +1,18 @@
 import debug from "debug";
-import { config } from "../config.js";
+import { Rule } from "../config.js";
+import dayjs from "dayjs";
 
 const log = debug("cdn:cache:rules");
 
 export type RuleSearchInput = {
-  hash: string;
   pubkey?: string;
   mimeType?: string;
 };
-export function getFileRule({ pubkey, mimeType }: RuleSearchInput) {
+export function getFileRule({ pubkey, mimeType }: RuleSearchInput, ruleset: Rule[]) {
   log("Looking for match", mimeType, pubkey);
 
   return (
-    config.cache.rules.find((r) => {
+    ruleset.find((r) => {
       if (r.pubkeys && (!pubkey || r.pubkeys.includes(pubkey) === false)) return false;
 
       if (r.type === "*") return true;
@@ -28,4 +28,14 @@ export function getFileRule({ pubkey, mimeType }: RuleSearchInput) {
       return true;
     }) || null
   );
+}
+
+export function getExpirationTime(rule: Rule): number {
+  const match = rule.expiration.match(/(\d+)\s*(\w+)/);
+  if (!match) throw new Error("Failed to parse expiration");
+  const count = parseInt(match[1]);
+  const unit = match[2];
+
+  // @ts-expect-error
+  return dayjs().add(count, unit).unix();
 }

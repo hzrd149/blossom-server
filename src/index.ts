@@ -5,15 +5,19 @@ import debug from "debug";
 import serve from "koa-static";
 import path from "node:path";
 import { PassThrough } from "node:stream";
+import { URLSearchParams } from "node:url";
+import mime from "mime";
+import pfs from "node:fs/promises";
 
+import { config } from "./config.js";
+import { BlobPointer, BlobSearch } from "./types.js";
 import * as fileStorage from "./storage/file.js";
 import * as cdnDiscovery from "./discover/cdn.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
-import { config } from "./config.js";
-import { BlobPointer, BlobSearch } from "./types.js";
-import { URLSearchParams } from "node:url";
-import mime from "mime";
+import * as uploadModule from "./storage/upload.js";
+import { db, setBlobExpiration, setBlobMimetype, setBlobSize } from "./db.js";
+import { getExpirationTime, getFileRule } from "./storage/rules.js";
 
 const log = debug("cdn");
 const app = new Koa();
@@ -36,7 +40,15 @@ async function handlePointers(ctx: Koa.ParameterizedContext, pointers: BlobPoint
   return false;
 }
 
+function getBlobURL(hash: string) {
+  const mimeType = db.data.blobs[hash]?.mimeType;
+  const ext = mimeType && mime.getExtension(mimeType);
+  return new URL(hash + (ext ? "." + ext : ""), config.publicDomain).toString();
+}
+
+// fetch blobs
 app.use(async (ctx, next) => {
+  if (ctx.method !== "GET") return next();
   const match = ctx.path.match(/([0-9a-f]{64})(\.[a-z]+)?/);
   if (!match) return next();
 
@@ -84,8 +96,87 @@ app.use(async (ctx, next) => {
   }
 });
 
+// upload blobs
+app.use(async (ctx, next) => {
+  if (ctx.path !== "/item" && ctx.method !== "PUT") return next();
+  if (!config.upload.enabled) {
+    ctx.status = 403;
+    ctx.body = "Uploads disabled";
+    return;
+  }
+
+  // handle upload
+  try {
+    const auth = ctx.query.auth as string | undefined;
+    const contentType = ctx.header["content-type"];
+
+    const rule = getFileRule(
+      {
+        mimeType: contentType,
+        // pubkey: metadata?.pubkey,
+      },
+      config.upload.rules,
+    );
+    if (!rule) {
+      ctx.status = 403;
+      return;
+    }
+
+    const metadata = await uploadModule.uploadWriteStream(ctx.req);
+    const mimeType = contentType || metadata.mimeType;
+
+    // save the file if its not already there
+    if (!db.data.blobs[metadata.hash]) {
+      setBlobSize(metadata.hash, metadata.size);
+      setBlobExpiration(metadata.hash, getExpirationTime(rule));
+      if (mimeType) setBlobMimetype(metadata.hash, mimeType);
+
+      await fileStorage.saveTempFile(metadata.hash, metadata.tempFile, mimeType);
+    } else {
+      await pfs.rm(metadata.tempFile);
+    }
+
+    ctx.status = 200;
+    ctx.body = {
+      url: getBlobURL(metadata.hash),
+      sha256: metadata.hash,
+      type: mimeType,
+    };
+  } catch (e) {
+    ctx.status = 403;
+    if (e instanceof Error) ctx.body = e.message;
+  }
+});
+
+// list blobs
+app.use(async (ctx, next) => {
+  if (ctx.method !== "GET" || ctx.path !== "/list") return next();
+
+  const filter = ctx.query as { pubkey?: string };
+
+  ctx.status = 200;
+  ctx.body = Object.entries(db.data.blobs)
+    .filter(([hash, blob]) => (filter.pubkey ? blob.pubkeys?.includes(filter.pubkey) : true))
+    .map(([hash, blob]) => ({
+      sha256: hash,
+      created: blob.created,
+      url: getBlobURL(hash),
+      type: blob.mimeType,
+      size: blob.size,
+    }));
+});
+
 app.use(serve(path.join(process.cwd(), "public")));
 
 app.listen(3000);
 
 setInterval(() => fileStorage.prune(), 1000 * 30);
+
+async function shutdown() {
+  log("Saving database...");
+  await db.write();
+  process.exit(0);
+}
+
+process.addListener("SIGTERM", shutdown);
+process.addListener("SIGINT", shutdown);

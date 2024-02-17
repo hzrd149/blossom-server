@@ -1,6 +1,7 @@
 {
   "name": "blobstr",
   "version": "0.1.0",
+  "description": "Generic blob storage and retrieval for nostr",
   "main": "index.js",
   "type": "module",
   "author": "hzrd149",
@@ -8,7 +9,7 @@
   "scripts": {
     "start": "node src/index.js",
     "build": "tsc",
-    "dev": "DEBUG=* nodemon --ignore '**/data/**' build/index.js",
+    "dev": "DEBUG=* nodemon -i '**/data/**' -i '**/database.json' -i '**/src/**' build/index.js",
     "format": "prettier -w ."
   },
   "bin": "build/index.js",
@@ -26,7 +27,9 @@
     "lilconfig": "^3.1.0",
     "lowdb": "^7.0.1",
     "mime": "^4.0.1",
+    "nanoid": "^5.0.5",
     "nostr-tools": "^2.2.1",
+    "socks-proxy-agent": "^8.0.2",
     "websocket-polyfill": "^0.0.3",
     "yaml": "^2.3.4"
   },

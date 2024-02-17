@@ -1,3 +1,5 @@
+publicDomain: http://localhost:3000
+
 discovery:
   # find files by querying nostr relays
   nostr:
@@ -13,8 +15,8 @@ discovery:
     enabled: true
     domains:
       - https://cdn.satellite.earth
-      - https://image.nostr.build
-      - https://video.nostr.build
+      # - https://image.nostr.build
+      # - https://video.nostr.build
 
 cache:
   dir: ./data
@@ -27,3 +29,13 @@ cache:
       expiration: 5 days
     - type: "*"
       expiration: 1 day
+
+upload:
+  enabled: true
+  rules:
+    - type: "*"
+      expiration: 1d
+
+tor:
+  enabled: false
+  proxy: ""

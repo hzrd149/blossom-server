@@ -7,9 +7,45 @@
   </head>
   <body>
     <h1>blobstr</h1>
-    <p>A http file server with a nostr twist</p>
+    <p>Generic blob storage and retrieval for nostr</p>
 
     <h2>Usage:</h2>
-    <code>https://localhost:3000/b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png</code>
+    <code>GET /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png</code>
+    <a href="/b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png">go</a>
+
+    <h2>List:</h2>
+    <code>GET /list</code>
+    <a href="/list">go</a>
+    <br />
+    <p>Optionally with a pubkey</p>
+    <code>GET /list?pubkey=266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5</code>
+
+    <h2>Upload:</h2>
+    <code>PUT /item</code>
+    <br />
+    <br />
+    <input type="file" id="file" />
+    <button id="upload">Upload</button>
+
+    <script>
+      const input = document.getElementById("file");
+      const button = document.getElementById("upload");
+
+      button.addEventListener("click", async () => {
+        const file = input.files[0];
+        if (!file) return;
+
+        button.textContent = "Uploading...";
+        await fetch("/item", { method: "PUT", body: file }).then(async (res) => {
+          if (res.ok) {
+            const body = await res.json();
+
+            input.value = "";
+            window.open(body.url);
+          } else alert(await res.text());
+        });
+        button.textContent = "Upload";
+      });
+    </script>
   </body>
 </html>

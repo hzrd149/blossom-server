@@ -4,33 +4,22 @@ import fs from "node:fs";
 import pfs from "node:fs/promises";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { JSONFilePreset } from "lowdb/node";
 import dayjs from "dayjs";
 import { Readable } from "node:stream";
 import mime from "mime";
 
 import { BlobSearch, FilePointer, PointerMetadata } from "../types.js";
 import { config } from "../config.js";
-import { getFileRule } from "./rules.js";
+import { getExpirationTime, getFileRule } from "./rules.js";
+import { db, setBlobExpiration, setBlobMimetype, setBlobSize } from "../db.js";
 
 const DATA_DIR = config.cache.dir;
 const log = debug("cdn:cache");
-const writeDir = await pfs.mkdtemp(path.join(tmpdir(), "cdn-"));
-
-// hacky db
-type DBSchema = {
-  expiration: Record<string, number>;
-};
-const db = await JSONFilePreset<DBSchema>(path.join(DATA_DIR, "expiration.json"), {
-  expiration: {},
-});
-db.data.expiration = db.data.expiration || {};
-setInterval(() => db.write(), 1000);
+const tmpDir = await pfs.mkdtemp(path.join(tmpdir(), "cdn-"));
 
 const files = await pfs.readdir(DATA_DIR, { encoding: "utf8" });
 
 export async function search(search: BlobSearch): Promise<FilePointer | null> {
-  log("Looking for", search.hash);
   const file = files.find((f) => f.startsWith(search.hash));
   if (!file) return null;
 
@@ -40,7 +29,6 @@ export async function search(search: BlobSearch): Promise<FilePointer | null> {
 }
 
 export async function readFilePointer(pointer: FilePointer) {
-  log("Reading file", pointer.pathname);
   return fs.createReadStream(path.join(DATA_DIR, pointer.pathname));
 }
 
@@ -51,10 +39,11 @@ export async function saveFile(hash: string, stream: Readable, metadata?: Pointe
   log("Saving file", hash);
   saving.add(hash);
 
-  const tmpFile = path.join(writeDir, hash);
+  const tmpFile = path.join(tmpDir, hash);
   stream.pipe(fs.createWriteStream(tmpFile));
   stream.on("end", async () => {
     log("Downloaded", hash);
+    const size = (await pfs.stat(tmpFile)).size;
     let mimeType = metadata?.mimeType;
     const type = await fileTypeFromFile(tmpFile);
     if (type) {
@@ -62,45 +51,49 @@ export async function saveFile(hash: string, stream: Readable, metadata?: Pointe
       mimeType = type.mime;
     }
 
-    const rule = getFileRule({
-      hash,
-      mimeType,
-      pubkey: metadata?.pubkey,
-    });
+    const rule = getFileRule(
+      {
+        mimeType,
+        pubkey: metadata?.pubkey,
+      },
+      config.cache.rules,
+    );
     if (!rule) {
       await pfs.rm(tmpFile);
       return;
     }
 
     log("Found rule:", rule.expiration);
-    const match = rule.expiration.match(/(\d+)\s*(\w+)/);
-    if (!match) throw new Error("Failed to parse expiration");
-    const count = parseInt(match[1]);
-    const unit = match[2];
-
-    // @ts-expect-error
-    db.data.expiration[hash] = dayjs().add(count, unit).unix();
     // TODO: verify hash
 
-    const ext = mimeType ? mime.getExtension(mimeType) || "" : "";
-    const filename = hash + (ext ? "." + ext : "");
-    await pfs.rename(tmpFile, path.join(DATA_DIR, filename));
-    files.push(filename);
+    const filename = await saveTempFile(hash, tmpFile, mimeType);
     saving.delete(hash);
     log("Moved file to data dir", path.join(DATA_DIR, filename));
+
+    setBlobExpiration(hash, getExpirationTime(rule));
+    setBlobSize(hash, size);
+    if (mimeType) setBlobMimetype(hash, mimeType);
   });
+}
+
+export async function saveTempFile(hash: string, tempFile: string, mimeType?: string) {
+  const ext = mimeType ? mime.getExtension(mimeType) || "" : "";
+  const filename = hash + (ext ? "." + ext : "");
+  await pfs.rename(tempFile, path.join(DATA_DIR, filename));
+  files.push(filename);
+  return filename;
 }
 
 export async function prune() {
   const now = dayjs().unix();
-  for (const [hash, date] of Object.entries(db.data.expiration)) {
-    if (date < now) {
+  for (const [hash, metadata] of Object.entries(db.data.blobs)) {
+    if (metadata.expiration && metadata.expiration < now) {
       const file = files.find((f) => f.startsWith(hash));
       if (file) {
         log("Removing", file);
         await pfs.rm(path.join(DATA_DIR, file));
         files.splice(files.indexOf(file), 1);
-        delete db.data.expiration[hash];
+        delete db.data.blobs[hash];
       }
     }
   }
