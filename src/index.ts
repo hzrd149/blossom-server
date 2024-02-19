@@ -8,6 +8,9 @@ import { PassThrough } from "node:stream";
 import { URLSearchParams } from "node:url";
 import mime from "mime";
 import pfs from "node:fs/promises";
+import { NostrEvent } from "@nostr-dev-kit/ndk";
+import cors from "@koa/cors";
+import Router from "@koa/router";
 
 import { config } from "./config.js";
 import { BlobPointer, BlobSearch } from "./types.js";
@@ -16,11 +19,12 @@ import * as cdnDiscovery from "./discover/cdn.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
 import * as uploadModule from "./storage/upload.js";
-import { db, setBlobExpiration, setBlobMimetype, setBlobSize } from "./db.js";
+import { addPubkeyToBlob, db, setBlobExpiration, setBlobMimetype, setBlobSize } from "./db.js";
 import { getExpirationTime, getFileRule } from "./storage/rules.js";
 
 const log = debug("cdn");
 const app = new Koa();
+const router = new Router();
 
 async function handlePointers(ctx: Koa.ParameterizedContext, pointers: BlobPointer[]) {
   for (const pointer of pointers) {
@@ -46,9 +50,18 @@ function getBlobURL(hash: string) {
   return new URL(hash + (ext ? "." + ext : ""), config.publicDomain).toString();
 }
 
+// set CORS headers
+app.use(
+  cors({
+    origin: "*",
+    allowMethods: "*",
+    allowHeaders: "Authorization,*",
+    exposeHeaders: "*",
+  }),
+);
+
 // fetch blobs
-app.use(async (ctx, next) => {
-  if (ctx.method !== "GET") return next();
+router.get("/:hash", async (ctx, next) => {
   const match = ctx.path.match(/([0-9a-f]{64})(\.[a-z]+)?/);
   if (!match) return next();
 
@@ -95,10 +108,10 @@ app.use(async (ctx, next) => {
     ctx.status = 404;
   }
 });
+``;
 
 // upload blobs
-app.use(async (ctx, next) => {
-  if (ctx.path !== "/item" && ctx.method !== "PUT") return next();
+router.put("/upload", async (ctx) => {
   if (!config.upload.enabled) {
     ctx.status = 403;
     ctx.body = "Uploads disabled";
@@ -107,8 +120,17 @@ app.use(async (ctx, next) => {
 
   // handle upload
   try {
-    const auth = ctx.query.auth as string | undefined;
     const contentType = ctx.header["content-type"];
+    const auth = (ctx.headers["authorization"] || ctx.query.auth) as string | undefined;
+    const authEvent = auth ? (JSON.parse(auth) as NostrEvent) : undefined;
+    if (config.upload.requireAuth && !authEvent) {
+      ctx.status = 403;
+      ctx.body = "Missing Authorization header";
+      return;
+    }
+
+    const pubkey = authEvent?.pubkey;
+    const authSize = authEvent ? parseInt(authEvent.tags.find((t) => t[0] === "size")?.[1] || "NaN") : undefined;
 
     const rule = getFileRule(
       {
@@ -125,6 +147,13 @@ app.use(async (ctx, next) => {
     const metadata = await uploadModule.uploadWriteStream(ctx.req);
     const mimeType = contentType || metadata.mimeType;
 
+    if (config.upload.requireAuth && metadata.size !== authSize) {
+      ctx.status = 403;
+      ctx.body = "Incorrect upload size";
+      await pfs.rm(metadata.tempFile);
+      return;
+    }
+
     // save the file if its not already there
     if (!db.data.blobs[metadata.hash]) {
       setBlobSize(metadata.hash, metadata.size);
@@ -136,11 +165,15 @@ app.use(async (ctx, next) => {
       await pfs.rm(metadata.tempFile);
     }
 
+    if (pubkey) addPubkeyToBlob(metadata.hash, pubkey);
+
     ctx.status = 200;
     ctx.body = {
       url: getBlobURL(metadata.hash),
+      created: db.data.blobs[metadata.hash].created,
       sha256: metadata.hash,
       type: mimeType,
+      size: metadata.size,
     };
   } catch (e) {
     ctx.status = 403;
@@ -149,9 +182,7 @@ app.use(async (ctx, next) => {
 });
 
 // list blobs
-app.use(async (ctx, next) => {
-  if (ctx.method !== "GET" || ctx.path !== "/list") return next();
-
+router.get("/list", async (ctx) => {
   const filter = ctx.query as { pubkey?: string };
 
   ctx.status = 200;
@@ -166,6 +197,7 @@ app.use(async (ctx, next) => {
     }));
 });
 
+app.use(router.routes()).use(router.allowedMethods());
 app.use(serve(path.join(process.cwd(), "public")));
 
 app.listen(3000);

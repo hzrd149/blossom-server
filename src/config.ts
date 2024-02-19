@@ -20,6 +20,7 @@ export type Config = {
   };
   upload: {
     enabled: boolean;
+    requireAuth: boolean;
     rules: Rule[];
   };
   tor: {

@@ -32,6 +32,7 @@ cache:
 
 upload:
   enabled: true
+  requireAuth: true
   rules:
     - type: "*"
       expiration: 1d

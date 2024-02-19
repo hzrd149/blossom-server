@@ -21,7 +21,7 @@
     <code>GET /list?pubkey=266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5</code>
 
     <h2>Upload:</h2>
-    <code>PUT /item</code>
+    <code>PUT /upload</code>
     <br />
     <br />
     <input type="file" id="file" />
@@ -36,7 +36,7 @@
         if (!file) return;
 
         button.textContent = "Uploading...";
-        await fetch("/item", { method: "PUT", body: file }).then(async (res) => {
+        await fetch("/upload", { method: "PUT", body: file }).then(async (res) => {
           if (res.ok) {
             const body = await res.json();
 
