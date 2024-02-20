@@ -6,6 +6,7 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import dayjs from "dayjs";
 import { Readable } from "node:stream";
+import { createHash } from "node:crypto";
 import mime from "mime";
 
 import { BlobSearch, FilePointer, PointerMetadata } from "../types.js";
@@ -33,46 +34,58 @@ export async function readFilePointer(pointer: FilePointer) {
 }
 
 const saving = new Set();
-export async function saveFile(hash: string, stream: Readable, metadata?: PointerMetadata) {
-  if (files.some((f) => f.startsWith(hash))) return;
-  if (saving.has(hash)) return;
-  log("Saving file", hash);
-  saving.add(hash);
+export function saveFile(hash: string, stream: Readable, metadata?: PointerMetadata) {
+  return new Promise<void>((resolve, reject) => {
+    if (files.some((f) => f.startsWith(hash))) return;
+    if (saving.has(hash)) return;
+    log("Downloading file", hash);
+    saving.add(hash);
 
-  const tmpFile = path.join(tmpDir, hash);
-  stream.pipe(fs.createWriteStream(tmpFile));
-  stream.on("end", async () => {
-    log("Downloaded", hash);
-    const size = (await pfs.stat(tmpFile)).size;
-    let mimeType = metadata?.mimeType;
-    const type = await fileTypeFromFile(tmpFile);
-    if (type) {
-      log("Detected type", type.mime);
-      mimeType = type.mime;
-    }
+    const sha256 = createHash("sha256");
+    stream.pipe(sha256);
 
-    const rule = getFileRule(
-      {
-        mimeType,
-        pubkey: metadata?.pubkey,
-      },
-      config.cache.rules,
-    );
-    if (!rule) {
-      await pfs.rm(tmpFile);
-      return;
-    }
+    const tmpFile = path.join(tmpDir, hash);
+    stream.pipe(fs.createWriteStream(tmpFile));
+    stream.on("end", async () => {
+      const digest = sha256.digest("hex");
+      if (digest !== hash) {
+        log("Expected", hash, "got", digest);
+        return reject(new Error("Hash mismatch"));
+      }
 
-    log("Found rule:", rule.expiration);
-    // TODO: verify hash
+      log("Downloaded", hash);
+      const size = (await pfs.stat(tmpFile)).size;
+      let mimeType = metadata?.mimeType;
+      const type = await fileTypeFromFile(tmpFile);
+      if (type) {
+        log("Detected type", type.mime);
+        mimeType = type.mime;
+      }
 
-    const filename = await saveTempFile(hash, tmpFile, mimeType);
-    saving.delete(hash);
-    log("Moved file to data dir", path.join(DATA_DIR, filename));
+      const rule = getFileRule(
+        {
+          mimeType,
+          pubkey: metadata?.pubkey,
+        },
+        config.cache.rules,
+      );
+      if (!rule) {
+        await pfs.rm(tmpFile);
+        return;
+      }
 
-    setBlobExpiration(hash, getExpirationTime(rule));
-    setBlobSize(hash, size);
-    if (mimeType) setBlobMimetype(hash, mimeType);
+      log("Found rule:", rule.expiration);
+
+      const filename = await saveTempFile(hash, tmpFile, mimeType);
+      saving.delete(hash);
+      log("Moved file to data dir", path.join(DATA_DIR, filename));
+
+      setBlobExpiration(hash, getExpirationTime(rule));
+      setBlobSize(hash, size);
+      if (mimeType) setBlobMimetype(hash, mimeType);
+
+      resolve();
+    });
   });
 }
 

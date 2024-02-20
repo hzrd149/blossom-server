@@ -37,7 +37,7 @@ async function handlePointers(ctx: Koa.ParameterizedContext, pointers: BlobPoint
         const pass = (ctx.body = new PassThrough());
         stream.pipe(pass);
 
-        fileStorage.saveFile(pointer.hash, stream, pointer.metadata);
+        fileStorage.saveFile(pointer.hash, stream, pointer.metadata).catch((e) => {});
         return true;
       }
     } catch (e) {}
@@ -238,9 +238,11 @@ router.get("/:hash", async (ctx, next) => {
       if (search.ext) ctx.type = search.ext;
       const pass = (ctx.body = new PassThrough());
       cdnSource.pipe(pass);
-      fileStorage.saveFile(hash, cdnSource, {
-        mimeType: ext ? mime.getType(ext) ?? undefined : undefined,
-      });
+      fileStorage
+        .saveFile(hash, cdnSource, {
+          mimeType: ext ? mime.getType(ext) ?? undefined : undefined,
+        })
+        .catch((e) => {});
     }
   }
 

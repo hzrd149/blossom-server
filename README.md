@@ -1,3 +1,3 @@
-# Blossom-server
+# 🌸 Blossom-server
 
-Generic blob storage and retrieval for nostr
+Blobs stored simply on mediaservers
