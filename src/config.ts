@@ -15,8 +15,18 @@ export type Config = {
     };
   };
   cache: {
-    dir: string;
     rules: Rule[];
+    backend: "local" | "s3";
+    local?: {
+      dir: string;
+    };
+    s3?: {
+      endpoint: string;
+      accessKey: string;
+      secretKey: string;
+      bucket: string;
+      publicURL?: string;
+    };
   };
   upload: {
     enabled: boolean;

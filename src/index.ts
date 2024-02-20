@@ -13,38 +13,20 @@ import cors from "@koa/cors";
 import Router from "@koa/router";
 
 import { config } from "./config.js";
-import { BlobPointer, BlobSearch } from "./types.js";
-import * as fileStorage from "./storage/file.js";
+import { BlobSearch } from "./types.js";
+import * as cacheModule from "./cache/index.js";
 import * as cdnDiscovery from "./discover/cdn.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
 import * as uploadModule from "./storage/upload.js";
-import { addPubkeyToBlob, db, removePubkeyFromBlob, setBlobExpiration, setBlobMimetype, setBlobSize } from "./db.js";
-import { getExpirationTime, getFileRule } from "./storage/rules.js";
+import { addPubkeyToBlob, db, removePubkeyFromBlob, setBlobExpiration } from "./db.js";
+import { getExpirationTime, getFileRule } from "./rules/index.js";
 import httpError from "http-errors";
 import dayjs from "dayjs";
 
 const log = debug("cdn");
 const app = new Koa();
 const router = new Router();
-
-async function handlePointers(ctx: Koa.ParameterizedContext, pointers: BlobPointer[]) {
-  for (const pointer of pointers) {
-    try {
-      if (pointer.type === "http") {
-        const stream = await httpTransport.readHTTPPointer(pointer);
-        if (pointer.mimeType) ctx.type = pointer.mimeType;
-        const pass = (ctx.body = new PassThrough());
-        stream.pipe(pass);
-
-        fileStorage.saveFile(pointer.hash, stream, pointer.metadata).catch((e) => {});
-        return true;
-      }
-    } catch (e) {}
-  }
-
-  return false;
-}
 
 function getBlobURL(hash: string) {
   const mimeType = db.data.blobs[hash]?.mimeType;
@@ -107,43 +89,35 @@ router.put<CommonState>("/upload", async (ctx) => {
   const rule = getFileRule(
     {
       mimeType: contentType,
-      // pubkey: metadata?.pubkey,
+      pubkey,
     },
     config.upload.rules,
   );
-  if (!rule) {
-    ctx.status = 403;
-    return;
-  }
+  if (!rule) throw new httpError.Unauthorized("No rule");
 
-  const metadata = await uploadModule.uploadWriteStream(ctx.req);
-  const mimeType = contentType || metadata.mimeType;
+  const upload = await uploadModule.uploadWriteStream(ctx.req);
+  const mimeType = contentType || upload.mimeType;
 
-  if (config.upload.requireAuth && metadata.size !== authSize) {
-    await pfs.rm(metadata.tempFile);
+  if (config.upload.requireAuth && upload.size !== authSize) {
+    await pfs.rm(upload.tempFile);
     throw new httpError.BadRequest("Incorrect upload size");
   }
 
   // save the file if its not already there
-  if (!db.data.blobs[metadata.hash]) {
-    setBlobSize(metadata.hash, metadata.size);
-    setBlobExpiration(metadata.hash, getExpirationTime(rule));
-    if (mimeType) setBlobMimetype(metadata.hash, mimeType);
+  if (!cacheModule.hasBlob(upload.hash)) {
+    setBlobExpiration(upload.hash, getExpirationTime(rule));
+    await cacheModule.saveBlob(upload.hash, upload.tempFile, mimeType);
+  } else await uploadModule.removeUpload(upload);
 
-    await fileStorage.saveTempFile(metadata.hash, metadata.tempFile, mimeType);
-  } else {
-    await pfs.rm(metadata.tempFile);
-  }
-
-  if (pubkey) addPubkeyToBlob(metadata.hash, pubkey);
+  if (pubkey) addPubkeyToBlob(upload.hash, pubkey);
 
   ctx.status = 200;
   ctx.body = {
-    url: getBlobURL(metadata.hash),
-    created: db.data.blobs[metadata.hash].created,
-    sha256: metadata.hash,
+    url: getBlobURL(upload.hash),
+    created: db.data.blobs[upload.hash].created,
+    sha256: upload.hash,
     type: mimeType,
-    size: metadata.size,
+    size: upload.size,
   };
 });
 
@@ -193,7 +167,7 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
 
     // if pubkey was the last owner of the file, remove it
     if (blob.pubkeys.length === 0) {
-      await fileStorage.removeFile(hash);
+      await cacheModule.removeBlob(hash);
     }
   }
   ctx.status = 200;
@@ -212,23 +186,49 @@ router.get("/:hash", async (ctx, next) => {
   const search: BlobSearch = {
     hash,
     ext,
+    mimeType: ext ? mime.getType(ext) ?? undefined : undefined,
     pubkey: searchParams.get("pubkey") ?? undefined,
   };
 
   log("Looking for", search.hash);
 
-  const filePointer = await fileStorage.search(search);
-  if (filePointer) {
-    ctx.type = filePointer.ext;
-    ctx.body = await fileStorage.readFilePointer(filePointer);
+  const cachePointer = await cacheModule.search(search);
+  if (cachePointer) {
+    const redirect = cacheModule.getRedirect(cachePointer);
+    if (redirect) return ctx.redirect(redirect);
+
+    if (cachePointer.mimeType) ctx.type = cachePointer.mimeType;
+    ctx.body = await cacheModule.readPointer(cachePointer);
     return;
   }
 
   if (config.discovery.nostr.enabled) {
     let pointers = await nostrDiscovery.search(search);
     if (pointers.length) {
-      const handled = await handlePointers(ctx, pointers);
-      if (handled) return;
+      for (const pointer of pointers) {
+        try {
+          if (pointer.type === "http") {
+            const stream = await httpTransport.readHTTPPointer(pointer);
+            if (pointer.mimeType) ctx.type = pointer.mimeType;
+            const pass = (ctx.body = new PassThrough());
+            stream.pipe(pass);
+
+            // save to cache
+            const rule = getFileRule(
+              { mimeType: pointer.mimeType, pubkey: pointer.metadata?.pubkey },
+              config.cache.rules,
+            );
+            if (rule) {
+              uploadModule.uploadWriteStream(stream).then((upload) => {
+                if (upload.hash !== pointer.hash) return;
+                setBlobExpiration(upload.hash, getExpirationTime(rule));
+                cacheModule.saveBlob(upload.hash, upload.tempFile, pointer.metadata?.mimeType || upload.mimeType);
+              });
+            }
+            return;
+          }
+        } catch (e) {}
+      }
     }
   }
 
@@ -238,11 +238,16 @@ router.get("/:hash", async (ctx, next) => {
       if (search.ext) ctx.type = search.ext;
       const pass = (ctx.body = new PassThrough());
       cdnSource.pipe(pass);
-      fileStorage
-        .saveFile(hash, cdnSource, {
-          mimeType: ext ? mime.getType(ext) ?? undefined : undefined,
-        })
-        .catch((e) => {});
+
+      // save to cache
+      const rule = getFileRule({ mimeType: search.mimeType, pubkey: search.pubkey }, config.cache.rules);
+      if (rule) {
+        uploadModule.uploadWriteStream(cdnSource).then((upload) => {
+          if (upload.hash !== search.hash) return;
+          setBlobExpiration(upload.hash, getExpirationTime(rule));
+          cacheModule.saveBlob(upload.hash, upload.tempFile, search.mimeType || upload.mimeType);
+        });
+      }
     }
   }
 
@@ -254,7 +259,7 @@ app.use(serve(path.join(process.cwd(), "public")));
 
 app.listen(3000);
 
-setInterval(() => fileStorage.prune(), 1000 * 30);
+setInterval(() => cacheModule.prune(), 1000 * 30);
 
 async function shutdown() {
   log("Saving database...");

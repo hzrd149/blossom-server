@@ -19,7 +19,7 @@ export type UploadMetadata = {
 };
 
 export function uploadWriteStream(stream: Readable) {
-  const id = nanoid();
+  const id = nanoid(8);
   log("Uploading", id);
 
   const tempFile = path.join(tmpDir, id);
@@ -31,9 +31,14 @@ export function uploadWriteStream(stream: Readable) {
 
   return new Promise<UploadMetadata>((res) => {
     stream.on("end", async () => {
+      log("Uploaded", id);
       const type = await fileTypeFromFile(tempFile);
       const size = await (await pfs.stat(tempFile)).size;
       res({ mimeType: type?.mime, tempFile: tempFile, hash: hash.digest("hex"), size });
     });
   });
+}
+
+export async function removeUpload(upload: { tempFile: string }) {
+  await pfs.rm(upload.tempFile);
 }

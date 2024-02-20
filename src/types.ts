@@ -1,6 +1,7 @@
 export type CommonSearch = {
   hash: string;
   ext?: string;
+  mimeType?: string;
 };
 export type NostrSearch = CommonSearch & {
   pubkey?: string;
@@ -28,10 +29,7 @@ export type TorrentPointer = CommonPointer & {
   infohash?: string;
   magnet?: string;
 };
-export type FilePointer = CommonPointer & {
-  type: "file";
-  pathname: string;
-  name: string;
-  ext: string;
+export type CachePointer = CommonPointer & {
+  type: "cache";
 };
-export type BlobPointer = HTTPPointer | TorrentPointer | FilePointer;
+export type BlobPointer = HTTPPointer | TorrentPointer | CachePointer;

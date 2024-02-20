@@ -1,0 +1,56 @@
+# Used when listing blobs
+publicDomain: http://cdn.example.com
+
+discovery:
+  # find files by querying nostr relays
+  nostr:
+    enabled: true
+    relays:
+      - wss://nostrue.com
+      - wss://relay.damus.io
+      - wss://nostr.wine
+      - wss://nos.lol
+      - wss://nostr-pub.wellorder.net
+  # find files by asking upstream CDNs
+  upstream:
+    enabled: true
+    domains:
+      - https://cdn.satellite.earth
+      # - https://image.nostr.build
+      # - https://video.nostr.build
+
+cache:
+  # local or s3
+  backend: local
+  local:
+    dir: ./data
+  # s3:
+  #   endpoint: https://s3.endpoint.com
+  #   bucket: blossom
+  #   accessKey: xxxxxxxx
+  #   secretKey: xxxxxxxxx
+  #   If this is set the server will redirect clients when loading blobs
+  #   publicURL: https://cdn.example.com/
+  rules:
+    - type: text/*
+      expiration: 1 month
+    - type: image/*
+      expiration: 1 week
+    - type: video/*
+      expiration: 5 days
+    - type: "*"
+      expiration: 1 day
+
+upload:
+  enabled: true
+  requireAuth: true
+  rules:
+    - type: "*"
+      expiration: 1d
+
+list:
+  requireAuth: false
+
+tor:
+  enabled: false
+  proxy: ""
