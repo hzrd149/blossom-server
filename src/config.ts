@@ -39,7 +39,7 @@ function loadJson(filepath: string, content: string) {
   return JSON.parse(content);
 }
 
-const result = await lilconfig("blobstr", {
+const result = await lilconfig("blossom", {
   searchPlaces: ["config.yaml", "config.yml", "config.json"],
   loaders: {
     ".yaml": loadYaml,

@@ -1,5 +1,5 @@
 {
-  "name": "blobstr",
+  "name": "blossom-server",
   "version": "0.1.0",
   "description": "Generic blob storage and retrieval for nostr",
   "main": "index.js",
