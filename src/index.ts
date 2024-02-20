@@ -257,7 +257,7 @@ router.get("/:hash", async (ctx, next) => {
 app.use(router.routes()).use(router.allowedMethods());
 app.use(serve(path.join(process.cwd(), "public")));
 
-app.listen(3000);
+app.listen(process.env.PORT || 3000);
 
 setInterval(() => cacheModule.prune(), 1000 * 30);
 
