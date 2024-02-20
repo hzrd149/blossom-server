@@ -9,7 +9,7 @@
     <h1>blobstr</h1>
     <p>Generic blob storage and retrieval for nostr</p>
 
-    <h2>Usage:</h2>
+    <h2>Get:</h2>
     <code>GET /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png</code>
     <a href="/b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png">go</a>
 
@@ -19,6 +19,7 @@
     <br />
     <p>Optionally with a pubkey</p>
     <code>GET /list?pubkey=266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5</code>
+    <button id="list-pubkey">go</button>
 
     <h2>Upload:</h2>
     <code>PUT /upload</code>
@@ -28,23 +29,80 @@
     <button id="upload">Upload</button>
 
     <script>
-      const input = document.getElementById("file");
-      const button = document.getElementById("upload");
+      const uploadInput = document.getElementById("file");
+      const uploadButton = document.getElementById("upload");
 
-      button.addEventListener("click", async () => {
-        const file = input.files[0];
+      uploadButton.addEventListener("click", async () => {
+        const file = uploadInput.files[0];
         if (!file) return;
 
-        button.textContent = "Uploading...";
-        await fetch("/upload", { method: "PUT", body: file }).then(async (res) => {
-          if (res.ok) {
-            const body = await res.json();
+        uploadButton.textContent = "Signing...";
 
-            input.value = "";
-            window.open(body.url);
-          } else alert(await res.text());
+        // create auth event
+        const auth = await window.nostr.signEvent({
+          kind: 22242,
+          content: "Authorize Upload",
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ["name", file.name],
+            ["size", String(file.size)],
+          ],
         });
-        button.textContent = "Upload";
+
+        uploadButton.textContent = "Uploading...";
+        await fetch("/upload", { method: "PUT", body: file, headers: { authorization: JSON.stringify(auth) } }).then(
+          async (res) => {
+            if (res.ok) {
+              const body = await res.json();
+
+              uploadInput.value = "";
+              window.open(body.url);
+            } else alert(await res.text());
+          },
+        );
+        uploadButton.textContent = "Upload";
+      });
+
+      document.getElementById("list-pubkey").addEventListener("click", async () => {
+        const pubkey = await window.nostr.getPublicKey();
+        window.open("/list?pubkey=" + pubkey, "_blank");
+      });
+    </script>
+
+    <h2>Delete:</h2>
+    <code>DELETE /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b</code>
+    <br />
+    <br />
+    <input type="text" id="delete-input" />
+    <button id="delete-button">Delete</button>
+
+    <script>
+      const deleteInput = document.getElementById("delete-input");
+      const deleteButton = document.getElementById("delete-button");
+
+      deleteButton.addEventListener("click", async () => {
+        const hash = deleteInput.value;
+        if (!hash) return;
+
+        deleteButton.textContent = "Signing...";
+
+        // create auth event
+        const auth = await window.nostr.signEvent({
+          kind: 22242,
+          content: "Delete Item",
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [["x", hash]],
+        });
+
+        deleteButton.textContent = "Deleting...";
+        await fetch("/" + hash, { method: "DELETE", headers: { authorization: JSON.stringify(auth) } }).then(
+          async (res) => {
+            if (res.ok) {
+              deleteInput.value = "";
+            } else alert(await res.text());
+          },
+        );
+        deleteButton.textContent = "Delete";
       });
     </script>
   </body>

@@ -23,6 +23,9 @@ export type Config = {
     requireAuth: boolean;
     rules: Rule[];
   };
+  list: {
+    requireAuth: boolean;
+  };
   tor: {
     enabled: boolean;
     proxy: string;

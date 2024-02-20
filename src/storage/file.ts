@@ -84,17 +84,21 @@ export async function saveTempFile(hash: string, tempFile: string, mimeType?: st
   return filename;
 }
 
+export async function removeFile(hash: string) {
+  const file = files.find((f) => f.startsWith(hash));
+  if (file) {
+    log("Removing", file);
+    await pfs.rm(path.join(DATA_DIR, file));
+    files.splice(files.indexOf(file), 1);
+    delete db.data.blobs[hash];
+  }
+}
+
 export async function prune() {
   const now = dayjs().unix();
   for (const [hash, metadata] of Object.entries(db.data.blobs)) {
     if (metadata.expiration && metadata.expiration < now) {
-      const file = files.find((f) => f.startsWith(hash));
-      if (file) {
-        log("Removing", file);
-        await pfs.rm(path.join(DATA_DIR, file));
-        files.splice(files.indexOf(file), 1);
-        delete db.data.blobs[hash];
-      }
+      await removeFile(hash);
     }
   }
 }

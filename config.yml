@@ -37,6 +37,9 @@ upload:
     - type: "*"
       expiration: 1d
 
+list:
+  requireAuth: false
+
 tor:
   enabled: false
   proxy: ""
