@@ -7,7 +7,7 @@
   "author": "hzrd149",
   "license": "MIT",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node build/index.js",
     "build": "tsc",
     "dev": "DEBUG=* nodemon -i '**/data/**' -i '**/database.json' -i '**/src/**' build/index.js",
     "format": "prettier -w ."
