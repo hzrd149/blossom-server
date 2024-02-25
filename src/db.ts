@@ -4,11 +4,14 @@ import path from "node:path";
 
 type DBSchema = {
   blobs: Record<string, { expiration?: number; pubkeys?: string[]; created: number; mimeType?: string; size?: number }>;
+  usedTokens: Record<string, number>;
 };
 const db = await JSONFilePreset<DBSchema>(path.join(process.cwd(), "database.json"), {
   blobs: {},
+  usedTokens: {},
 });
 db.data.blobs = db.data.blobs || {};
+db.data.usedTokens = db.data.usedTokens || {};
 setInterval(() => db.write(), 1000);
 
 export function hasBlobEntry(hash: string) {
@@ -43,6 +46,19 @@ export function removePubkeyFromBlob(hash: string, pubkey: string) {
   let blob = getOrCreateBlobEntry(hash);
   if (blob.pubkeys) {
     if (blob.pubkeys.includes(pubkey)) blob.pubkeys.splice(blob.pubkeys.indexOf(pubkey), 1);
+  }
+}
+
+export function hasUsedToken(token: string) {
+  return db.data.usedTokens[token] !== undefined;
+}
+export function setUsedToken(token: string, expiration: number) {
+  db.data.usedTokens[token] = expiration;
+}
+export function pruneUsedTokens() {
+  const now = dayjs().unix();
+  for (const [token, expiration] of Object.entries(db.data.usedTokens)) {
+    if (expiration < now) delete db.data.usedTokens[token];
   }
 }
 

@@ -35,6 +35,7 @@ export type Config = {
   };
   list: {
     requireAuth: boolean;
+    allowListOthers: boolean;
   };
   tor: {
     enabled: boolean;

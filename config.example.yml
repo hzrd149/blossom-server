@@ -16,8 +16,6 @@ discovery:
     enabled: true
     domains:
       - https://cdn.satellite.earth
-      # - https://image.nostr.build
-      # - https://video.nostr.build
 
 cache:
   # local or s3
@@ -30,7 +28,7 @@ cache:
   #   accessKey: xxxxxxxx
   #   secretKey: xxxxxxxxx
   #   If this is set the server will redirect clients when loading blobs
-  #   publicURL: https://cdn.example.com/
+  #   publicURL: https://s3.region.example.com/
   rules:
     - type: text/*
       expiration: 1 month
@@ -50,6 +48,7 @@ upload:
 
 list:
   requireAuth: false
+  allowListOthers: true
 
 tor:
   enabled: false

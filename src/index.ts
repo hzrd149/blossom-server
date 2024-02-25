@@ -19,7 +19,15 @@ import * as cdnDiscovery from "./discover/cdn.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
 import * as uploadModule from "./storage/upload.js";
-import { addPubkeyToBlob, db, removePubkeyFromBlob, setBlobExpiration } from "./db.js";
+import {
+  addPubkeyToBlob,
+  db,
+  hasUsedToken,
+  pruneUsedTokens,
+  removePubkeyFromBlob,
+  setBlobExpiration,
+  setUsedToken,
+} from "./db.js";
 import { getExpirationTime, getFileRule } from "./rules/index.js";
 import httpError from "http-errors";
 import dayjs from "dayjs";
@@ -62,11 +70,28 @@ app.use(async (ctx, next) => {
 });
 
 // parse auth headers
-type CommonState = { auth?: NostrEvent };
+type CommonState = { auth?: NostrEvent; authType?: string; authExpiration?: number };
 router.use(async (ctx, next) => {
-  const authStr = (ctx.headers["authorization"] || ctx.query.auth) as string | undefined;
-  const auth = authStr ? (JSON.parse(authStr) as NostrEvent) : undefined;
-  ctx.state.auth = auth;
+  const authStr = ctx.headers["authorization"] as string | undefined;
+
+  if (authStr?.startsWith("Nostr ")) {
+    const auth = authStr ? (JSON.parse(atob(authStr.replace(/^Nostr\s/i, ""))) as NostrEvent) : undefined;
+    ctx.state.auth = auth;
+
+    const now = dayjs().unix();
+    if (auth) {
+      if (auth.kind !== 24242) throw new httpError.BadRequest("Unexpected auth kind");
+      const type = auth.tags.find((t) => t[0] === "t")?.[1];
+      if (!type) throw new httpError.BadRequest("Auth missing type");
+      const expiration = auth.tags.find((t) => t[0] === "expiration")?.[1];
+      if (!expiration) throw new httpError.BadRequest("Auth missing expiration");
+      if (parseInt(expiration) < now) throw new httpError.BadRequest("Auth expired");
+
+      ctx.state.authType = type;
+      ctx.state.authExpiration = expiration;
+    }
+  }
+
   await next();
 });
 
@@ -77,8 +102,10 @@ router.put<CommonState>("/upload", async (ctx) => {
   // handle upload
   const contentType = ctx.header["content-type"];
   if (config.upload.requireAuth) {
-    if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Authorization header");
-    if (ctx.state.auth.content !== "Authorize Upload") throw new httpError.Unauthorized("Bad Authorization header");
+    if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
+    if (ctx.state.authType !== "upload") throw new httpError.Unauthorized("Auth event should be 'upload'");
+
+    if (hasUsedToken(ctx.state.auth.id!)) throw new httpError.BadRequest("Auth event already used");
   }
 
   const pubkey = ctx.state.auth?.pubkey;
@@ -111,6 +138,8 @@ router.put<CommonState>("/upload", async (ctx) => {
 
   if (pubkey) addPubkeyToBlob(upload.hash, pubkey);
 
+  if (ctx.state.auth) setUsedToken(ctx.state.auth.id!, ctx.state.authExpiration!);
+
   ctx.status = 200;
   ctx.body = {
     url: getBlobURL(upload.hash),
@@ -122,23 +151,23 @@ router.put<CommonState>("/upload", async (ctx) => {
 });
 
 // list blobs
-router.get<CommonState>("/list", async (ctx) => {
-  const filter = ctx.query as { pubkey?: string };
+router.get<CommonState>("/list/:pubkey", async (ctx) => {
+  const { pubkey } = ctx.params;
 
   if (config.list.requireAuth) {
-    if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Authorization header");
-    if (ctx.state.auth.content !== "List Items") throw new httpError.Unauthorized("Incorrect Authorization header");
-    if (ctx.state.auth.created_at < dayjs().subtract(1, "hour").unix())
-      throw new httpError.Unauthorized("Expired Authorization header");
+    if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
+    if (ctx.state.authType !== "list") throw new httpError.Unauthorized("Incorrect Auth type");
+    if (config.list.allowListOthers === false && ctx.state.auth.pubkey !== pubkey)
+      throw new httpError.Unauthorized("Cant list other pubkey blobs");
   }
 
   ctx.status = 200;
   ctx.body = Object.entries(db.data.blobs)
-    .filter(([hash, blob]) => (filter.pubkey ? blob.pubkeys?.includes(filter.pubkey) : true))
-    .map(([hash, blob]) => ({
-      sha256: hash,
+    .filter(([hash, blob]) => blob.pubkeys?.includes(pubkey))
+    .map(([sha256, blob]) => ({
+      sha256,
       created: blob.created,
-      url: getBlobURL(hash),
+      url: getBlobURL(sha256),
       type: blob.mimeType,
       size: blob.size,
     }));
@@ -150,12 +179,10 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
   if (!match) return next();
 
   const hash = match[1];
-  if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Authorization header");
-  if (ctx.state.auth.content !== "Delete Item") throw new httpError.Unauthorized("Incorrect Authorization header");
-  if (ctx.state.auth.created_at < dayjs().subtract(1, "hour").unix())
-    throw new httpError.Unauthorized("Expired Authorization header");
+  if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
+  if (ctx.state.authType !== "delete") throw new httpError.Unauthorized("Incorrect Auth type");
   if (!ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === hash))
-    throw new httpError.Unauthorized("Authorization header missing hash");
+    throw new httpError.Unauthorized("Auth missing hash");
 
   const pubkey = ctx.state.auth.pubkey;
 
@@ -164,6 +191,7 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
 
   if (blob.pubkeys?.includes(pubkey)) {
     removePubkeyFromBlob(hash, pubkey);
+    setUsedToken(ctx.state.auth.id!, ctx.state.authExpiration!);
 
     // if pubkey was the last owner of the file, remove it
     if (blob.pubkeys.length === 0) {
@@ -259,7 +287,10 @@ app.use(serve(path.join(process.cwd(), "public")));
 
 app.listen(process.env.PORT || 3000);
 
-setInterval(() => cacheModule.prune(), 1000 * 30);
+setInterval(() => {
+  cacheModule.prune();
+  pruneUsedTokens();
+}, 1000 * 30);
 
 async function shutdown() {
   log("Saving database...");

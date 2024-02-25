@@ -10,16 +10,15 @@
     <p>Blobs stored simply on mediaservers</p>
 
     <h2>Get:</h2>
+    <code>GET /:sha256</code>
     <code>GET /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png</code>
     <a href="/b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png">go</a>
 
     <h2>List:</h2>
-    <code>GET /list</code>
-    <a href="/list">go</a>
-    <br />
-    <p>Optionally with a pubkey</p>
-    <code>GET /list?pubkey=266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5</code>
+    <code>GET /list/:pubkey</code>
     <button id="list-pubkey">go</button>
+    <br />
+    <code>GET /list/266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5</code>
 
     <h2>Upload:</h2>
     <code>PUT /upload</code>
@@ -27,47 +26,6 @@
     <br />
     <input type="file" id="file" />
     <button id="upload">Upload</button>
-
-    <script>
-      const uploadInput = document.getElementById("file");
-      const uploadButton = document.getElementById("upload");
-
-      uploadButton.addEventListener("click", async () => {
-        const file = uploadInput.files[0];
-        if (!file) return;
-
-        uploadButton.textContent = "Signing...";
-
-        // create auth event
-        const auth = await window.nostr.signEvent({
-          kind: 22242,
-          content: "Authorize Upload",
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [
-            ["name", file.name],
-            ["size", String(file.size)],
-          ],
-        });
-
-        uploadButton.textContent = "Uploading...";
-        await fetch("/upload", { method: "PUT", body: file, headers: { authorization: JSON.stringify(auth) } }).then(
-          async (res) => {
-            if (res.ok) {
-              const body = await res.json();
-
-              uploadInput.value = "";
-              window.open(body.url);
-            } else alert(await res.text());
-          },
-        );
-        uploadButton.textContent = "Upload";
-      });
-
-      document.getElementById("list-pubkey").addEventListener("click", async () => {
-        const pubkey = await window.nostr.getPublicKey();
-        window.open("/list?pubkey=" + pubkey, "_blank");
-      });
-    </script>
 
     <h2>Delete:</h2>
     <code>DELETE /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b</code>
@@ -77,9 +35,66 @@
     <button id="delete-button">Delete</button>
 
     <script>
+      const unixNow = () => Math.floor(Date.now() / 1000);
       const deleteInput = document.getElementById("delete-input");
       const deleteButton = document.getElementById("delete-button");
+      const uploadInput = document.getElementById("file");
+      const uploadButton = document.getElementById("upload");
 
+      // upload
+      uploadButton.addEventListener("click", async () => {
+        const file = uploadInput.files[0];
+        if (!file) return;
+
+        uploadButton.textContent = "Signing...";
+
+        // create auth event
+        const auth = await window.nostr.signEvent({
+          kind: 24242,
+          content: "Authorize Upload",
+          created_at: unixNow(),
+          tags: [
+            ["t", "upload"],
+            ["expiration", unixNow() + 60 * 5],
+            ["name", file.name],
+            ["size", String(file.size)],
+          ],
+        });
+
+        uploadButton.textContent = "Uploading...";
+        await fetch("/upload", {
+          method: "PUT",
+          body: file,
+          headers: { authorization: "Nostr " + btoa(JSON.stringify(auth)) },
+        }).then(async (res) => {
+          if (res.ok) {
+            const body = await res.json();
+
+            uploadInput.value = "";
+            window.open(body.url);
+          } else alert(await res.text());
+        });
+        uploadButton.textContent = "Upload";
+      });
+
+      // list
+      document.getElementById("list-pubkey").addEventListener("click", async () => {
+        const pubkey = await window.nostr.getPublicKey();
+
+        const auth = await window.nostr.signEvent({
+          kind: 24242,
+          content: "List Blobs",
+          created_at: unixNow(),
+          tags: [
+            ["t", "list"],
+            ["expiration", unixNow() + 60 * 5],
+          ],
+        });
+
+        window.open("/list/" + pubkey, "_blank");
+      });
+
+      // delete
       deleteButton.addEventListener("click", async () => {
         const hash = deleteInput.value;
         if (!hash) return;
@@ -88,20 +103,25 @@
 
         // create auth event
         const auth = await window.nostr.signEvent({
-          kind: 22242,
+          kind: 24242,
           content: "Delete Item",
           created_at: Math.floor(Date.now() / 1000),
-          tags: [["x", hash]],
+          tags: [
+            ["t", "delete"],
+            ["expiration", unixNow() + 60 * 5],
+            ["x", hash],
+          ],
         });
 
         deleteButton.textContent = "Deleting...";
-        await fetch("/" + hash, { method: "DELETE", headers: { authorization: JSON.stringify(auth) } }).then(
-          async (res) => {
-            if (res.ok) {
-              deleteInput.value = "";
-            } else alert(await res.text());
-          },
-        );
+        await fetch("/" + hash, {
+          method: "DELETE",
+          headers: { authorization: "Nostr " + btoa(JSON.stringify(auth)) },
+        }).then(async (res) => {
+          if (res.ok) {
+            deleteInput.value = "";
+          } else alert(await res.text());
+        });
         deleteButton.textContent = "Delete";
       });
     </script>
