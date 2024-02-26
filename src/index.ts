@@ -60,11 +60,11 @@ app.use(async (ctx, next) => {
     if (err instanceof httpError.HttpError) {
       const status = (ctx.status = err.status || 500);
       if (status >= 500) console.error(err.stack);
-      ctx.body = status > 500 ? "Something went wrong" : err.message;
+      ctx.body = status > 500 ? { message: "Something went wrong" } : { message: err.message };
     } else {
       console.log(err);
       ctx.status = 500;
-      ctx.body = "Something went wrong";
+      ctx.body = { message: "Something went wrong" };
     }
   }
 });
@@ -155,8 +155,6 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
   const { pubkey } = ctx.params;
   const query = ctx.query;
 
-  console.log(query);
-
   const since = query.since ? parseInt(query.since as string) : null;
   const until = query.until ? parseInt(query.until as string) : null;
 
@@ -209,7 +207,7 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
     }
   }
   ctx.status = 200;
-  ctx.body = "Deleted";
+  ctx.body = { message: "Deleted" };
 });
 
 // fetch blobs
