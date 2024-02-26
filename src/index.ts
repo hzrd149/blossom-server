@@ -153,6 +153,12 @@ router.put<CommonState>("/upload", async (ctx) => {
 // list blobs
 router.get<CommonState>("/list/:pubkey", async (ctx) => {
   const { pubkey } = ctx.params;
+  const query = ctx.query;
+
+  console.log(query);
+
+  const since = query.since ? parseInt(query.since as string) : null;
+  const until = query.until ? parseInt(query.until as string) : null;
 
   if (config.list.requireAuth) {
     if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
@@ -163,7 +169,11 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
 
   ctx.status = 200;
   ctx.body = Object.entries(db.data.blobs)
-    .filter(([hash, blob]) => blob.pubkeys?.includes(pubkey))
+    .filter(([hash, blob]) => {
+      if (since !== null && blob.created < since) return false;
+      if (until !== null && blob.created > until) return false;
+      return blob.pubkeys?.includes(pubkey);
+    })
     .map(([sha256, blob]) => ({
       sha256,
       created: blob.created,

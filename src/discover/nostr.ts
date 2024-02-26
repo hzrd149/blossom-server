@@ -6,7 +6,8 @@ import { config } from "../config.js";
 const ndk = new NDK({
   explicitRelayUrls: config.discovery.nostr.relays,
 });
-await ndk.connect();
+
+ndk.connect();
 
 const log = debug("cdn:discover:nostr");
 
