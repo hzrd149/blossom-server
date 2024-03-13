@@ -7,7 +7,7 @@ import { config } from "../config.js";
 const log = debug("cdn:discover:upstream");
 
 export async function search(search: BlobSearch) {
-  log("Looking for", search.hash, search.ext);
+  log("Looking for", search.hash + search.ext);
   for (const cdn of config.discovery.upstream.domains) {
     try {
       log("Checking", cdn);

@@ -3,7 +3,7 @@ import "websocket-polyfill";
 import Koa from "koa";
 import debug from "debug";
 import serve from "koa-static";
-import path from "node:path";
+import path, { extname } from "node:path";
 import { PassThrough } from "node:stream";
 import { URLSearchParams } from "node:url";
 import mime from "mime";
@@ -15,7 +15,7 @@ import Router from "@koa/router";
 import { config } from "./config.js";
 import { BlobSearch } from "./types.js";
 import * as cacheModule from "./cache/index.js";
-import * as cdnDiscovery from "./discover/cdn.js";
+import * as cdnDiscovery from "./discover/upstream.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
 import * as uploadModule from "./storage/upload.js";
@@ -212,11 +212,11 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
 
 // fetch blobs
 router.get("/:hash", async (ctx, next) => {
-  const match = ctx.path.match(/([0-9a-f]{64})(\.[a-z]+)?/);
+  const match = ctx.path.match(/([0-9a-f]{64})/);
   if (!match) return next();
 
   const hash = match[1];
-  const ext = match[2] || undefined;
+  const ext = extname(ctx.path) ?? undefined;
   const searchParams = new URLSearchParams(ctx.search);
 
   const search: BlobSearch = {
