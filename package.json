@@ -24,6 +24,7 @@
     "dayjs": "^1.11.10",
     "debug": "^4.3.4",
     "file-type": "^19.0.0",
+    "follow-redirects": "^1.15.6",
     "http-error": "^0.0.6",
     "koa": "^2.15.0",
     "koa-static": "^5.0.0",
@@ -40,6 +41,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
     "@types/debug": "^4.1.12",
+    "@types/follow-redirects": "^1.14.4",
     "@types/http-errors": "^2.0.4",
     "@types/koa": "^2.14.0",
     "@types/koa-static": "^4.0.4",
