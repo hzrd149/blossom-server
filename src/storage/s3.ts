@@ -79,8 +79,11 @@ export default class S3Storage implements BlobStorage {
   }
 
   getPublicURL(hash: string): string | undefined {
+    if (!this.publicURL) return;
+
     const object = this.objects.find((name) => name.startsWith(hash));
     if (!object) return;
+
     return this.publicURL + object;
   }
 }
