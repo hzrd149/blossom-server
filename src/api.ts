@@ -8,7 +8,7 @@ import { NostrEvent } from "@nostr-dev-kit/ndk";
 import Router from "@koa/router";
 
 import { config } from "./config.js";
-import { BlobSearch } from "./types.js";
+import { BlobPointer, BlobSearch } from "./types.js";
 import * as cacheModule from "./cache/index.js";
 import * as cdnDiscovery from "./discover/upstream.js";
 import * as nostrDiscovery from "./discover/nostr.js";
@@ -227,7 +227,7 @@ router.get("/:hash", async (ctx, next) => {
         const minExpiration = getExpirationTime(rule);
         if (!expiration || expiration < minExpiration) {
           setBlobExpiration(cachePointer.hash, minExpiration);
-          log("Reset expiration for", cachePointer.hash, "from", expiration, "to", minExpiration);
+          log("Reset expiration for", cachePointer.hash, "to", rule.expiration);
         }
       }
     }
@@ -240,53 +240,49 @@ router.get("/:hash", async (ctx, next) => {
     return;
   }
 
-  if (config.discovery.nostr.enabled) {
-    let pointers = await nostrDiscovery.search(search);
-    if (pointers.length) {
-      for (const pointer of pointers) {
-        try {
-          if (pointer.type === "http") {
-            const stream = await httpTransport.readHTTPPointer(pointer);
-            if (pointer.mimeType) ctx.type = pointer.mimeType;
-            const pass = (ctx.body = new PassThrough());
-            stream.pipe(pass);
+  const pointers: BlobPointer[] = [];
 
-            // save to cache
-            const rule = getFileRule(
-              { mimeType: pointer.mimeType, pubkey: pointer.metadata?.pubkey },
-              config.cache.rules,
-            );
-            if (rule) {
-              uploadModule.uploadWriteStream(stream).then((upload) => {
-                if (upload.hash !== pointer.hash) return;
-                setBlobExpiration(upload.hash, getExpirationTime(rule));
-                cacheModule.saveBlob(upload.hash, upload.tempFile, pointer.metadata?.mimeType || upload.mimeType);
-              });
-            }
-            return;
-          }
-        } catch (e) {}
-      }
-    }
+  if (config.discovery.nostr.enabled) {
+    let nostrPointers = await nostrDiscovery.search(search);
+    for (const pointer of nostrPointers) pointers.push(pointer);
   }
 
   if (config.discovery.upstream.enabled) {
-    const cdnSource = await cdnDiscovery.search(search);
-    if (cdnSource) {
-      if (search.ext) ctx.type = search.ext;
-      const pass = (ctx.body = new PassThrough());
-      cdnSource.pipe(pass);
+    const cdnPointer = await cdnDiscovery.search(search);
+    if (cdnPointer) pointers.push(cdnPointer);
+  }
 
-      // save to cache
-      const rule = getFileRule({ mimeType: search.mimeType, pubkey: search.pubkey }, config.cache.rules);
-      if (rule) {
-        uploadModule.uploadWriteStream(cdnSource).then((upload) => {
-          if (upload.hash !== search.hash) return;
-          setBlobExpiration(upload.hash, getExpirationTime(rule));
-          cacheModule.saveBlob(upload.hash, upload.tempFile, search.mimeType || upload.mimeType);
-        });
+  for (const pointer of pointers) {
+    try {
+      if (pointer.type === "http") {
+        const stream = await httpTransport.readHTTPPointer(pointer);
+
+        // set mime type
+        if (!ctx.type && pointer.mimeType) ctx.type = pointer.mimeType;
+        if (!ctx.type && search.mimeType) ctx.type = search.mimeType;
+
+        const pass = (ctx.body = new PassThrough());
+        stream.pipe(pass);
+
+        // save to cache
+        const rule = getFileRule(
+          { mimeType: pointer.mimeType || search.mimeType, pubkey: pointer.metadata?.pubkey || search.pubkey },
+          config.cache.rules,
+        );
+        if (rule) {
+          uploadModule.uploadWriteStream(stream).then((upload) => {
+            if (upload.hash !== pointer.hash) return;
+            setBlobExpiration(upload.hash, getExpirationTime(rule));
+            cacheModule.saveBlob(
+              upload.hash,
+              upload.tempFile,
+              pointer.mimeType || pointer.metadata?.mimeType || upload.mimeType || search.mimeType,
+            );
+          });
+        }
+        return;
       }
-    }
+    } catch (e) {}
   }
 
   if (!ctx.body) throw new httpError.NotFound("Cant find blob for hash");
