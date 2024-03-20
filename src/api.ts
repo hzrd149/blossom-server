@@ -195,8 +195,9 @@ router.head("/:hash", async (ctx, next) => {
 
   const hash = match[1];
   const has = await storage.hasBlob(hash);
-  if (has) return (ctx.status = 200);
-  else return (ctx.status = 404);
+  if (has) ctx.status = 200;
+  else ctx.status = 404;
+  ctx.body = null;
 });
 
 // fetch blobs
