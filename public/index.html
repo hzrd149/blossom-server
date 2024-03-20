@@ -15,6 +15,17 @@
     <code>GET /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png</code>
     <a href="/b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b.png">go</a>
 
+    <h2>Has Blob:</h2>
+    <code>HEAD /:sha256</code>
+    <br />
+    <input
+      type="text"
+      id="has-blob-input"
+      value="b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b"
+      size="64"
+    />
+    <button id="has-blob-button">test</button>
+
     <h2>List:</h2>
     <code>GET /list/:pubkey</code>
     <button id="list-pubkey">go</button>
@@ -31,14 +42,19 @@
     <h2>Delete:</h2>
     <code>DELETE /b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b</code>
     <br />
-    <br />
-    <input type="text" id="delete-input" />
+    <input
+      type="text"
+      id="delete-input"
+      value="b91dfd7565edb9382a5537b80bd5f24c6cbe9aee693abcdb7448098f1e8c608b"
+      size="64"
+    />
     <button id="delete-button">Delete</button>
 
     <script>
       const unixNow = () => Math.floor(Date.now() / 1000);
       const deleteInput = document.getElementById("delete-input");
       const deleteButton = document.getElementById("delete-button");
+      const hasBlobButton = document.getElementById("has-blob-button");
       const uploadInput = document.getElementById("file");
       const uploadButton = document.getElementById("upload");
 
@@ -76,6 +92,15 @@
           } else alert(await res.text());
         });
         uploadButton.textContent = "Upload";
+      });
+
+      // has blob
+      hasBlobButton.addEventListener("click", async () => {
+        const hash = document.getElementById("has-blob-input").value;
+
+        const res = await fetch("/" + hash, { method: "HEAD" });
+        if (res.ok) alert("Blob exists");
+        else alert("Blob does not exist");
       });
 
       // list
@@ -121,6 +146,7 @@
         }).then(async (res) => {
           if (res.ok) {
             deleteInput.value = "";
+            alert("Blob deleted");
           } else alert(await res.text());
         });
         deleteButton.textContent = "Delete";

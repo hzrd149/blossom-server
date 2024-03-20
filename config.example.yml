@@ -29,9 +29,10 @@ cache:
   #   secretKey: xxxxxxxxx
   #   If this is set the server will redirect clients when loading blobs
   #   publicURL: https://s3.region.example.com/
+  resetExpirationOnFetch: true
   rules:
     - type: text/*
-      expiration: 1 month
+      expiration: 2 weeks
     - type: image/*
       expiration: 1 week
     - type: video/*

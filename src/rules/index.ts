@@ -13,18 +13,23 @@ export function getFileRule({ pubkey, mimeType }: RuleSearchInput, ruleset: Rule
 
   return (
     ruleset.find((r) => {
-      if (r.pubkeys && (!pubkey || r.pubkeys.includes(pubkey) === false)) return false;
+      if (r.pubkeys && (!pubkey || !r.pubkeys.includes(pubkey))) return false;
 
-      if (r.type === "*") return true;
+      if (r.type === "*") {
+        log("Found rule for", r.expiration);
+        return true;
+      }
       if (r.type) {
         if (!mimeType) return false;
         if (mimeType === r.type) return true;
         if (r.type.endsWith("*") && mimeType.startsWith(r.type.replace(/\*$/, ""))) {
+          log("Found rule for", r.expiration);
           return true;
         }
 
         return false;
       }
+      log("Found rule for", r.expiration);
       return true;
     }) || null
   );

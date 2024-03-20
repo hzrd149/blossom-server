@@ -28,6 +28,9 @@ export function setBlobExpiration(hash: string, expiration: number) {
   if (blob.expiration) blob.expiration = Math.max(blob.expiration, expiration);
   else blob.expiration = expiration;
 }
+export function getBlobExpiration(hash: string) {
+  return db.data.blobs[hash]?.expiration;
+}
 export function setBlobMimetype(hash: string, mimeType: string) {
   let blob = getOrCreateBlobEntry(hash);
   blob.mimeType = mimeType;

@@ -15,6 +15,7 @@ export type Config = {
     };
   };
   cache: {
+    resetExpirationOnFetch: boolean;
     rules: Rule[];
     backend: "local" | "s3";
     local?: {
