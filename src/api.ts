@@ -4,7 +4,7 @@ import { PassThrough } from "node:stream";
 import { URLSearchParams } from "node:url";
 import mime from "mime";
 import pfs from "node:fs/promises";
-import { NostrEvent } from "@nostr-dev-kit/ndk";
+import { verifyEvent, NostrEvent } from "nostr-tools";
 import Router from "@koa/router";
 
 import { config } from "./config.js";
@@ -45,8 +45,6 @@ router.use(async (ctx, next) => {
 
   if (authStr?.startsWith("Nostr ")) {
     const auth = authStr ? (JSON.parse(atob(authStr.replace(/^Nostr\s/i, ""))) as NostrEvent) : undefined;
-    ctx.state.auth = auth;
-
     const now = dayjs().unix();
     if (auth) {
       if (auth.kind !== 24242) throw new httpError.BadRequest("Unexpected auth kind");
@@ -55,7 +53,9 @@ router.use(async (ctx, next) => {
       const expiration = auth.tags.find((t) => t[0] === "expiration")?.[1];
       if (!expiration) throw new httpError.BadRequest("Auth missing expiration");
       if (parseInt(expiration) < now) throw new httpError.BadRequest("Auth expired");
+      if (!verifyEvent(auth)) throw new httpError.BadRequest("Invalid Auth event");
 
+      ctx.state.auth = auth;
       ctx.state.authType = type;
       ctx.state.authExpiration = expiration;
     }
