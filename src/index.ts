@@ -46,6 +46,7 @@ app.use(router.routes()).use(router.allowedMethods());
 app.use(serve(path.join(process.cwd(), "public")));
 
 app.listen(process.env.PORT || 3000);
+log("Started app on port", process.env.PORT || 3000);
 
 setInterval(() => {
   cacheModule.prune();

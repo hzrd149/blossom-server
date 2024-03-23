@@ -32,7 +32,6 @@ export async function prune() {
   const checked = new Set<string>();
 
   for (const rule of config.storage.rules) {
-    log("Checking rule", rule);
     const expiration = getExpirationTime(rule, now);
     let blobs: (BlobRow & { pubkey: string; accessed: number | null })[] = [];
 
@@ -85,6 +84,6 @@ export async function prune() {
       n++;
       checked.add(blob.sha256);
     }
-    log("Checked", n, "blobs");
+    if (n > 0) log("Checked", n, "blobs");
   }
 }
