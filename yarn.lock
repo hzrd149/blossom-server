@@ -773,10 +773,10 @@ block-stream2@^2.1.0:
   dependencies:
     readable-stream "^3.4.0"
 
-blossom-sqlite@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/blossom-sqlite/-/blossom-sqlite-0.1.0.tgz#9763d13a27b86dc223fa3488c4d137a80c809a05"
-  integrity sha512-l6ObE5MHm5yjuI3LktC5xepPzNBInZDcLhx6ANnC28hpZK1nKh+v8pM6KC55rY+e8Uxoio/+bM72yjcPnANTiQ==
+blossom-sqlite@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/blossom-sqlite/-/blossom-sqlite-0.1.1.tgz#79cf823729633b0cdd3dbd20ac0da011298fc18e"
+  integrity sha512-aF+WLt8cOXgz+OD7dF8p8iRwM0E0XwhSTMCOA87GIN8t1xqMeDcGnBFR7oPABpQUj018eNgYXGRkeZCltdr+rQ==
   dependencies:
     better-sqlite3 "^9.4.3"
 
