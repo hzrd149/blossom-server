@@ -1,25 +1,23 @@
 import debug from "debug";
-import fs from "node:fs";
-import pfs from "node:fs/promises";
-import dayjs from "dayjs";
 
 import { BlobSearch, CachePointer } from "../types.js";
-import { db, setBlobMimetype, setBlobSize } from "../db.js";
 import storage from "../storage/index.js";
+import db, { blobDB } from "../db/db.js";
+import { config } from "../config.js";
+import { getExpirationTime } from "../rules/index.js";
+import dayjs from "dayjs";
+import { BlobRow } from "blossom-sqlite";
+import { forgetBlobAccessed } from "../db/methods.js";
 
 const log = debug("cdn:cache");
 
 export async function search(search: BlobSearch): Promise<CachePointer | undefined> {
-  if (await storage.hasBlob(search.hash)) {
+  if (blobDB.hasBlob(search.hash) && (await storage.hasBlob(search.hash))) {
     const blob = await storage.findBlob(search.hash);
     if (!blob) return;
     log("Found", search.hash);
-    return { type: "cache", hash: search.hash, mimeType: blob.mimeType };
+    return { type: "cache", hash: search.hash, mimeType: blob.type };
   }
-}
-
-export function hasBlob(hash: string) {
-  return !!db.data.blobs[hash];
 }
 
 export function getRedirect(pointer: CachePointer) {
@@ -29,31 +27,64 @@ export async function readPointer(pointer: CachePointer) {
   return await storage.readBlob(pointer.hash);
 }
 
-export async function saveBlob(hash: string, tempFile: string, mimeType?: string) {
-  if (await storage.hasBlob(hash)) return;
-
-  log("Saving", hash, mimeType);
-  const { size } = await pfs.stat(tempFile);
-  await storage.putBlob(hash, fs.createReadStream(tempFile), mimeType);
-  await pfs.rm(tempFile);
-
-  setBlobSize(hash, size);
-  if (mimeType) setBlobMimetype(hash, mimeType);
-}
-
-export async function removeBlob(hash: string) {
-  if (await storage.hasBlob(hash)) {
-    log("Removing", hash);
-    await storage.removeBlob(hash);
-    delete db.data.blobs[hash];
-  }
-}
-
 export async function prune() {
   const now = dayjs().unix();
-  for (const [hash, metadata] of Object.entries(db.data.blobs)) {
-    if (metadata.expiration && metadata.expiration < now) {
-      await removeBlob(hash);
+  const checked = new Set<string>();
+
+  for (const rule of config.storage.rules) {
+    log("Checking rule", rule);
+    const expiration = getExpirationTime(rule, now);
+    let blobs: (BlobRow & { pubkey: string; accessed: number | null })[] = [];
+
+    if (rule.pubkeys?.length) {
+      blobs = db
+        .prepare(
+          `
+          SELECT blobs.*,owners.pubkey, accessed.timestamp as "accessed"
+          FROM blobs
+            LEFT JOIN owners ON owners.blob = blobs.sha256
+            LEFT JOIN accessed ON accessed.blob = blobs.sha256
+          WHERE
+            blobs.type LIKE ? AND
+            owners.pubkey IN (${Array.from(rule.pubkeys).fill("?").join(", ")})
+        `,
+        )
+        .all(rule.type.replace("*", "%"), ...rule.pubkeys) as (BlobRow & {
+        pubkey: string;
+        accessed: number | null;
+      })[];
+    } else {
+      blobs = db
+        .prepare(
+          `
+          SELECT blobs.*,owners.pubkey, accessed.timestamp as "accessed"
+          FROM blobs
+            LEFT JOIN owners ON owners.blob = blobs.sha256
+            LEFT JOIN accessed ON accessed.blob = blobs.sha256
+          WHERE
+            blobs.type LIKE ?
+        `,
+        )
+        .all(rule.type.replace("*", "%")) as (BlobRow & {
+        pubkey: string;
+        accessed: number | null;
+      })[];
     }
+
+    let n = 0;
+    for (const blob of blobs) {
+      if (checked.has(blob.sha256)) continue;
+
+      if ((blob.accessed || blob.created) < expiration) {
+        log("Removing", blob.sha256, blob.type, "because", rule);
+        blobDB.removeBlob(blob.sha256);
+        if (await storage.hasBlob(blob.sha256)) storage.removeBlob(blob.sha256);
+        forgetBlobAccessed(blob.sha256);
+      }
+
+      n++;
+      checked.add(blob.sha256);
+    }
+    log("Checked", n, "blobs");
   }
 }

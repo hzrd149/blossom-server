@@ -6,13 +6,14 @@ const log = debug("cdn:cache:rules");
 
 export type RuleSearchInput = {
   pubkey?: string;
-  mimeType?: string;
+  type?: string;
 };
-export function getFileRule({ pubkey, mimeType }: RuleSearchInput, ruleset: Rule[]) {
-  log("Looking for match", mimeType, pubkey);
+export function getFileRule({ pubkey, type }: RuleSearchInput, ruleset: Rule[], requirePubkey: boolean = false) {
+  log("Looking for match", type, pubkey);
 
   return (
     ruleset.find((r) => {
+      if (requirePubkey && !r.pubkeys) return false;
       if (r.pubkeys && (!pubkey || !r.pubkeys.includes(pubkey))) return false;
 
       if (r.type === "*") {
@@ -20,9 +21,9 @@ export function getFileRule({ pubkey, mimeType }: RuleSearchInput, ruleset: Rule
         return true;
       }
       if (r.type) {
-        if (!mimeType) return false;
-        if (mimeType === r.type) return true;
-        if (r.type.endsWith("*") && mimeType.startsWith(r.type.replace(/\*$/, ""))) {
+        if (!type) return false;
+        if (type === r.type) return true;
+        if (r.type.endsWith("*") && type.startsWith(r.type.replace(/\*$/, ""))) {
           log("Found rule for", r.expiration);
           return true;
         }
@@ -35,12 +36,11 @@ export function getFileRule({ pubkey, mimeType }: RuleSearchInput, ruleset: Rule
   );
 }
 
-export function getExpirationTime(rule: Rule): number {
+export function getExpirationTime(rule: Rule, start: number): number {
   const match = rule.expiration.match(/(\d+)\s*(\w+)/);
   if (!match) throw new Error("Failed to parse expiration");
   const count = parseInt(match[1]);
-  const unit = match[2];
+  const unit = match[2] as dayjs.ManipulateType;
 
-  // @ts-expect-error
-  return dayjs().add(count, unit).unix();
+  return dayjs.unix(start).subtract(count, unit).unix();
 }

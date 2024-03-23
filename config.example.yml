@@ -1,6 +1,8 @@
 # Used when listing blobs
 publicDomain: http://cdn.example.com
 
+databasePath: data/sqlite.db
+
 discovery:
   # find files by querying nostr relays
   nostr:
@@ -17,7 +19,7 @@ discovery:
     domains:
       - https://cdn.satellite.earth
 
-cache:
+storage:
   # local or s3
   backend: local
   local:
@@ -29,23 +31,33 @@ cache:
   #   secretKey: xxxxxxxxx
   #   If this is set the server will redirect clients when loading blobs
   #   publicURL: https://s3.region.example.com/
-  resetExpirationOnFetch: true
+
+  # rules are checked in descending order. if a blob matches a rule it is kept
+  # "type" (required) the type of the blob, "*" can be used to match any type
+  # "expiration" (required) time passed since last accessed
+  # "pubkeys" (optional) a list of owners
+  # any blobs not matching the rules will be removed
   rules:
+    # mime type of blob
     - type: text/*
-      expiration: 2 weeks
-    - type: image/*
+      # time since last accessed
+      expiration: 1 month
+    - type: "image/*"
       expiration: 1 week
-    - type: video/*
+    - type: "video/*"
       expiration: 5 days
+    - type: "model/*"
+      expiration: 1 week
     - type: "*"
-      expiration: 1 day
+      expiration: 2 days
 
 upload:
+  # enable / disable uploads
   enabled: true
+  # require auth to upload
   requireAuth: true
-  rules:
-    - type: "*"
-      expiration: 1d
+  # only check rules that include "pubkeys"
+  requirePubkeyInRule: false
 
 list:
   requireAuth: false

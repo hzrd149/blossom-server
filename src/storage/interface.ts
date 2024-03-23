@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 
 export type CachedBlob = {
   hash: string;
-  mimeType?: string;
+  type?: string;
 };
 
 export interface BlobStorage {

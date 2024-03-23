@@ -6,7 +6,7 @@ import path from "node:path";
 import { BlobStorage, CachedBlob } from "./interface.js";
 
 export default class S3Storage implements BlobStorage {
-  log = debug("cdn:cache:s3");
+  log = debug("cdn:storage:s3");
   client: Client;
   bucket: string;
   publicURL: string | undefined = undefined;
@@ -54,9 +54,8 @@ export default class S3Storage implements BlobStorage {
     const object = this.objects.find((name) => name.startsWith(hash));
     if (!object) throw new Error("Missing object " + hash);
 
-    const type = mime.getType(path.extname(object));
-    return { hash, mimeType: type ?? undefined };
-    // this.client.getObject
+    const type = mime.getType(path.extname(object)) ?? undefined;
+    return { hash, type };
   }
   async putBlob(hash: string, stream: Readable, mimeType?: string | undefined): Promise<void> {
     const object = this.getObjectName(hash, mimeType);

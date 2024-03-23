@@ -3,9 +3,12 @@ import { extname } from "node:path";
 import { PassThrough } from "node:stream";
 import { URLSearchParams } from "node:url";
 import mime from "mime";
-import pfs from "node:fs/promises";
 import { verifyEvent, NostrEvent } from "nostr-tools";
 import Router from "@koa/router";
+import httpError from "http-errors";
+import dayjs from "dayjs";
+import debug from "debug";
+import { BlobRow } from "blossom-sqlite";
 
 import { config } from "./config.js";
 import { BlobPointer, BlobSearch } from "./types.js";
@@ -14,29 +17,49 @@ import * as cdnDiscovery from "./discover/upstream.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
 import * as uploadModule from "./storage/upload.js";
-import {
-  addPubkeyToBlob,
-  db,
-  getBlobExpiration,
-  hasUsedToken,
-  removePubkeyFromBlob,
-  setBlobExpiration,
-  setUsedToken,
-} from "./db.js";
-import { getExpirationTime, getFileRule } from "./rules/index.js";
-import httpError from "http-errors";
-import dayjs from "dayjs";
-import debug from "debug";
+import { getFileRule } from "./rules/index.js";
 import storage from "./storage/index.js";
+import { addToken, hasUsedToken, updateBlobAccess } from "./db/methods.js";
+import { blobDB } from "./db/db.js";
 
-function getBlobURL(hash: string) {
-  const mimeType = db.data.blobs[hash]?.mimeType;
-  const ext = mimeType && mime.getExtension(mimeType);
-  return new URL(hash + (ext ? "." + ext : ""), config.publicDomain).toString();
+function getBlobURL(blob: Pick<BlobRow, "sha256" | "type">) {
+  const ext = blob.type && mime.getExtension(blob.type);
+  return new URL(blob.sha256 + (ext ? "." + ext : ""), config.publicDomain).toString();
+}
+function getBlobDescriptor(blob: BlobRow) {
+  return {
+    sha256: blob.sha256,
+    size: blob.size,
+    created: blob.created,
+    type: blob.type,
+    url: getBlobURL(blob),
+  };
 }
 
 const log = debug("cdn:api");
 const router = new Router();
+
+function parseAuthEvent(auth: NostrEvent) {
+  const now = dayjs().unix();
+  if (auth.kind !== 24242) throw new httpError.BadRequest("Unexpected auth kind");
+  const type = auth.tags.find((t) => t[0] === "t")?.[1];
+  if (!type) throw new httpError.BadRequest("Auth missing type");
+  const expiration = auth.tags.find((t) => t[0] === "expiration")?.[1];
+  if (!expiration) throw new httpError.BadRequest("Auth missing expiration");
+  if (parseInt(expiration) < now) throw new httpError.BadRequest("Auth expired");
+  if (!verifyEvent(auth)) throw new httpError.BadRequest("Invalid Auth event");
+
+  return { auth, type, expiration: parseInt(expiration) };
+}
+function saveAuthToken(event: NostrEvent) {
+  const { expiration, type } = parseAuthEvent(event);
+  addToken({
+    id: event.id,
+    expiration: expiration,
+    type: type,
+    event,
+  });
+}
 
 // parse auth headers
 type CommonState = { auth?: NostrEvent; authType?: string; authExpiration?: number };
@@ -45,16 +68,8 @@ router.use(async (ctx, next) => {
 
   if (authStr?.startsWith("Nostr ")) {
     const auth = authStr ? (JSON.parse(atob(authStr.replace(/^Nostr\s/i, ""))) as NostrEvent) : undefined;
-    const now = dayjs().unix();
     if (auth) {
-      if (auth.kind !== 24242) throw new httpError.BadRequest("Unexpected auth kind");
-      const type = auth.tags.find((t) => t[0] === "t")?.[1];
-      if (!type) throw new httpError.BadRequest("Auth missing type");
-      const expiration = auth.tags.find((t) => t[0] === "expiration")?.[1];
-      if (!expiration) throw new httpError.BadRequest("Auth missing expiration");
-      if (parseInt(expiration) < now) throw new httpError.BadRequest("Auth expired");
-      if (!verifyEvent(auth)) throw new httpError.BadRequest("Invalid Auth event");
-
+      const { type, expiration } = parseAuthEvent(auth);
       ctx.state.auth = auth;
       ctx.state.authType = type;
       ctx.state.authExpiration = expiration;
@@ -74,7 +89,7 @@ router.put<CommonState>("/upload", async (ctx) => {
     if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
     if (ctx.state.authType !== "upload") throw new httpError.Unauthorized("Auth event should be 'upload'");
 
-    if (hasUsedToken(ctx.state.auth.id!)) throw new httpError.BadRequest("Auth event already used");
+    if (hasUsedToken(ctx.state.auth.id)) throw new httpError.BadRequest("Auth event already used");
   }
 
   const pubkey = ctx.state.auth?.pubkey;
@@ -84,48 +99,45 @@ router.put<CommonState>("/upload", async (ctx) => {
 
   const rule = getFileRule(
     {
-      mimeType: contentType,
+      type: contentType,
       pubkey,
     },
-    config.upload.rules,
+    config.storage.rules,
+    config.upload.requireAuth && config.upload.requirePubkeyInRule,
   );
-  if (!rule) throw new httpError.Unauthorized("No rule");
+  if (!rule) {
+    if (config.upload.requirePubkeyInRule) throw new httpError.Unauthorized("Pubkey not on whitelist");
+    else throw new httpError.Unauthorized(`Server dose not accept ${contentType} blobs`);
+  }
 
   const upload = await uploadModule.uploadWriteStream(ctx.req);
-  const mimeType = contentType || upload.mimeType;
+  const mimeType = contentType || upload.type || "";
 
   if (config.upload.requireAuth && upload.size !== authSize) {
-    await pfs.rm(upload.tempFile);
+    uploadModule.removeUpload(upload);
     throw new httpError.BadRequest("Incorrect upload size");
   }
 
-  // save the file if its not already there
-  if (!cacheModule.hasBlob(upload.hash)) {
-    await cacheModule.saveBlob(upload.hash, upload.tempFile, mimeType);
+  let blob = await blobDB.getBlob(upload.sha256);
+
+  if (!blob) {
+    log("Saving", upload.sha256, mimeType);
+    await storage.putBlob(upload.sha256, uploadModule.readUpload(upload), mimeType);
+    await uploadModule.removeUpload(upload);
+
+    const now = dayjs().unix();
+    blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type: mimeType, created: now });
+    updateBlobAccess(upload.sha256, dayjs().unix());
   } else {
     await uploadModule.removeUpload(upload);
   }
 
-  // update the expiration
-  const currentExpiration = getBlobExpiration(upload.hash);
-  const expiration = getExpirationTime(rule);
-  if (!currentExpiration || currentExpiration < expiration) {
-    setBlobExpiration(upload.hash, expiration);
-    log("Setting expiration time to", expiration);
-  }
+  if (pubkey) blobDB.addOwner(blob.sha256, pubkey);
 
-  if (pubkey) addPubkeyToBlob(upload.hash, pubkey);
-
-  if (ctx.state.auth) setUsedToken(ctx.state.auth.id!, ctx.state.authExpiration!);
+  if (ctx.state.auth) saveAuthToken(ctx.state.auth);
 
   ctx.status = 200;
-  ctx.body = {
-    url: getBlobURL(upload.hash),
-    created: db.data.blobs[upload.hash].created,
-    sha256: upload.hash,
-    type: mimeType,
-    size: upload.size,
-  };
+  ctx.body = getBlobDescriptor(blob);
 });
 
 // list blobs
@@ -133,30 +145,20 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
   const { pubkey } = ctx.params;
   const query = ctx.query;
 
-  const since = query.since ? parseInt(query.since as string) : null;
-  const until = query.until ? parseInt(query.until as string) : null;
+  const since = query.since ? parseInt(query.since as string) : undefined;
+  const until = query.until ? parseInt(query.until as string) : undefined;
 
   if (config.list.requireAuth) {
     if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
     if (ctx.state.authType !== "list") throw new httpError.Unauthorized("Incorrect Auth type");
     if (config.list.allowListOthers === false && ctx.state.auth.pubkey !== pubkey)
-      throw new httpError.Unauthorized("Cant list other pubkey blobs");
+      throw new httpError.Unauthorized("Cant list other pubkeys blobs");
   }
 
+  const blobs = blobDB.getOwnerBlobs(pubkey, { since, until });
+
   ctx.status = 200;
-  ctx.body = Object.entries(db.data.blobs)
-    .filter(([hash, blob]) => {
-      if (since !== null && blob.created < since) return false;
-      if (until !== null && blob.created > until) return false;
-      return blob.pubkeys?.includes(pubkey);
-    })
-    .map(([sha256, blob]) => ({
-      sha256,
-      created: blob.created,
-      url: getBlobURL(sha256),
-      type: blob.mimeType,
-      size: blob.size,
-    }));
+  ctx.body = blobs.map(getBlobDescriptor);
 });
 
 // delete blobs
@@ -169,21 +171,18 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
   if (ctx.state.authType !== "delete") throw new httpError.Unauthorized("Incorrect Auth type");
   if (!ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === hash))
     throw new httpError.Unauthorized("Auth missing hash");
+  if (hasUsedToken(ctx.state.auth.id)) throw new Error("Auth already used");
+
+  // skip if blob dose not exist
+  if (!blobDB.hasBlob(hash)) return;
 
   const pubkey = ctx.state.auth.pubkey;
 
-  const blob = db.data.blobs[hash];
-  if (!blob) throw new httpError.NotFound("Blob dose not exist");
-
-  if (blob.pubkeys?.includes(pubkey)) {
-    removePubkeyFromBlob(hash, pubkey);
-    setUsedToken(ctx.state.auth.id!, ctx.state.authExpiration!);
-
-    // if pubkey was the last owner of the file, remove it
-    if (blob.pubkeys.length === 0) {
-      await cacheModule.removeBlob(hash);
-    }
+  if (blobDB.hasOwner(hash, pubkey)) {
+    blobDB.removeOwner(hash, pubkey);
+    saveAuthToken(ctx.state.auth);
   }
+
   ctx.status = 200;
   ctx.body = { message: "Deleted" };
 });
@@ -194,7 +193,7 @@ router.head("/:hash", async (ctx, next) => {
   if (!match) return next();
 
   const hash = match[1];
-  const has = await storage.hasBlob(hash);
+  const has = blobDB.hasBlob(hash);
   if (has) ctx.status = 200;
   else ctx.status = 404;
   ctx.body = null;
@@ -220,18 +219,7 @@ router.get("/:hash", async (ctx, next) => {
 
   const cachePointer = await cacheModule.search(search);
   if (cachePointer) {
-    if (config.cache.resetExpirationOnFetch) {
-      // reset the cache expiration if its less then the min
-      const rule = getFileRule({ mimeType: cachePointer.mimeType }, config.cache.rules);
-      if (rule) {
-        const expiration = getBlobExpiration(cachePointer.hash);
-        const minExpiration = getExpirationTime(rule);
-        if (!expiration || expiration < minExpiration) {
-          setBlobExpiration(cachePointer.hash, minExpiration);
-          log("Reset expiration for", cachePointer.hash, "to", rule.expiration);
-        }
-      }
-    }
+    updateBlobAccess(search.hash, dayjs().unix());
 
     const redirect = cacheModule.getRedirect(cachePointer);
     if (redirect) return ctx.redirect(redirect);
@@ -241,6 +229,7 @@ router.get("/:hash", async (ctx, next) => {
     return;
   }
 
+  // we don't have the blob, go looking for it
   const pointers: BlobPointer[] = [];
 
   if (config.discovery.nostr.enabled) {
@@ -253,6 +242,7 @@ router.get("/:hash", async (ctx, next) => {
     if (cdnPointer) pointers.push(cdnPointer);
   }
 
+  // download it from pointers if any where found
   for (const pointer of pointers) {
     try {
       if (pointer.type === "http") {
@@ -267,20 +257,29 @@ router.get("/:hash", async (ctx, next) => {
 
         // save to cache
         const rule = getFileRule(
-          { mimeType: pointer.mimeType || search.mimeType, pubkey: pointer.metadata?.pubkey || search.pubkey },
-          config.cache.rules,
+          { type: pointer.mimeType || search.mimeType, pubkey: pointer.metadata?.pubkey || search.pubkey },
+          config.storage.rules,
         );
         if (rule) {
-          uploadModule.uploadWriteStream(stream).then((upload) => {
-            if (upload.hash !== pointer.hash) return;
-            setBlobExpiration(upload.hash, getExpirationTime(rule));
-            cacheModule.saveBlob(
-              upload.hash,
-              upload.tempFile,
-              pointer.mimeType || pointer.metadata?.mimeType || upload.mimeType || search.mimeType,
-            );
+          // save the blob in the background (no await)
+          uploadModule.uploadWriteStream(stream).then(async (upload) => {
+            if (upload.sha256 !== pointer.hash) return;
+
+            // if the storage dose not have the blob. upload it
+            if (!(await storage.hasBlob(upload.sha256))) {
+              const type = upload.type || pointer.mimeType || search.mimeType || "";
+              await storage.putBlob(upload.sha256, uploadModule.readUpload(upload), type);
+              await uploadModule.removeUpload(upload);
+
+              if (!blobDB.hasBlob(upload.sha256)) {
+                blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type, created: dayjs().unix() });
+              }
+            } else {
+              await uploadModule.removeUpload(upload);
+            }
           });
         }
+
         return;
       }
     } catch (e) {}

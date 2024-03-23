@@ -3,13 +3,13 @@ import pfs from "node:fs/promises";
 import fs from "node:fs";
 import mime from "mime";
 import path from "node:path";
-import { BlobStorage } from "./interface.js";
+import { BlobStorage, CachedBlob } from "./interface.js";
 import { Readable } from "node:stream";
 
 export default class LocalStorage implements BlobStorage {
   dir: string;
   files: string[] = [];
-  log = debug("cdn:cache:local");
+  log = debug("cdn:storage:local");
 
   constructor(dir: string) {
     this.dir = dir;
@@ -20,14 +20,14 @@ export default class LocalStorage implements BlobStorage {
   async hasBlob(hash: string): Promise<boolean> {
     return this.files.some((name) => name.startsWith(hash));
   }
-  async findBlob(hash: string) {
+  async findBlob(hash: string): Promise<CachedBlob | undefined> {
     const file = this.files.find((f) => f.startsWith(hash));
     if (!file) return;
 
     const ext = path.extname(file);
-    const mimeType = ext ? mime.getType(ext) ?? undefined : undefined;
+    const type = ext ? mime.getType(ext) ?? undefined : undefined;
 
-    return { hash, mimeType };
+    return { hash, type };
   }
   async readBlob(hash: string) {
     const file = this.files.find((f) => f.startsWith(hash));

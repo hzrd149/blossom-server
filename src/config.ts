@@ -1,9 +1,10 @@
 import { lilconfig } from "lilconfig";
 import yaml from "yaml";
 
-export type Rule = { type?: string; pubkeys?: string[]; expiration: string };
+export type Rule = { type: string; pubkeys?: string[]; expiration: string };
 export type Config = {
   publicDomain: string;
+  databasePath: string;
   discovery: {
     nostr: {
       enabled: boolean;
@@ -14,9 +15,7 @@ export type Config = {
       domains: string[];
     };
   };
-  cache: {
-    resetExpirationOnFetch: boolean;
-    rules: Rule[];
+  storage: {
     backend: "local" | "s3";
     local?: {
       dir: string;
@@ -28,11 +27,12 @@ export type Config = {
       bucket: string;
       publicURL?: string;
     };
+    rules: Rule[];
   };
   upload: {
     enabled: boolean;
     requireAuth: boolean;
-    rules: Rule[];
+    requirePubkeyInRule: boolean;
   };
   list: {
     requireAuth: boolean;

@@ -12,8 +12,9 @@ const log = debug("cdn:upload");
 const tmpDir = await pfs.mkdtemp(path.join(tmpdir(), "uploads-"));
 
 export type UploadMetadata = {
-  mimeType?: string;
-  hash: string;
+  id: string;
+  type?: string;
+  sha256: string;
   tempFile: string;
   size: number;
 };
@@ -34,11 +35,15 @@ export function uploadWriteStream(stream: Readable) {
       log("Uploaded", id);
       const type = await fileTypeFromFile(tempFile);
       const size = await (await pfs.stat(tempFile)).size;
-      res({ mimeType: type?.mime, tempFile: tempFile, hash: hash.digest("hex"), size });
+      res({ id, type: type?.mime, tempFile: tempFile, sha256: hash.digest("hex"), size });
     });
   });
 }
 
-export async function removeUpload(upload: { tempFile: string }) {
+export function readUpload(upload: Pick<UploadMetadata, "tempFile">) {
+  return fs.createReadStream(upload.tempFile);
+}
+
+export async function removeUpload(upload: Pick<UploadMetadata, "tempFile">) {
   await pfs.rm(upload.tempFile);
 }

@@ -5,10 +5,10 @@ import debug from "debug";
 import serve from "koa-static";
 import path from "node:path";
 import cors from "@koa/cors";
-import Router from "@koa/router";
+
+import "./db/old-db-migration.js";
 
 import * as cacheModule from "./cache/index.js";
-import { db, pruneUsedTokens } from "./db.js";
 import httpError from "http-errors";
 import router from "./api.js";
 
@@ -49,12 +49,10 @@ app.listen(process.env.PORT || 3000);
 
 setInterval(() => {
   cacheModule.prune();
-  pruneUsedTokens();
 }, 1000 * 30);
 
 async function shutdown() {
   log("Saving database...");
-  await db.write();
   process.exit(0);
 }
 
