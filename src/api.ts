@@ -118,9 +118,9 @@ router.put<CommonState>("/upload", async (ctx) => {
     throw new httpError.BadRequest("Incorrect upload size");
   }
 
-  let blob = await blobDB.getBlob(upload.sha256);
+  let blob: BlobRow;
 
-  if (!blob) {
+  if (!blobDB.hasBlob(upload.sha256)) {
     log("Saving", upload.sha256, mimeType);
     await storage.putBlob(upload.sha256, uploadModule.readUpload(upload), mimeType);
     await uploadModule.removeUpload(upload);
@@ -129,10 +129,13 @@ router.put<CommonState>("/upload", async (ctx) => {
     blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type: mimeType, created: now });
     updateBlobAccess(upload.sha256, dayjs().unix());
   } else {
+    blob = blobDB.getBlob(upload.sha256);
     await uploadModule.removeUpload(upload);
   }
 
-  if (pubkey) blobDB.addOwner(blob.sha256, pubkey);
+  if (pubkey && !blobDB.hasOwner(upload.sha256, pubkey)) {
+    blobDB.addOwner(blob.sha256, pubkey);
+  }
 
   if (ctx.state.auth) saveAuthToken(ctx.state.auth);
 
