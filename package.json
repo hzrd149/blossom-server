@@ -23,6 +23,7 @@
     "@koa/router": "^12.0.1",
     "@nostr-dev-kit/ndk": "^2.4.0",
     "better-sqlite3": "^9.4.3",
+    "blossom-sqlite": "^0.1.0",
     "dayjs": "^1.11.10",
     "debug": "^4.3.4",
     "file-type": "^19.0.0",
