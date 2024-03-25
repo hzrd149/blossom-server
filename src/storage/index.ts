@@ -1,7 +1,5 @@
 import { config } from "../config.js";
-import { BlobStorage } from "./interface.js";
-import LocalStorage from "./local.js";
-import S3Storage from "./s3.js";
+import { LocalStorage, S3Storage, IBlobStorage } from "blossom-server-sdk/storage";
 
 function createStorage() {
   if (config.storage.backend === "local") {
@@ -18,7 +16,7 @@ function createStorage() {
   } else throw new Error("Unknown cache backend " + config.storage.backend);
 }
 
-const storage: BlobStorage = createStorage();
+const storage: IBlobStorage = createStorage();
 await storage.setup();
 
 export default storage;

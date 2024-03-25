@@ -1,6 +1,5 @@
-import path from "node:path";
 import Database from "better-sqlite3";
-import { BlossomSQLite } from "blossom-sqlite";
+import { BlossomSQLite } from "blossom-server-sdk/metadata/sqlite";
 import { config } from "../config.js";
 
 export const db = new Database(config.databasePath);

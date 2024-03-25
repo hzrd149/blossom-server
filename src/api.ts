@@ -8,7 +8,7 @@ import Router from "@koa/router";
 import httpError from "http-errors";
 import dayjs from "dayjs";
 import debug from "debug";
-import { BlobRow } from "blossom-sqlite";
+import { BlobMetadata } from "blossom-server-sdk/metadata";
 
 import { config } from "./config.js";
 import { BlobPointer, BlobSearch } from "./types.js";
@@ -22,11 +22,11 @@ import storage from "./storage/index.js";
 import { addToken, hasUsedToken, updateBlobAccess } from "./db/methods.js";
 import { blobDB } from "./db/db.js";
 
-function getBlobURL(blob: Pick<BlobRow, "sha256" | "type">) {
+function getBlobURL(blob: Pick<BlobMetadata, "sha256" | "type">) {
   const ext = blob.type && mime.getExtension(blob.type);
   return new URL(blob.sha256 + (ext ? "." + ext : ""), config.publicDomain).toString();
 }
-function getBlobDescriptor(blob: BlobRow) {
+function getBlobDescriptor(blob: BlobMetadata) {
   return {
     sha256: blob.sha256,
     size: blob.size,
@@ -118,11 +118,11 @@ router.put<CommonState>("/upload", async (ctx) => {
     throw new httpError.BadRequest("Incorrect upload size");
   }
 
-  let blob: BlobRow;
+  let blob: BlobMetadata;
 
   if (!blobDB.hasBlob(upload.sha256)) {
     log("Saving", upload.sha256, mimeType);
-    await storage.putBlob(upload.sha256, uploadModule.readUpload(upload), mimeType);
+    await storage.writeBlob(upload.sha256, uploadModule.readUpload(upload), mimeType);
     await uploadModule.removeUpload(upload);
 
     const now = dayjs().unix();
@@ -271,7 +271,7 @@ router.get("/:hash", async (ctx, next) => {
             // if the storage dose not have the blob. upload it
             if (!(await storage.hasBlob(upload.sha256))) {
               const type = upload.type || pointer.mimeType || search.mimeType || "";
-              await storage.putBlob(upload.sha256, uploadModule.readUpload(upload), type);
+              await storage.writeBlob(upload.sha256, uploadModule.readUpload(upload), type);
               await uploadModule.removeUpload(upload);
 
               if (!blobDB.hasBlob(upload.sha256)) {

@@ -6,23 +6,28 @@ import db, { blobDB } from "../db/db.js";
 import { config } from "../config.js";
 import { getExpirationTime } from "../rules/index.js";
 import dayjs from "dayjs";
-import { BlobRow } from "blossom-sqlite";
+import { BlobMetadata } from "blossom-server-sdk/metadata";
 import { forgetBlobAccessed } from "../db/methods.js";
+import { S3Storage } from "blossom-server-sdk/storage";
 
 const log = debug("cdn:cache");
 
 export async function search(search: BlobSearch): Promise<CachePointer | undefined> {
   if (blobDB.hasBlob(search.hash) && (await storage.hasBlob(search.hash))) {
-    const blob = await storage.findBlob(search.hash);
-    if (!blob) return;
+    const type = await storage.getBlobType(search.hash);
     log("Found", search.hash);
-    return { type: "cache", hash: search.hash, mimeType: blob.type };
+    return { type: "cache", hash: search.hash, mimeType: type };
   }
 }
 
 export function getRedirect(pointer: CachePointer) {
-  return storage.getPublicURL(pointer.hash);
+  const publicURL = config.storage.s3?.publicURL;
+  if (storage instanceof S3Storage && publicURL) {
+    const object = storage.objects.find((obj) => obj.name.startsWith(pointer.hash));
+    if (object) return publicURL + object.name;
+  }
 }
+
 export async function readPointer(pointer: CachePointer) {
   return await storage.readBlob(pointer.hash);
 }
@@ -33,7 +38,7 @@ export async function prune() {
 
   for (const rule of config.storage.rules) {
     const expiration = getExpirationTime(rule, now);
-    let blobs: (BlobRow & { pubkey: string; accessed: number | null })[] = [];
+    let blobs: (BlobMetadata & { pubkey: string; accessed: number | null })[] = [];
 
     if (rule.pubkeys?.length) {
       blobs = db
@@ -48,7 +53,7 @@ export async function prune() {
             owners.pubkey IN (${Array.from(rule.pubkeys).fill("?").join(", ")})
         `,
         )
-        .all(rule.type.replace("*", "%"), ...rule.pubkeys) as (BlobRow & {
+        .all(rule.type.replace("*", "%"), ...rule.pubkeys) as (BlobMetadata & {
         pubkey: string;
         accessed: number | null;
       })[];
@@ -64,7 +69,7 @@ export async function prune() {
             blobs.type LIKE ?
         `,
         )
-        .all(rule.type.replace("*", "%")) as (BlobRow & {
+        .all(rule.type.replace("*", "%")) as (BlobMetadata & {
         pubkey: string;
         accessed: number | null;
       })[];
