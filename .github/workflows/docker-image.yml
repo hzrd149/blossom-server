@@ -8,7 +8,7 @@ on:
       - "v*.*.*"
   pull_request:
     branches:
-      - "main"
+      - "master"
 
 env:
   REGISTRY: ghcr.io
@@ -49,7 +49,6 @@ jobs:
             type=semver,pattern={{major}}
             type=ref,event=branch
             type=ref,event=pr
-            type=sha
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
