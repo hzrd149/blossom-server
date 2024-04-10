@@ -72,7 +72,7 @@
           created_at: unixNow(),
           tags: [
             ["t", "upload"],
-            ["expiration", unixNow() + 60 * 5],
+            ["expiration", (unixNow() + 60 * 5).toString()],
             ["name", file.name],
             ["size", String(file.size)],
           ],
