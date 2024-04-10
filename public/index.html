@@ -52,6 +52,7 @@
 
     <script>
       const unixNow = () => Math.floor(Date.now() / 1000);
+      const newExpirationValue = () => (unixNow() + 60 * 5).toString();
       const deleteInput = document.getElementById("delete-input");
       const deleteButton = document.getElementById("delete-button");
       const hasBlobButton = document.getElementById("has-blob-button");
@@ -72,7 +73,7 @@
           created_at: unixNow(),
           tags: [
             ["t", "upload"],
-            ["expiration", (unixNow() + 60 * 5).toString()],
+            ["expiration", newExpirationValue()],
             ["name", file.name],
             ["size", String(file.size)],
           ],
@@ -113,7 +114,7 @@
           created_at: unixNow(),
           tags: [
             ["t", "list"],
-            ["expiration", unixNow() + 60 * 5],
+            ["expiration", newExpirationValue()],
           ],
         });
 
@@ -134,7 +135,7 @@
           created_at: Math.floor(Date.now() / 1000),
           tags: [
             ["t", "delete"],
-            ["expiration", unixNow() + 60 * 5],
+            ["expiration", newExpirationValue()],
             ["x", hash],
           ],
         });
