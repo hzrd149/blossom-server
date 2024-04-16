@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
 FROM node:20.11 as builder
-
 WORKDIR /app
 
 # Install dependencies
@@ -12,6 +11,7 @@ COPY . .
 RUN yarn build
 
 FROM node:20.11
+WORKDIR /app
 
 ENV NODE_ENV=production
 COPY ./package*.json .
@@ -19,10 +19,11 @@ COPY ./yarn.lock .
 RUN yarn install
 
 COPY --from=builder ./app/build ./build
+COPY ./public ./public
 
-VOLUME [ "/data" ]
+VOLUME [ "/app/data" ]
 EXPOSE 3000
 
 ENV DEBUG="cdn,cdn:*"
 
-ENTRYPOINT [ "node", "src/index.js" ]
+ENTRYPOINT [ "node", "." ]

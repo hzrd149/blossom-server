@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.1.0",
   "description": "Generic blob storage and retrieval for nostr",
-  "main": "index.js",
+  "main": "build/index.js",
   "type": "module",
   "author": "hzrd149",
   "license": "MIT",
