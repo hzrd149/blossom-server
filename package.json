@@ -1,7 +1,7 @@
 {
-  "name": "blossom-server",
+  "name": "blossom-server-ts",
   "version": "2.1.0",
-  "description": "Generic blob storage and retrieval for nostr",
+  "description": "A blossom server implementation written in Typescript",
   "main": "build/index.js",
   "type": "module",
   "author": "hzrd149",
