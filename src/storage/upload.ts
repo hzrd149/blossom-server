@@ -1,4 +1,3 @@
-import debug from "debug";
 import { fileTypeFromFile } from "file-type";
 import fs from "node:fs";
 import pfs from "node:fs/promises";
@@ -8,7 +7,9 @@ import { Readable } from "node:stream";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 
-const log = debug("cdn:upload");
+import logger from "../logger.js";
+
+const log = logger.extend('uploads')
 const tmpDir = await pfs.mkdtemp(path.join(tmpdir(), "uploads-"));
 
 export type UploadMetadata = {

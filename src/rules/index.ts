@@ -1,8 +1,8 @@
-import debug from "debug";
 import { Rule } from "../config.js";
 import dayjs from "dayjs";
+import logger from "../logger.js";
 
-const log = debug("cdn:cache:rules");
+const log = logger.extend("rules");
 
 export type RuleSearchInput = {
   pubkey?: string;

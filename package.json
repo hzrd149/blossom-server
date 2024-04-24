@@ -1,7 +1,7 @@
 {
   "name": "blossom-server",
   "private": true,
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "Generic blob storage and retrieval for nostr",
   "main": "build/index.js",
   "type": "module",
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node build/index.js",
     "build": "tsc",
-    "dev": "DEBUG=* nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' -i '**/src/**' build/index.js",
+    "dev": "DEBUG='blossom-server,blossom-server:*' nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' -i '**/src/**' build/index.js",
     "format": "prettier -w ."
   },
   "bin": "build/index.js",
@@ -28,8 +28,12 @@
     "debug": "^4.3.4",
     "file-type": "^19.0.0",
     "follow-redirects": "^1.15.6",
+    "generate-password": "^1.7.1",
     "http-error": "^0.0.6",
     "koa": "^2.15.0",
+    "koa-basic-auth": "^4.0.0",
+    "koa-body": "^6.0.1",
+    "koa-mount": "^4.0.0",
     "koa-static": "^5.0.0",
     "lilconfig": "^3.1.0",
     "mime": "^4.0.1",
@@ -47,12 +51,15 @@
     "@types/follow-redirects": "^1.14.4",
     "@types/http-errors": "^2.0.4",
     "@types/koa": "^2.14.0",
+    "@types/koa-basic-auth": "^2.0.6",
+    "@types/koa-mount": "^4.0.5",
     "@types/koa-static": "^4.0.4",
     "@types/koa__cors": "^5.0.0",
     "@types/koa__router": "^12.0.4",
     "@types/node": "^20.11.19",
     "nodemon": "^3.0.3",
     "prettier": "^3.2.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
 }

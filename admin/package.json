@@ -1,0 +1,32 @@
+{
+  "name": "admin",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write ./src"
+  },
+  "dependencies": {
+    "@mui/icons-material": "^5.15.15",
+    "@mui/material": "^5.15.15",
+    "dayjs": "^1.11.10",
+    "mime-types": "^2.1.35",
+    "nanoid": "^5.0.7",
+    "ra-data-simple-rest": "^4.16.16",
+    "react": "^18.2.0",
+    "react-admin": "^4.16.16",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^2.1.4",
+    "@types/node": "^20.12.7",
+    "@types/react": "^18.2.79",
+    "@types/react-dom": "^18.2.25",
+    "@vitejs/plugin-react": "^4.2.1",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10"
+  }
+}

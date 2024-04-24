@@ -1,10 +1,10 @@
-import debug from "debug";
 import { BlobSearch, HTTPPointer } from "../types.js";
 import { config } from "../config.js";
 import http from "node:http";
 import https from "node:https";
+import logger from "../logger.js";
 
-const log = debug("cdn:discover:upstream");
+const log = logger.extend("upstream-discovery");
 
 export async function search(search: BlobSearch) {
   log("Looking for", search.hash + search.ext);

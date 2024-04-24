@@ -4,3 +4,4 @@ data
 build
 database.json
 config.yml
+dist

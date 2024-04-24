@@ -1,15 +1,10 @@
-import NDK, { NDKKind } from "@nostr-dev-kit/ndk";
-import debug from "debug";
+import { NDKKind } from "@nostr-dev-kit/ndk";
+
 import { BlobPointer, BlobSearch } from "../types.js";
-import { config } from "../config.js";
+import logger from "../logger.js";
+import ndk from "../ndk.js";
 
-const ndk = new NDK({
-  explicitRelayUrls: config.discovery.nostr.relays,
-});
-
-ndk.connect();
-
-const log = debug("cdn:discover:nostr");
+const log = logger.extend("nostr-discovery");
 
 export async function search(search: BlobSearch) {
   log("Looking for", search.hash);

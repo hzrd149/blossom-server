@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import { blobDB } from "./db.js";
-import debug from "debug";
+import logger from "../logger.js";
 
-const log = debug("cdn:migration");
+const log = logger.extend("migration");
 
 type DBSchema = {
   blobs: Record<string, { expiration?: number; pubkeys?: string[]; created: number; mimeType?: string; size: number }>;

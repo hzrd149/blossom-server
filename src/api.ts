@@ -7,13 +7,12 @@ import { verifyEvent, NostrEvent } from "nostr-tools";
 import Router from "@koa/router";
 import httpError from "http-errors";
 import dayjs from "dayjs";
-import debug from "debug";
 import { BlobMetadata } from "blossom-server-sdk/metadata";
 
 import { config } from "./config.js";
 import { BlobPointer, BlobSearch } from "./types.js";
 import * as cacheModule from "./cache/index.js";
-import * as cdnDiscovery from "./discover/upstream.js";
+import * as upstreamDiscovery from "./discover/upstream.js";
 import * as nostrDiscovery from "./discover/nostr.js";
 import * as httpTransport from "./transport/http.js";
 import * as uploadModule from "./storage/upload.js";
@@ -21,11 +20,9 @@ import { getFileRule } from "./rules/index.js";
 import storage from "./storage/index.js";
 import { addToken, hasUsedToken, updateBlobAccess } from "./db/methods.js";
 import { blobDB } from "./db/db.js";
+import logger from "./logger.js";
+import { getBlobURL } from "./helpers/blob.js";
 
-function getBlobURL(blob: Pick<BlobMetadata, "sha256" | "type">) {
-  const ext = blob.type && mime.getExtension(blob.type);
-  return new URL(blob.sha256 + (ext ? "." + ext : ""), config.publicDomain).toString();
-}
 function getBlobDescriptor(blob: BlobMetadata) {
   return {
     sha256: blob.sha256,
@@ -36,7 +33,7 @@ function getBlobDescriptor(blob: BlobMetadata) {
   };
 }
 
-const log = debug("cdn:api");
+const log = logger.extend("api");
 const router = new Router();
 
 function parseAuthEvent(auth: NostrEvent) {
@@ -158,7 +155,7 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
       throw new httpError.Unauthorized("Cant list other pubkeys blobs");
   }
 
-  const blobs = blobDB.getOwnerBlobs(pubkey, { since, until });
+  const blobs = await blobDB.getOwnerBlobs(pubkey, { since, until });
 
   ctx.status = 200;
   ctx.body = blobs.map(getBlobDescriptor);
@@ -241,7 +238,7 @@ router.get("/:hash", async (ctx, next) => {
   }
 
   if (config.discovery.upstream.enabled) {
-    const cdnPointer = await cdnDiscovery.search(search);
+    const cdnPointer = await upstreamDiscovery.search(search);
     if (cdnPointer) pointers.push(cdnPointer);
   }
 
