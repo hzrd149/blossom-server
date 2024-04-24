@@ -1,5 +1,13 @@
 # blossom-server
 
+## 2.1.2
+
+### Patch Changes
+
+- 7520055: Add default for publicDomain option
+- 7520055: Change default local blob directory
+- 7520055: Fix bug with unowned blobs in dashboard
+
 ## 2.1.1
 
 ### Patch Changes

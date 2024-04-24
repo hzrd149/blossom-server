@@ -1,6 +1,6 @@
 {
   "name": "blossom-server-ts",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "A blossom server implementation written in Typescript",
   "main": "build/index.js",
   "type": "module",
