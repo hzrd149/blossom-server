@@ -11,7 +11,7 @@
     "start": "node build/index.js",
     "build": "tsc",
     "postbuild": "cd admin && yarn build",
-    "dev": "DEBUG='blossom-server,blossom-server:*' nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --exec 'node' --loader @swc-node/register/esm src/index.ts",
+    "dev": "nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --exec 'node' --loader @swc-node/register/esm src/index.ts",
     "format": "prettier -w ."
   },
   "bin": "build/index.js",
