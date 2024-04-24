@@ -4,13 +4,14 @@ import { getBlobURL } from "../helpers/blob.js";
 import storage from "../storage/index.js";
 import { parseGetListQuery, setContentRange } from "./helpers.js";
 import { buildConditionsFromFilter, buildOrderByFromSort } from "../helpers/sql.js";
+import { Request } from "koa";
 
-function blobRowToBlob(row: any) {
+function blobRowToBlob(row: any, req?: Request) {
   return {
     ...row,
-    owners: row.owners.split(","),
+    owners: row.owners?.split(",") ?? [],
     id: row.sha256,
-    url: getBlobURL(row),
+    url: getBlobURL(row, req ? req.protocol + "://" + req.host : undefined),
   };
 }
 function safeColumn(name: string) {
@@ -20,7 +21,8 @@ function safeColumn(name: string) {
 
 // getOne
 router.get("/blobs/:id", (ctx) => {
-  ctx.body = blobRowToBlob(db.prepare(baseBlobSql + " WHERE sha256 = ?" + groupByBlobHash).get(ctx.params.id));
+  const row = db.prepare(baseBlobSql + " WHERE sha256 = ?" + groupByBlobHash).get(ctx.params.id);
+  if (row) ctx.body = blobRowToBlob(row, ctx.request);
 });
 
 // delete blob
@@ -63,5 +65,5 @@ router.get("/blobs", (ctx) => {
   const blobs = db.prepare(sql).all(...params) as any[];
 
   setContentRange(ctx, range, blobs, total);
-  ctx.body = blobs.map(blobRowToBlob);
+  ctx.body = blobs.map((r) => blobRowToBlob(r, ctx.request));
 });

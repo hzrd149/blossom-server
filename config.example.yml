@@ -1,5 +1,6 @@
-# Used when listing blobs
-publicDomain: http://cdn.example.com
+# Override the domain thats is used in the blobs "url" field
+# By default it uses the domain the incoming HTTP request was made on
+publicDomain: ""
 
 databasePath: data/sqlite.db
 
@@ -9,7 +10,7 @@ dashboard:
   # admin username
   username: admin
   # if password is left blank it will be generated each time the app starts
-  password: ""
+  # password: ""
 
 discovery:
   # find files by querying nostr relays
@@ -32,7 +33,7 @@ storage:
   # local or s3
   backend: local
   local:
-    dir: ./data
+    dir: ./data/blobs
   # s3:
   #   endpoint: https://s3.endpoint.com
   #   bucket: blossom

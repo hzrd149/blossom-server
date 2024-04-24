@@ -7,6 +7,7 @@ import { BlobMetadata } from "blossom-server-sdk/metadata";
 import Router from "@koa/router";
 import dayjs from "dayjs";
 import mime from "mime";
+import { Request } from "koa";
 import * as HttpErrors from "http-errors";
 
 import { config } from "./config.js";
@@ -23,13 +24,13 @@ import { blobDB } from "./db/db.js";
 import { getBlobURL } from "./helpers/blob.js";
 import logger from "./logger.js";
 
-function getBlobDescriptor(blob: BlobMetadata) {
+function getBlobDescriptor(blob: BlobMetadata, req?: Request) {
   return {
     sha256: blob.sha256,
     size: blob.size,
     created: blob.created,
     type: blob.type,
-    url: getBlobURL(blob),
+    url: getBlobURL(blob, req ? req.protocol + "://" + req.host : undefined),
   };
 }
 
@@ -137,7 +138,7 @@ router.put<CommonState>("/upload", async (ctx) => {
   if (ctx.state.auth) saveAuthToken(ctx.state.auth);
 
   ctx.status = 200;
-  ctx.body = getBlobDescriptor(blob);
+  ctx.body = getBlobDescriptor(blob, ctx.request);
 });
 
 // list blobs
@@ -158,7 +159,7 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
   const blobs = await blobDB.getOwnerBlobs(pubkey, { since, until });
 
   ctx.status = 200;
-  ctx.body = blobs.map(getBlobDescriptor);
+  ctx.body = blobs.map((blob) => getBlobDescriptor(blob, ctx.request));
 });
 
 // delete blobs

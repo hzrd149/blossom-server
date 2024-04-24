@@ -5,6 +5,8 @@ import serve from "koa-static";
 import path from "node:path";
 import cors from "@koa/cors";
 import mount from "koa-mount";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import "./db/old-db-migration.js";
 
@@ -13,6 +15,8 @@ import router from "./api.js";
 import logger from "./logger.js";
 import { config } from "./config.js";
 import { isHttpError } from "./helpers/error.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = new Koa();
 
@@ -53,12 +57,19 @@ if (config.dashboard.enabled) {
   app.use(mount("/api", basicAuth({ name: config.dashboard.username, pass: config.dashboard.password })));
   app.use(mount("/api", koaBody()));
   app.use(mount("/api", adminApi.routes())).use(mount("/api", adminApi.allowedMethods()));
-  app.use(mount("/admin", serve("admin/dist")));
+  app.use(mount("/admin", serve(path.resolve(__dirname, "../admin/dist"))));
 
   logger("Dashboard started with", config.dashboard.username, config.dashboard.password);
 }
 
-app.use(serve(path.join(process.cwd(), "public")));
+try {
+  const www = path.resolve(process.cwd(), "public");
+  fs.statSync(www);
+  app.use(serve(www));
+} catch (error) {
+  const www = path.resolve(__dirname, "../public");
+  app.use(serve(www));
+}
 
 app.listen(process.env.PORT || 3000);
 logger("Started app on port", process.env.PORT || 3000);
