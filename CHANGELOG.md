@@ -1,5 +1,11 @@
 # blossom-server
 
+## 2.1.1
+
+### Patch Changes
+
+- Create data directory if it does not exist
+
 ## 2.1.0
 
 ### Minor Changes

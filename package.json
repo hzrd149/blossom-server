@@ -1,6 +1,6 @@
 {
   "name": "blossom-server-ts",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "A blossom server implementation written in Typescript",
   "main": "build/index.js",
   "type": "module",
@@ -11,7 +11,7 @@
     "start": "node build/index.js",
     "build": "tsc",
     "postbuild": "cd admin && yarn build",
-    "dev": "DEBUG='blossom-server,blossom-server:*' nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --loader @swc-node/register/esm build/index.js",
+    "dev": "DEBUG='blossom-server,blossom-server:*' nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --exec 'node' --loader @swc-node/register/esm src/index.ts",
     "format": "prettier -w ."
   },
   "bin": "build/index.js",
@@ -40,6 +40,7 @@
     "lilconfig": "^3.1.0",
     "mime": "^4.0.1",
     "minio": "^7.1.3",
+    "mkdirp": "^3.0.1",
     "nanoid": "^5.0.5",
     "nostr-tools": "^2.2.1",
     "socks-proxy-agent": "^8.0.2",

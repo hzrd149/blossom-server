@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
 import { BlossomSQLite } from "blossom-server-sdk/metadata/sqlite";
 import { config } from "../config.js";
+import { mkdirp } from "mkdirp";
+import { dirname } from "path";
+
+await mkdirp(dirname(config.databasePath));
 
 export const db = new Database(config.databasePath);
 export const blobDB = new BlossomSQLite(db);
