@@ -2,12 +2,12 @@
 import { extname } from "node:path";
 import { PassThrough } from "node:stream";
 import { URLSearchParams } from "node:url";
-import mime from "mime";
 import { verifyEvent, NostrEvent } from "nostr-tools";
-import Router from "@koa/router";
-import httpError from "http-errors";
-import dayjs from "dayjs";
 import { BlobMetadata } from "blossom-server-sdk/metadata";
+import Router from "@koa/router";
+import dayjs from "dayjs";
+import mime from "mime";
+import * as HttpErrors from "http-errors";
 
 import { config } from "./config.js";
 import { BlobPointer, BlobSearch } from "./types.js";
@@ -20,8 +20,8 @@ import { getFileRule } from "./rules/index.js";
 import storage from "./storage/index.js";
 import { addToken, hasUsedToken, updateBlobAccess } from "./db/methods.js";
 import { blobDB } from "./db/db.js";
-import logger from "./logger.js";
 import { getBlobURL } from "./helpers/blob.js";
+import logger from "./logger.js";
 
 function getBlobDescriptor(blob: BlobMetadata) {
   return {
@@ -38,13 +38,13 @@ const router = new Router();
 
 function parseAuthEvent(auth: NostrEvent) {
   const now = dayjs().unix();
-  if (auth.kind !== 24242) throw new httpError.BadRequest("Unexpected auth kind");
+  if (auth.kind !== 24242) throw new HttpErrors.BadRequest("Unexpected auth kind");
   const type = auth.tags.find((t) => t[0] === "t")?.[1];
-  if (!type) throw new httpError.BadRequest("Auth missing type");
+  if (!type) throw new HttpErrors.BadRequest("Auth missing type");
   const expiration = auth.tags.find((t) => t[0] === "expiration")?.[1];
-  if (!expiration) throw new httpError.BadRequest("Auth missing expiration");
-  if (parseInt(expiration) < now) throw new httpError.BadRequest("Auth expired");
-  if (!verifyEvent(auth)) throw new httpError.BadRequest("Invalid Auth event");
+  if (!expiration) throw new HttpErrors.BadRequest("Auth missing expiration");
+  if (parseInt(expiration) < now) throw new HttpErrors.BadRequest("Auth expired");
+  if (!verifyEvent(auth)) throw new HttpErrors.BadRequest("Invalid Auth event");
 
   return { auth, type, expiration: parseInt(expiration) };
 }
@@ -78,15 +78,15 @@ router.use(async (ctx, next) => {
 
 // upload blobs
 router.put<CommonState>("/upload", async (ctx) => {
-  if (!config.upload.enabled) throw new httpError.NotFound("Uploads disabled");
+  if (!config.upload.enabled) throw new HttpErrors.NotFound("Uploads disabled");
 
   // handle upload
   const contentType = ctx.header["content-type"];
   if (config.upload.requireAuth) {
-    if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
-    if (ctx.state.authType !== "upload") throw new httpError.Unauthorized("Auth event should be 'upload'");
+    if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
+    if (ctx.state.authType !== "upload") throw new HttpErrors.Unauthorized("Auth event should be 'upload'");
 
-    if (hasUsedToken(ctx.state.auth.id)) throw new httpError.BadRequest("Auth event already used");
+    if (hasUsedToken(ctx.state.auth.id)) throw new HttpErrors.BadRequest("Auth event already used");
   }
 
   const pubkey = ctx.state.auth?.pubkey;
@@ -103,8 +103,8 @@ router.put<CommonState>("/upload", async (ctx) => {
     config.upload.requireAuth && config.upload.requirePubkeyInRule,
   );
   if (!rule) {
-    if (config.upload.requirePubkeyInRule) throw new httpError.Unauthorized("Pubkey not on whitelist");
-    else throw new httpError.Unauthorized(`Server dose not accept ${contentType} blobs`);
+    if (config.upload.requirePubkeyInRule) throw new HttpErrors.Unauthorized("Pubkey not on whitelist");
+    else throw new HttpErrors.Unauthorized(`Server dose not accept ${contentType} blobs`);
   }
 
   const upload = await uploadModule.uploadWriteStream(ctx.req);
@@ -112,7 +112,7 @@ router.put<CommonState>("/upload", async (ctx) => {
 
   if (config.upload.requireAuth && upload.size !== authSize) {
     uploadModule.removeUpload(upload);
-    throw new httpError.BadRequest("Incorrect upload size");
+    throw new HttpErrors.BadRequest("Incorrect upload size");
   }
 
   let blob: BlobMetadata;
@@ -149,10 +149,10 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
   const until = query.until ? parseInt(query.until as string) : undefined;
 
   if (config.list.requireAuth) {
-    if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
-    if (ctx.state.authType !== "list") throw new httpError.Unauthorized("Incorrect Auth type");
+    if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
+    if (ctx.state.authType !== "list") throw new HttpErrors.Unauthorized("Incorrect Auth type");
     if (config.list.allowListOthers === false && ctx.state.auth.pubkey !== pubkey)
-      throw new httpError.Unauthorized("Cant list other pubkeys blobs");
+      throw new HttpErrors.Unauthorized("Cant list other pubkeys blobs");
   }
 
   const blobs = await blobDB.getOwnerBlobs(pubkey, { since, until });
@@ -167,10 +167,10 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
   if (!match) return next();
 
   const hash = match[1];
-  if (!ctx.state.auth) throw new httpError.Unauthorized("Missing Auth event");
-  if (ctx.state.authType !== "delete") throw new httpError.Unauthorized("Incorrect Auth type");
+  if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
+  if (ctx.state.authType !== "delete") throw new HttpErrors.Unauthorized("Incorrect Auth type");
   if (!ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === hash))
-    throw new httpError.Unauthorized("Auth missing hash");
+    throw new HttpErrors.Unauthorized("Auth missing hash");
   if (hasUsedToken(ctx.state.auth.id)) throw new Error("Auth already used");
 
   // skip if blob dose not exist
@@ -285,7 +285,7 @@ router.get("/:hash", async (ctx, next) => {
     } catch (e) {}
   }
 
-  if (!ctx.body) throw new httpError.NotFound("Cant find blob for hash");
+  if (!ctx.body) throw new HttpErrors.NotFound("Cant find blob for hash");
 });
 
 export default router;

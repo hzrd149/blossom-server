@@ -1,8 +1,8 @@
 import { lilconfig } from "lilconfig";
 import yaml from "yaml";
-import fs from "fs";
+import fs from "node:fs";
 import { generate } from "generate-password";
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 
 import logger from "./logger.js";
 import { mergeDeep } from "./helpers/object.js";

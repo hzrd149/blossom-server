@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 
 import logger from "../logger.js";
 
-const log = logger.extend('uploads')
+const log = logger.extend("uploads");
 const tmpDir = await pfs.mkdtemp(path.join(tmpdir(), "uploads-"));
 
 export type UploadMetadata = {

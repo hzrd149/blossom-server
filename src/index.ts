@@ -9,10 +9,10 @@ import mount from "koa-mount";
 import "./db/old-db-migration.js";
 
 import * as cacheModule from "./cache/index.js";
-import httpError from "http-errors";
 import router from "./api.js";
 import logger from "./logger.js";
 import { config } from "./config.js";
+import { isHttpError } from "./helpers/error.js";
 
 const app = new Koa();
 
@@ -31,7 +31,7 @@ app.use(async (ctx, next) => {
   try {
     await next();
   } catch (err) {
-    if (err instanceof httpError.HttpError) {
+    if (isHttpError(err)) {
       const status = (ctx.status = err.status || 500);
       if (status >= 500) console.error(err.stack);
       ctx.body = status > 500 ? { message: "Something went wrong" } : { message: err.message };

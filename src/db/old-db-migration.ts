@@ -1,4 +1,4 @@
-import fs from "fs/promises";
+import fs from "node:fs/promises";
 import { blobDB } from "./db.js";
 import logger from "../logger.js";
 
