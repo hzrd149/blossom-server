@@ -50,7 +50,6 @@ if (config.dashboard.enabled) {
   const { default: basicAuth } = await import("koa-basic-auth");
   const { default: adminApi } = await import("./admin-api/index.js");
 
-  app.keys = [config.dashboard.sessionKey];
   app.use(mount("/api", basicAuth({ name: config.dashboard.username, pass: config.dashboard.password })));
   app.use(mount("/api", koaBody()));
   app.use(mount("/api", adminApi.routes())).use(mount("/api", adminApi.allowedMethods()));

@@ -2,7 +2,6 @@ import { lilconfig } from "lilconfig";
 import yaml from "yaml";
 import fs from "node:fs";
 import { generate } from "generate-password";
-import { randomBytes } from "node:crypto";
 
 import logger from "./logger.js";
 import { mergeDeep } from "./helpers/object.js";
@@ -17,7 +16,6 @@ export type Config = {
     enabled: boolean;
     username: string;
     password: string;
-    sessionKey: string;
   };
   discovery: {
     nostr: {
@@ -68,7 +66,7 @@ function loadJson(filepath: string, content: string) {
 const defaultConfig: Config = {
   publicDomain: "http://127.0.0.1",
   databasePath: "data/sqlite.db",
-  dashboard: { enabled: false, username: "admin", password: generate(), sessionKey: randomBytes(16).toString("hex") },
+  dashboard: { enabled: false, username: "admin", password: generate() },
   discovery: {
     nostr: { enabled: false, relays: [] },
     upstream: { enabled: false, domains: [] },

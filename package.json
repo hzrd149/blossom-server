@@ -1,7 +1,7 @@
 {
   "name": "blossom-server",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Generic blob storage and retrieval for nostr",
   "main": "build/index.js",
   "type": "module",
@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node build/index.js",
     "build": "tsc",
-    "dev": "DEBUG='blossom-server,blossom-server:*' nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' -i '**/src/**' --loader @swc-node/register/esm build/index.js",
+    "dev": "DEBUG='blossom-server,blossom-server:*' nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --loader @swc-node/register/esm build/index.js",
     "format": "prettier -w ."
   },
   "bin": "build/index.js",
@@ -29,8 +29,7 @@
     "file-type": "^19.0.0",
     "follow-redirects": "^1.15.6",
     "generate-password": "^1.7.1",
-    "http-error": "^0.0.6",
-    "http-errors": "^2.0.0",
+    "http-errors": "1",
     "koa": "^2.15.0",
     "koa-basic-auth": "^4.0.0",
     "koa-body": "^6.0.1",

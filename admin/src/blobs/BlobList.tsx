@@ -1,9 +1,19 @@
 import * as React from "react";
-import { useMediaQuery, Theme, IconButton, Card, CardContent } from "@mui/material";
-import { Description, OpenInNew } from "@mui/icons-material";
-import dayjs from "dayjs";
-import mime from "mime-types";
-
+import {
+  useMediaQuery,
+  Theme,
+  IconButton,
+  Card,
+  CardContent,
+  Stack,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  useTheme,
+  DialogActions,
+  Button,
+} from "@mui/material";
+import { OpenInNew, Visibility } from "@mui/icons-material";
 import {
   AutocompleteArrayInput,
   BulkDeleteWithConfirmButton,
@@ -15,22 +25,76 @@ import {
   List,
   NumberField,
   Pagination,
-  SavedQueriesList,
   SearchInput,
   SimpleList,
   TextField,
   useRecordContext,
 } from "react-admin";
+import dayjs from "dayjs";
+import mime from "mime-types";
+
 import { truncateHash } from "../helpers/string";
+import BlobPreview, { canPreview } from "./BlobPreview";
 
-const UserBulkActionButtons = (props) => <BulkDeleteWithConfirmButton {...props} />;
+const UserBulkActionButtons = (props: any) => <BulkDeleteWithConfirmButton {...props} />;
 
-function OpenButton() {
+function PreviewButton() {
+  const theme = useTheme();
   const record = useRecordContext();
+  const [open, setOpen] = React.useState(false);
+  const fullScreen = useMediaQuery(theme.breakpoints.down("md"));
+
   return (
-    <IconButton aria-label="delete" href={record.url} target="_blank">
-      <OpenInNew />
-    </IconButton>
+    <>
+      <IconButton
+        aria-label="preview"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        size="small"
+      >
+        <Visibility />
+      </IconButton>
+
+      <Dialog
+        maxWidth="lg"
+        open={open}
+        onClick={(e) => e.stopPropagation()}
+        fullScreen={fullScreen}
+        onClose={() => setOpen(false)}
+      >
+        <DialogTitle>Preview</DialogTitle>
+        <DialogContent>
+          {/* @ts-expect-error */}
+          <BlobPreview blob={record} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function RowActions() {
+  const record = useRecordContext();
+
+  return (
+    <>
+      <Stack direction="row" useFlexGap spacing={1} justifyContent="flex-end">
+        {canPreview(record as any) && <PreviewButton />}
+        <IconButton
+          aria-label="delete"
+          href={record.url}
+          target="_blank"
+          size="small"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <OpenInNew />
+        </IconButton>
+      </Stack>
+    </>
   );
 }
 
@@ -43,7 +107,7 @@ function SideBar() {
           <FilterListItem label=".png" value={{ type: ["image/png"] }} />
           <FilterListItem label=".jpg" value={{ type: ["image/jpeg"] }} />
           <FilterListItem label=".gif" value={{ type: ["image/gif"] }} />
-          <FilterListItem label=".svg" value={{ type: ["image/xml+svg"] }} />
+          <FilterListItem label=".svg" value={{ type: ["image/svg+xml"] }} />
           <FilterListItem label=".bmp" value={{ type: ["image/bmp"] }} />
           <FilterListItem label=".psd" value={{ type: ["image/vnd.adobe.photoshop"] }} />
         </FilterList>
@@ -101,12 +165,12 @@ export default function BlobList() {
       {useMediaQuery((theme: Theme) => theme.breakpoints.down("md")) ? (
         <SimpleList primaryText={(record) => truncateHash(record.sha256)} secondaryText={(record) => record.type} />
       ) : (
-        <Datagrid bulkActionButtons={<UserBulkActionButtons />} optimized>
+        <Datagrid rowClick="show" bulkActionButtons={<UserBulkActionButtons />} optimized>
           <TextField source="sha256" sortable={false} />
           <TextField source="type" />
           <NumberField source="size" />
-          <DateField source="created" transform={(unix) => dayjs.unix(unix).toDate()} showTime />
-          <OpenButton />
+          <DateField source="created" transform={(unix: number) => dayjs.unix(unix).toDate()} showTime />
+          <RowActions />
         </Datagrid>
       )}
     </List>

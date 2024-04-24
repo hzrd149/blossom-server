@@ -18,6 +18,18 @@ function safeColumn(name: string) {
   throw new Error("Invalid table name");
 }
 
+// getOne
+router.get("/blobs/:id", (ctx) => {
+  ctx.body = blobRowToBlob(db.prepare(baseBlobSql + " WHERE sha256 = ?" + groupByBlobHash).get(ctx.params.id));
+});
+
+// delete blob
+router.delete("/blobs/:id", async (ctx) => {
+  await blobDB.removeBlob(ctx.params.id);
+  if (await storage.hasBlob(ctx.params.id)) await storage.removeBlob(ctx.params.id);
+  ctx.body = { success: true };
+});
+
 // getList / getMany
 const baseBlobSql = `
 SELECT blobs.*,GROUP_CONCAT(owners.pubkey, ',') as owners FROM blobs
@@ -52,16 +64,4 @@ router.get("/blobs", (ctx) => {
 
   setContentRange(ctx, range, blobs, total);
   ctx.body = blobs.map(blobRowToBlob);
-});
-
-// getOne
-router.get("/blobs/:id", (ctx) => {
-  return blobRowToBlob(db.prepare(baseBlobSql + " WHERE sha256 = ?" + groupByBlobHash).get(ctx.params.id));
-});
-
-// delete blob
-router.delete("/blobs/:id", async (ctx) => {
-  await blobDB.removeBlob(ctx.params.id);
-  if (await storage.hasBlob(ctx.params.id)) await storage.removeBlob(ctx.params.id);
-  ctx.body = { success: true };
 });

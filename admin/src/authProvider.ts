@@ -22,7 +22,7 @@ export const authProvider: AuthProvider = {
     if (res.ok) {
       savedAuth = auth;
       return Promise.resolve();
-    }
+    } else savedAuth = null;
 
     return Promise.reject(
       new HttpError("Unauthorized", 401, {
@@ -35,9 +35,7 @@ export const authProvider: AuthProvider = {
   },
   async checkError() {},
   async checkAuth() {
-    const res = await fetch(getApiURL("/auth"), { headers: getAuthHeaders() });
-    if (res.ok) return Promise.resolve();
-    else return Promise.reject();
+    return savedAuth ? Promise.resolve() : Promise.reject();
   },
   async getPermissions() {},
   async getIdentity() {

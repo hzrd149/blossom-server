@@ -10,9 +10,6 @@ dashboard:
   username: admin
   # if password is left blank it will be generated each time the app starts
   password: ""
-  # a random secret to manage login sessions
-  # its better to leave this blank
-  sessionKey: ""
 
 discovery:
   # find files by querying nostr relays

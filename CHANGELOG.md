@@ -1,5 +1,11 @@
 # blossom-server
 
+## 2.1.0
+
+### Minor Changes
+
+- Add blob details page with preview
+
 ## 2.0.0
 
 ### Major Changes
