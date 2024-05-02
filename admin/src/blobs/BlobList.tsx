@@ -158,7 +158,7 @@ export default function BlobList() {
         />,
       ]}
       filterDefaultValues={{}}
-      sort={{ field: "created", order: "ASC" }}
+      sort={{ field: "uploaded", order: "ASC" }}
       pagination={<Pagination rowsPerPageOptions={[10, 25, 50, 100]} />}
       aside={<SideBar />}
     >
@@ -169,7 +169,7 @@ export default function BlobList() {
           <TextField source="sha256" sortable={false} />
           <TextField source="type" />
           <NumberField source="size" />
-          <DateField source="created" transform={(unix: number) => dayjs.unix(unix).toDate()} showTime />
+          <DateField source="uploaded" transform={(unix: number) => dayjs.unix(unix).toDate()} showTime />
           <RowActions />
         </Datagrid>
       )}

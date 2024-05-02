@@ -1,5 +1,15 @@
 # blossom-server
 
+## 3.0.0
+
+### Major Changes
+
+- Rename "created" field to "uploaded" on blobs
+
+### Minor Changes
+
+- Support "since" and "until" on /list endpoint
+
 ## 2.1.2
 
 ### Patch Changes

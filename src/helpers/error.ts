@@ -1,4 +1,4 @@
-import * as HttpErrors from "http-errors";
+import HttpErrors from "http-errors";
 
 export function isHttpError(error: unknown): error is HttpErrors.HttpError {
   if (!error) return false;

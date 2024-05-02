@@ -78,7 +78,7 @@ export async function prune() {
     for (const blob of blobs) {
       if (checked.has(blob.sha256)) continue;
 
-      if ((blob.accessed || blob.created) < expiration) {
+      if ((blob.accessed || blob.uploaded) < expiration) {
         log("Removing", blob.sha256, blob.type, "because", rule);
         blobDB.removeBlob(blob.sha256);
         if (await storage.hasBlob(blob.sha256)) storage.removeBlob(blob.sha256);

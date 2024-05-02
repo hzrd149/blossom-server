@@ -15,7 +15,7 @@ function blobRowToBlob(row: any, req?: Request) {
   };
 }
 function safeColumn(name: string) {
-  if (["sha256", "type", "size", "created"].includes(name)) return name;
+  if (["sha256", "type", "size", "uploaded"].includes(name)) return name;
   throw new Error("Invalid table name");
 }
 

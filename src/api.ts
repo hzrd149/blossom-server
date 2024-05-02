@@ -8,7 +8,7 @@ import Router from "@koa/router";
 import dayjs from "dayjs";
 import mime from "mime";
 import { Request } from "koa";
-import * as HttpErrors from "http-errors";
+import HttpErrors from "http-errors";
 
 import { config } from "./config.js";
 import { BlobPointer, BlobSearch } from "./types.js";
@@ -28,7 +28,7 @@ function getBlobDescriptor(blob: BlobMetadata, req?: Request) {
   return {
     sha256: blob.sha256,
     size: blob.size,
-    created: blob.created,
+    uploaded: blob.uploaded,
     type: blob.type,
     url: getBlobURL(blob, req ? req.protocol + "://" + req.host : undefined),
   };
@@ -124,7 +124,7 @@ router.put<CommonState>("/upload", async (ctx) => {
     await uploadModule.removeUpload(upload);
 
     const now = dayjs().unix();
-    blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type: mimeType, created: now });
+    blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type: mimeType, uploaded: now });
     updateBlobAccess(upload.sha256, dayjs().unix());
   } else {
     blob = blobDB.getBlob(upload.sha256);
@@ -273,7 +273,7 @@ router.get("/:hash", async (ctx, next) => {
               await uploadModule.removeUpload(upload);
 
               if (!blobDB.hasBlob(upload.sha256)) {
-                blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type, created: dayjs().unix() });
+                blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type, uploaded: dayjs().unix() });
               }
             } else {
               await uploadModule.removeUpload(upload);

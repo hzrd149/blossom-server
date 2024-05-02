@@ -892,6 +892,14 @@ better-sqlite3@^9.4.3:
     bindings "^1.5.0"
     prebuild-install "^7.1.1"
 
+better-sqlite3@^9.6.0:
+  version "9.6.0"
+  resolved "https://registry.yarnpkg.com/better-sqlite3/-/better-sqlite3-9.6.0.tgz#b01e58ba7c48abcdc0383b8301206ee2ab81d271"
+  integrity sha512-yR5HATnqeYNVnkaUTf4bOP2dJSnyhP4puJN/QPRyx4YkBEEUxib422n2XzPqDEHjQQqazoYoADdAm5vE15+dAQ==
+  dependencies:
+    bindings "^1.5.0"
+    prebuild-install "^7.1.1"
+
 binary-extensions@^2.0.0:
   version "2.3.0"
   resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-2.3.0.tgz#f6e14a97858d327252200242d4ccfe522c445522"
@@ -920,16 +928,17 @@ block-stream2@^2.1.0:
   dependencies:
     readable-stream "^3.4.0"
 
-blossom-server-sdk@^0.2.1:
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/blossom-server-sdk/-/blossom-server-sdk-0.2.1.tgz#bd3fa13b9fbb795c42f54242e3c04133b11d36b9"
-  integrity sha512-117NllpcOz7iHY3uvawvp28z/L2uEoR58PYmItXxLLMHL7/rWdXIQwb9zc0+QGiD6RN3DchMHKm1zf/5T1c16w==
+blossom-server-sdk@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/blossom-server-sdk/-/blossom-server-sdk-0.3.0.tgz#0b383e6ca2800241af61ed9c693a8af628189408"
+  integrity sha512-wLqWhpYznfb9T/9iV8s8WEO3suJ87hsgxxvXG2hY0tCEb9wNx2VfuSG8c03fY0xdquQUMPXl5U5Hk4b/Kvhbdg==
   dependencies:
-    better-sqlite3 "^9.4.3"
+    "@changesets/cli" "^2.27.1"
+    better-sqlite3 "^9.6.0"
     debug "^4.3.4"
-    mime "^4.0.1"
+    mime "^4.0.3"
     minio "^7.1.3"
-    ws "^8.16.0"
+    ws "^8.17.0"
 
 brace-expansion@^1.1.7:
   version "1.1.11"
@@ -2464,6 +2473,11 @@ mime@^4.0.1:
   resolved "https://registry.yarnpkg.com/mime/-/mime-4.0.1.tgz#ad7563d1bfe30253ad97dedfae2b1009d01b9470"
   integrity sha512-5lZ5tyrIfliMXzFtkYyekWbtRXObT9OWa8IwQ5uxTBDHucNNwniRqo0yInflj+iYi5CBa6qxadGzGarDfuEOxA==
 
+mime@^4.0.3:
+  version "4.0.3"
+  resolved "https://registry.yarnpkg.com/mime/-/mime-4.0.3.tgz#cd4a1aa052fc980dfc34f111fe1be9e8b878c5d2"
+  integrity sha512-KgUb15Oorc0NEKPbvfa0wRU+PItIEZmiv+pyAO2i0oTIVTJhlzMclU7w4RXWQrSOVH5ax/p/CkIO7KI4OyFJTQ==
+
 mimic-response@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/mimic-response/-/mimic-response-3.1.0.tgz#2d1d59af9c1b129815accc2c46a022a5ce1fa3c9"
@@ -3790,10 +3804,10 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==
 
-ws@^8.16.0:
-  version "8.16.0"
-  resolved "https://registry.yarnpkg.com/ws/-/ws-8.16.0.tgz#d1cd774f36fbc07165066a60e40323eab6446fd4"
-  integrity sha512-HS0c//TP7Ina87TfiPUz1rQzMhHrl/SG2guqRcTOIUYD2q8uhUdNHZYJUaQ8aTGPzCh+c6oawMKW35nFl1dxyQ==
+ws@^8.17.0:
+  version "8.17.0"
+  resolved "https://registry.yarnpkg.com/ws/-/ws-8.17.0.tgz#d145d18eca2ed25aaf791a183903f7be5e295fea"
+  integrity sha512-uJq6108EgZMAl20KagGkzCKfMEjxmKvZHG7Tlq0Z6nOky7YF7aq4mOx6xK8TJ/i1LeK4Qus7INktacctDgY8Ow==
 
 xml2js@^0.5.0:
   version "0.5.0"

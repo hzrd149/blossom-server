@@ -28,7 +28,7 @@ try {
             sha256,
             type: blob.mimeType ?? "",
             size: blob.size,
-            created: blob.created,
+            uploaded: blob.created,
           });
           imported++;
 

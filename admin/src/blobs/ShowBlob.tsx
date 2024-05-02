@@ -6,7 +6,7 @@ type BlobShape = {
   sha256: string;
   type: string;
   size: number;
-  created: number;
+  uploaded: number;
   owners: string[];
   id: string;
   url: string;
