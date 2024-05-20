@@ -91,9 +91,7 @@ router.put<CommonState>("/upload", async (ctx) => {
   }
 
   const pubkey = ctx.state.auth?.pubkey;
-  const authSize = ctx.state.auth
-    ? parseInt(ctx.state.auth.tags.find((t) => t[0] === "size")?.[1] || "NaN")
-    : undefined;
+  const authHash = ctx.state.auth?.tags.find((t) => t[0] === "x")?.[1];
 
   const rule = getFileRule(
     {
@@ -111,9 +109,9 @@ router.put<CommonState>("/upload", async (ctx) => {
   const upload = await uploadModule.uploadWriteStream(ctx.req);
   const mimeType = contentType || upload.type || "";
 
-  if (config.upload.requireAuth && upload.size !== authSize) {
+  if (config.upload.requireAuth && upload.sha256 !== authHash) {
     uploadModule.removeUpload(upload);
-    throw new HttpErrors.BadRequest("Incorrect upload size");
+    throw new HttpErrors.BadRequest("Incorrect blob sha256");
   }
 
   let blob: BlobMetadata;

@@ -1,5 +1,15 @@
 # blossom-server
 
+## 4.0.0
+
+### Major Changes
+
+- Require "x" tag with sha256 hash on uploads
+
+### Minor Changes
+
+- Rebuild landing page with tailwind and lit
+
 ## 3.0.0
 
 ### Major Changes
