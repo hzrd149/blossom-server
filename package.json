@@ -44,7 +44,7 @@
     "nanoid": "^5.0.5",
     "nostr-tools": "^2.2.1",
     "socks-proxy-agent": "^8.0.2",
-    "websocket-polyfill": "^0.0.3",
+    "websocket-polyfill": "^1.0.0",
     "yaml": "^2.3.4"
   },
   "devDependencies": {
@@ -65,5 +65,8 @@
     "nodemon": "^3.0.3",
     "prettier": "^3.2.5",
     "typescript": "^5.3.3"
+  },
+  "resolutions": {
+    "websocket-polyfill": "1.0.0"
   }
 }
