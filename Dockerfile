@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:20.11 as builder
+FROM node:20-alpine as builder
 WORKDIR /app
 
 # Install dependencies
@@ -14,7 +14,7 @@ COPY . .
 RUN yarn build
 RUN cd admin && yarn build
 
-FROM node:20.11
+FROM node:20-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production
