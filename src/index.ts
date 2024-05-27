@@ -1,5 +1,5 @@
 #!/bin/env node
-import "websocket-polyfill";
+import "./polyfill.js";
 import Koa from "koa";
 import serve from "koa-static";
 import path from "node:path";

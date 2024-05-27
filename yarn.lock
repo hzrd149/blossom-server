@@ -737,6 +737,13 @@
     "@types/mime" "*"
     "@types/node" "*"
 
+"@types/ws@^8.5.10":
+  version "8.5.10"
+  resolved "https://registry.yarnpkg.com/@types/ws/-/ws-8.5.10.tgz#4acfb517970853fa6574a3a6886791d04a396787"
+  integrity sha512-vmQSUcfalpIq0R9q7uTo2lXs6eGIpt9wtnLdMv9LVpIjCA/+ufZRozlVoVelIYixx1ugCBKDhn89vnsEGOCx9A==
+  dependencies:
+    "@types/node" "*"
+
 "@zxing/text-encoding@0.9.0":
   version "0.9.0"
   resolved "https://registry.yarnpkg.com/@zxing/text-encoding/-/text-encoding-0.9.0.tgz#fb50ffabc6c7c66a0c96b4c03e3d9be74864b70b"
@@ -3648,7 +3655,7 @@ web-streams-polyfill@^3.0.3:
   resolved "https://registry.yarnpkg.com/web-streams-polyfill/-/web-streams-polyfill-3.3.3.tgz#2073b91a2fdb1fbfbd401e7de0ac9f8214cecb4b"
   integrity sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==
 
-websocket-polyfill@1.0.0, websocket-polyfill@^0.0.3, websocket-polyfill@^1.0.0:
+websocket-polyfill@1.0.0, websocket-polyfill@^0.0.3:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/websocket-polyfill/-/websocket-polyfill-1.0.0.tgz#823ea88d316c205fde3599033bc90cb2709980f2"
   integrity sha512-QwfEy8jcOOCVO9su9UP+msEmhZa4a9WSJfePIdCT8GxwVl2Z9toM7nCqFfDDxA/sRmxgf1KNiwL6PXvjJ9qRxw==

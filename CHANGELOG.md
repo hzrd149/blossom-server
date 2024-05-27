@@ -1,5 +1,11 @@
 # blossom-server
 
+## 4.0.1
+
+### Patch Changes
+
+- Replace websocket-polyfill package
+
 ## 4.0.0
 
 ### Major Changes
