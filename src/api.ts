@@ -81,8 +81,7 @@ router.use(async (ctx, next) => {
 router.put<CommonState>("/upload", async (ctx) => {
   if (!config.upload.enabled) throw new HttpErrors.NotFound("Uploads disabled");
 
-  // handle upload
-  const contentType = ctx.header["content-type"];
+  // check auth
   if (config.upload.requireAuth) {
     if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
     if (ctx.state.authType !== "upload") throw new HttpErrors.Unauthorized("Auth event should be 'upload'");
@@ -90,6 +89,8 @@ router.put<CommonState>("/upload", async (ctx) => {
     if (hasUsedToken(ctx.state.auth.id)) throw new HttpErrors.BadRequest("Auth event already used");
   }
 
+  // check rules
+  const contentType = ctx.header["content-type"];
   const pubkey = ctx.state.auth?.pubkey;
   const authHash = ctx.state.auth?.tags.find((t) => t[0] === "x")?.[1];
 
@@ -106,8 +107,17 @@ router.put<CommonState>("/upload", async (ctx) => {
     else throw new HttpErrors.Unauthorized(`Server dose not accept ${contentType} blobs`);
   }
 
-  const upload = await uploadModule.uploadWriteStream(ctx.req);
-  const mimeType = contentType || upload.type || "";
+  let mimeType: string | undefined = undefined;
+  let upload: uploadModule.UploadMetadata;
+
+  if (typeof ctx.query.url === "string") {
+    const url = new URL(ctx.query.url);
+    upload = await uploadModule.downloadFromURL(url);
+    mimeType = upload.type;
+  } else if (ctx.request.body) {
+    upload = await uploadModule.uploadWriteStream(ctx.req);
+    mimeType = contentType || upload.type;
+  } else throw new Error("Invalid upload");
 
   if (config.upload.requireAuth && upload.sha256 !== authHash) {
     uploadModule.removeUpload(upload);

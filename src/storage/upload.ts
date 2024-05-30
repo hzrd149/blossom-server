@@ -6,8 +6,12 @@ import { tmpdir } from "node:os";
 import { Readable } from "node:stream";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
+import mime from "mime";
+import followRedirects from "follow-redirects";
+const { http, https } = followRedirects;
 
 import logger from "../logger.js";
+import { SplitStream } from "../helpers/stream.js";
 
 const log = logger.extend("uploads");
 const tmpDir = await pfs.mkdtemp(path.join(tmpdir(), "uploads-"));
@@ -26,18 +30,61 @@ export function uploadWriteStream(stream: Readable) {
 
   const tempFile = path.join(tmpDir, id);
   const write = fs.createWriteStream(tempFile);
-  stream.pipe(write);
-
   const hash = createHash("sha256");
+
+  // const split = new SplitStream(write, hash);
+  stream.pipe(write);
   stream.pipe(hash);
 
   return new Promise<UploadMetadata>((res) => {
     stream.on("end", async () => {
       log("Uploaded", id);
       const type = await fileTypeFromFile(tempFile);
-      const size = await (await pfs.stat(tempFile)).size;
+      const size = (await pfs.stat(tempFile)).size;
       res({ id, type: type?.mime, tempFile: tempFile, sha256: hash.digest("hex"), size });
     });
+  });
+}
+
+export function downloadFromURL(url: URL) {
+  const id = nanoid(8);
+  const backend = url.protocol === "https:" ? https : http;
+
+  log("Downloading", id, "from", url.toString());
+
+  const tempFile = path.join(tmpDir, id);
+  const write = fs.createWriteStream(tempFile);
+  const hash = createHash("sha256");
+
+  return new Promise<UploadMetadata>((resolve, reject) => {
+    const request = backend.get(url, (res) => {
+      if (!res.statusCode) return reject();
+      if (res.statusCode < 200 || res.statusCode >= 400) {
+        res.destroy();
+        reject(res);
+      }
+
+      let mimeType = res.headers["content-type"];
+      if (!mimeType) mimeType = mime.getType(url.pathname) ?? undefined;
+
+      // const split = new SplitStream(write, hash);
+      res.pipe(write);
+      res.pipe(hash);
+
+      res.on("end", async () => {
+        if (!mimeType) mimeType = (await fileTypeFromFile(tempFile))?.mime;
+
+        const size = (await pfs.stat(tempFile)).size;
+        const sha256 = hash.digest("hex");
+
+        log(sha256, size, mimeType);
+
+        resolve({ id, type: mimeType, tempFile: tempFile, sha256, size });
+      });
+    });
+
+    request.on("error", (err) => reject(err));
+    request.end();
   });
 }
 

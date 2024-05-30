@@ -29,15 +29,14 @@ export class ListForm extends LitElement {
       tags: [
         ["t", "list"],
         ["expiration", newExpirationValue()],
+        ["server", new URL(location.protocol + "//" + location.hostname).toString()],
       ],
     });
 
     this.status = "Fetching...";
 
     this.blobs = await fetch("/list/" + this.pubkey, {
-      headers: {
-        headers: { authorization: "Nostr " + btoa(JSON.stringify(this._auth)) },
-      },
+      headers: { authorization: "Nostr " + btoa(JSON.stringify(this._auth)) },
     }).then((res) => res.json());
 
     this.status = undefined;
@@ -45,9 +44,7 @@ export class ListForm extends LitElement {
 
   async refresh() {
     this.blobs = await fetch("/list/" + this.pubkey, {
-      headers: {
-        headers: { authorization: "Nostr " + btoa(JSON.stringify(this._auth)) },
-      },
+      headers: { authorization: "Nostr " + btoa(JSON.stringify(this._auth)) },
     }).then((res) => res.json());
   }
 
@@ -181,4 +178,4 @@ export class ListForm extends LitElement {
     </div>`;
   }
 }
-customElements.define("list-form", ListForm);
+customElements.define("list-blobs", ListForm);
