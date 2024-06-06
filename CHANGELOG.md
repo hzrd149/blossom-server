@@ -1,5 +1,12 @@
 # blossom-server
 
+## 4.1.0
+
+### Minor Changes
+
+- Add /mirror endpoint
+- Add mirror page to UI
+
 ## 4.0.1
 
 ### Patch Changes
