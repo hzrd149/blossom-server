@@ -143,9 +143,10 @@ export class MirrorBlobs extends LitElement {
       });
 
       this.status = `Mirroring ${blob.sha256}`;
-      await fetch("/upload?url=" + encodeURIComponent(blob.url), {
+      await fetch("/mirror", {
         method: "PUT",
-        headers: { authorization: "Nostr " + btoa(JSON.stringify(auth)) },
+        body: JSON.stringify({ url: blob.url }),
+        headers: { authorization: "Nostr " + btoa(JSON.stringify(auth)), "Content-Type": "application/json" },
       });
     }
 

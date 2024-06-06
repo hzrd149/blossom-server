@@ -12,6 +12,7 @@ const { http, https } = followRedirects;
 
 import logger from "../logger.js";
 import { SplitStream } from "../helpers/stream.js";
+import { IncomingMessage } from "node:http";
 
 const log = logger.extend("uploads");
 const tmpDir = await pfs.mkdtemp(path.join(tmpdir(), "uploads-"));
@@ -46,6 +47,34 @@ export function uploadWriteStream(stream: Readable) {
   });
 }
 
+export function saveFromResponse(response: IncomingMessage, url?: URL): Promise<UploadMetadata> {
+  const id = nanoid(8);
+
+  const tempFile = path.join(tmpDir, id);
+  const write = fs.createWriteStream(tempFile);
+  const hash = createHash("sha256");
+
+  return new Promise<UploadMetadata>((resolve, reject) => {
+    let mimeType = response.headers["content-type"];
+    if (!mimeType && url) mimeType = mime.getType(url.pathname) ?? undefined;
+
+    // const split = new SplitStream(write, hash);
+    response.pipe(write);
+    response.pipe(hash);
+
+    response.on("end", async () => {
+      if (!mimeType) mimeType = (await fileTypeFromFile(tempFile))?.mime;
+
+      const size = (await pfs.stat(tempFile)).size;
+      const sha256 = hash.digest("hex");
+
+      log(sha256, size, mimeType);
+
+      resolve({ id, type: mimeType, tempFile: tempFile, sha256, size });
+    });
+  });
+}
+
 export function downloadFromURL(url: URL) {
   const id = nanoid(8);
   const backend = url.protocol === "https:" ? https : http;
@@ -58,29 +87,32 @@ export function downloadFromURL(url: URL) {
 
   return new Promise<UploadMetadata>((resolve, reject) => {
     const request = backend.get(url, (res) => {
-      if (!res.statusCode) return reject();
-      if (res.statusCode < 200 || res.statusCode >= 400) {
-        res.destroy();
-        reject(res);
-      }
+      saveFromResponse(res, url)
+        .then((blob) => resolve(blob))
+        .catch((err) => reject(err));
+      // if (!res.statusCode) return reject();
+      // if (res.statusCode < 200 || res.statusCode >= 400) {
+      //   res.destroy();
+      //   reject(res);
+      // }
 
-      let mimeType = res.headers["content-type"];
-      if (!mimeType) mimeType = mime.getType(url.pathname) ?? undefined;
+      // let mimeType = res.headers["content-type"];
+      // if (!mimeType) mimeType = mime.getType(url.pathname) ?? undefined;
 
-      // const split = new SplitStream(write, hash);
-      res.pipe(write);
-      res.pipe(hash);
+      // // const split = new SplitStream(write, hash);
+      // res.pipe(write);
+      // res.pipe(hash);
 
-      res.on("end", async () => {
-        if (!mimeType) mimeType = (await fileTypeFromFile(tempFile))?.mime;
+      // res.on("end", async () => {
+      //   if (!mimeType) mimeType = (await fileTypeFromFile(tempFile))?.mime;
 
-        const size = (await pfs.stat(tempFile)).size;
-        const sha256 = hash.digest("hex");
+      //   const size = (await pfs.stat(tempFile)).size;
+      //   const sha256 = hash.digest("hex");
 
-        log(sha256, size, mimeType);
+      //   log(sha256, size, mimeType);
 
-        resolve({ id, type: mimeType, tempFile: tempFile, sha256, size });
-      });
+      //   resolve({ id, type: mimeType, tempFile: tempFile, sha256, size });
+      // });
     });
 
     request.on("error", (err) => reject(err));

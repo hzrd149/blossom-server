@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import "./db/old-db-migration.js";
 
 import * as cacheModule from "./cache/index.js";
-import router from "./api.js";
+import router from "./api/index.js";
 import logger from "./logger.js";
 import { config } from "./config.js";
 import { isHttpError } from "./helpers/error.js";
