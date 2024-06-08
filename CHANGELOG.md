@@ -1,5 +1,11 @@
 # blossom-server
 
+## 4.1.1
+
+### Patch Changes
+
+- Fix typo in /upload endpoint
+
 ## 4.1.0
 
 ### Minor Changes

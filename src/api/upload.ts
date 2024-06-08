@@ -38,13 +38,8 @@ router.put<CommonState>("/upload", async (ctx) => {
     else throw new HttpErrors.Unauthorized(`Server dose not accept ${contentType} blobs`);
   }
 
-  let mimeType: string | undefined = undefined;
-  let upload: UploadMetadata;
-
-  if (ctx.request.body) {
-    upload = await uploadWriteStream(ctx.req);
-    mimeType = contentType || upload.type;
-  } else throw new Error("Invalid upload");
+  let upload = await uploadWriteStream(ctx.req);
+  let mimeType = contentType || upload.type;
 
   if (config.upload.requireAuth && upload.sha256 !== authHash) {
     removeUpload(upload);
