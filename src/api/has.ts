@@ -9,5 +9,4 @@ router.head("/:hash", async (ctx, next) => {
   const has = blobDB.hasBlob(hash);
   if (has) ctx.status = 200;
   else ctx.status = 404;
-  ctx.body = null;
 });
