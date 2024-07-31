@@ -32,8 +32,14 @@ discovery:
 storage:
   # local or s3
   backend: local
+
+  # Imminently removes a blob when there are no owners
+  removeWhenNoOwners: false
+
+  # local storage
   local:
     dir: ./data/blobs
+
   # s3:
   #   endpoint: https://s3.endpoint.com
   #   bucket: blossom

@@ -1,6 +1,6 @@
 {
   "name": "blossom-server-ts",
-  "version": "4.1.2",
+  "version": "4.2.0",
   "description": "A blossom server implementation written in Typescript",
   "main": "build/index.js",
   "type": "module",
@@ -25,7 +25,7 @@
     "@koa/router": "^12.0.1",
     "@nostr-dev-kit/ndk": "^2.8.2",
     "better-sqlite3": "^11.1.2",
-    "blossom-server-sdk": "^0.3.1",
+    "blossom-server-sdk": "^0.5.0",
     "dayjs": "^1.11.12",
     "debug": "^4.3.5",
     "file-type": "^19.3.0",

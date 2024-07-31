@@ -80,8 +80,8 @@ export async function prune() {
 
       if ((blob.accessed || blob.uploaded) < expiration) {
         log("Removing", blob.sha256, blob.type, "because", rule);
-        blobDB.removeBlob(blob.sha256);
-        if (await storage.hasBlob(blob.sha256)) storage.removeBlob(blob.sha256);
+        await blobDB.removeBlob(blob.sha256);
+        if (await storage.hasBlob(blob.sha256)) await storage.removeBlob(blob.sha256);
         forgetBlobAccessed(blob.sha256);
       }
 

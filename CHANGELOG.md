@@ -1,5 +1,12 @@
 # blossom-server
 
+## 4.2.0
+
+### Minor Changes
+
+- Add `removeWhenNoOwners` option to config
+- Add window.nostr.js to landing page
+
 ## 4.1.1
 
 ### Patch Changes

@@ -29,7 +29,7 @@ router.get("/:hash", async (ctx, next) => {
   const search: BlobSearch = {
     hash,
     ext,
-    mimeType: ext ? mime.getType(ext) ?? undefined : undefined,
+    mimeType: ext ? (mime.getType(ext) ?? undefined) : undefined,
     pubkey: searchParams.get("pubkey") ?? undefined,
   };
 

@@ -29,6 +29,7 @@ export type Config = {
   };
   storage: {
     backend: "local" | "s3";
+    removeWhenNoOwners: boolean;
     local?: {
       dir: string;
     };
@@ -73,6 +74,7 @@ const defaultConfig: Config = {
   },
   storage: {
     backend: "local",
+    removeWhenNoOwners: false,
     local: { dir: "data/blobs" },
     rules: [],
   },
