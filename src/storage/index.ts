@@ -12,6 +12,10 @@ async function createStorage() {
       config.storage.s3!.accessKey,
       config.storage.s3!.secretKey,
       config.storage.s3!.bucket,
+      {
+        useSSL: config.storage.s3?.useSSL,
+        region: config.storage.s3?.region,
+      },
     );
     s3.publicURL = config.storage.s3!.publicURL;
     return s3;

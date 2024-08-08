@@ -39,6 +39,8 @@ export type Config = {
       secretKey: string;
       bucket: string;
       publicURL?: string;
+      useSSL?: boolean;
+      region?: string;
     };
     rules: Rule[];
   };

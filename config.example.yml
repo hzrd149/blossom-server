@@ -45,6 +45,8 @@ storage:
   #   bucket: blossom
   #   accessKey: xxxxxxxx
   #   secretKey: xxxxxxxxx
+  #   useSSL: true
+  #   region: us-east-1
   #   If this is set the server will redirect clients when loading blobs
   #   publicURL: https://s3.region.example.com/
 
