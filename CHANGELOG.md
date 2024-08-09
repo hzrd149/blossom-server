@@ -1,5 +1,11 @@
 # blossom-server
 
+## 4.3.0
+
+### Minor Changes
+
+- 6749892: Add `useSSL` and `region` options for s3 storage
+
 ## 4.2.0
 
 ### Minor Changes
