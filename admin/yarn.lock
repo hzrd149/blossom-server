@@ -598,7 +598,7 @@
   resolved "https://registry.yarnpkg.com/@remix-run/router/-/router-1.16.0.tgz#0e10181e5fec1434eb071a9bc4bdaac843f16dcc"
   integrity sha512-Quz1KOffeEf/zwkCBM3kBtH4ZoZ+pT3xIXBG4PPW/XFtDP7EGhtTiC2+gpL9GnR7+Qdet5Oa6cYSvwKYg6kN9Q==
 
-"@rollup/wasm-node@^4.20.0", rollup@^4.13.0, "rollup@npm:@rollup/wasm-node@*":
+"@rollup/wasm-node@^4.20.0", rollup@^4.13.0, "rollup@npm:@rollup/wasm-node@^4.20.0":
   version "4.20.0"
   resolved "https://registry.yarnpkg.com/@rollup/wasm-node/-/wasm-node-4.20.0.tgz#9888871da218e2b52a48398aab421a7bb1bf2d4a"
   integrity sha512-NxIRJDju9ZzXwpCZ+TMYEflT/KJPgcamVrkInPwB/jSzEIEhckHGgbC9C8Fkzt77nEZZpfF/H2BedwKfjxO9qQ==
