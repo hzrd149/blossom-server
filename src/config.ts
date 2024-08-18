@@ -2,6 +2,7 @@ import { lilconfig } from "lilconfig";
 import yaml from "yaml";
 import fs from "node:fs";
 import { generate } from "generate-password";
+import { S3StorageOptions } from "blossom-server-sdk";
 
 import logger from "./logger.js";
 import { mergeDeep } from "./helpers/object.js";
@@ -12,6 +13,21 @@ export type Rule = { id: string; type: string; pubkeys?: string[]; expiration: s
 export type Config = {
   publicDomain: string;
   databasePath: string;
+  storage: {
+    backend: "local" | "s3";
+    removeWhenNoOwners: boolean;
+    local?: {
+      dir: string;
+    };
+    s3?: {
+      endpoint: string;
+      accessKey: string;
+      secretKey: string;
+      bucket: string;
+      publicURL?: string;
+    } & S3StorageOptions;
+    rules: Rule[];
+  };
   dashboard: {
     enabled: boolean;
     username: string;
@@ -26,23 +42,6 @@ export type Config = {
       enabled: boolean;
       domains: string[];
     };
-  };
-  storage: {
-    backend: "local" | "s3";
-    removeWhenNoOwners: boolean;
-    local?: {
-      dir: string;
-    };
-    s3?: {
-      endpoint: string;
-      accessKey: string;
-      secretKey: string;
-      bucket: string;
-      publicURL?: string;
-      useSSL?: boolean;
-      region?: string;
-    };
-    rules: Rule[];
   };
   upload: {
     enabled: boolean;

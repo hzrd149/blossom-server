@@ -40,8 +40,11 @@ storage:
   local:
     dir: ./data/blobs
 
+  # see minio docs for options:
+  # https://min.io/docs/minio/linux/developers/javascript/API.html#new-minio-client-endpoint-port-usessl-accesskey-secretkey-region-transport-sessiontoken-partsize
   # s3:
   #   endpoint: https://s3.endpoint.com
+  #   port: 443
   #   bucket: blossom
   #   accessKey: xxxxxxxx
   #   secretKey: xxxxxxxxx
