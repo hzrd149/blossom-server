@@ -1,5 +1,12 @@
 # blossom-server
 
+## 4.3.1
+
+### Patch Changes
+
+- Fix bug with some browsers setting incorrect mime type for .m3u8
+- 8096b37: Expand S3 Storage options
+
 ## 4.3.0
 
 ### Minor Changes
