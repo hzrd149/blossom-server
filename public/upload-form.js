@@ -17,7 +17,15 @@ export class UploadForm extends LitElement {
     e.preventDefault();
     if (!this.selected) return alert("Select file first");
 
-    const file = this.selected;
+    let file = this.selected;
+
+    // handle an edge case where some browsers set the mime type of .m3u8 files to audio/x-mpegurl
+    if (file.type === "audio/x-mpegurl" && file.name.endsWith(".m3u8")) {
+      file = new File([file], file.name, {
+        type: "application/vnd.apple.mpegurl",
+      });
+    }
+
     this.status = "Compute SHA256 hash...";
     const hash = await getFileSha256(file);
 

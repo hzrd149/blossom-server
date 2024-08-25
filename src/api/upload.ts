@@ -7,7 +7,7 @@ import { CommonState, getBlobDescriptor, log, router, saveAuthToken } from "./ro
 import { getFileRule } from "../rules/index.js";
 import { config } from "../config.js";
 import { hasUsedToken, updateBlobAccess } from "../db/methods.js";
-import { UploadMetadata, readUpload, removeUpload, uploadWriteStream } from "../storage/upload.js";
+import { readUpload, removeUpload, uploadWriteStream } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
 
 router.put<CommonState>("/upload", async (ctx) => {
