@@ -1,4 +1,4 @@
-#!/bin/env node
+#!/usr/bin/env node
 import "./polyfill.js";
 import Koa from "koa";
 import serve from "koa-static";

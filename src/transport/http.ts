@@ -17,13 +17,20 @@ export async function readHTTPPointer(pointer: HTTPPointer): Promise<IncomingMes
       agent = new SocksProxyAgent(config.tor.proxy);
     }
 
-    (pointer.url.startsWith("https") ? https : http)
+    const backend = pointer.url.startsWith("https") ? https : http;
+
+    backend
       .get(pointer.url, { agent }, (res) => {
+        res.once("error", (error) => reject(error));
+
         if (!res.statusCode) return reject();
         if (res.statusCode < 200 || res.statusCode >= 400) {
           res.destroy();
           reject(res);
         } else resolve(res);
+      })
+      .on("error", (err) => {
+        reject(err);
       })
       .end();
   });

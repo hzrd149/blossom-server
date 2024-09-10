@@ -29,7 +29,7 @@ router.get("/:hash", async (ctx, next) => {
   const search: BlobSearch = {
     hash,
     ext,
-    mimeType: ext ? (mime.getType(ext) ?? undefined) : undefined,
+    mimeType: mime.getType(ctx.path) ?? undefined,
     pubkey: searchParams.get("pubkey") ?? undefined,
   };
 
@@ -66,9 +66,12 @@ router.get("/:hash", async (ctx, next) => {
       if (pointer.type === "http") {
         const stream = await httpTransport.readHTTPPointer(pointer);
 
-        // set mime type
-        if (!ctx.type && pointer.mimeType) ctx.type = pointer.mimeType;
-        if (!ctx.type && search.mimeType) ctx.type = search.mimeType;
+        if (!ctx.type) {
+          // if the pointer has a binary stream, try to use the search mime type
+          if (pointer.mimeType === "application/octet-stream" && search.mimeType) ctx.type = search.mimeType;
+          else if (pointer.mimeType) ctx.type = pointer.mimeType;
+          else if (search.mimeType) ctx.type = search.mimeType;
+        }
 
         const pass = (ctx.body = new PassThrough());
         stream.pipe(pass);
@@ -85,7 +88,7 @@ router.get("/:hash", async (ctx, next) => {
 
             // if the storage dose not have the blob. upload it
             if (!(await storage.hasBlob(upload.sha256))) {
-              const type = upload.type || pointer.mimeType || search.mimeType || "";
+              const type = upload.type || ctx.type || "";
               await storage.writeBlob(upload.sha256, uploadModule.readUpload(upload), type);
               await uploadModule.removeUpload(upload);
 
