@@ -1,5 +1,11 @@
 # blossom-server
 
+## 4.3.2
+
+### Patch Changes
+
+- 4f6080a: Fix uncaught error when fetching blob from HTTP
+
 ## 4.3.1
 
 ### Patch Changes
