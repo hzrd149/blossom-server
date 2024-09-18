@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "node",
+      "name": "dev",
       "type": "node",
       "request": "launch",
       "args": ["./src/index.ts"],
@@ -16,6 +16,20 @@
       "outputCapture": "std",
       "env": {
         "DEBUG": "blossom-server,blossom-server:*"
+      }
+    },
+    {
+      "name": "start",
+      "type": "node",
+      "request": "launch",
+      "args": ["./build/index.js"],
+      "cwd": "${workspaceRoot}",
+      "protocol": "inspector",
+      "internalConsoleOptions": "openOnSessionStart",
+      "outputCapture": "std",
+      "env": {
+        "DEBUG": "blossom-server,blossom-server:*",
+        "DEBUG_COLORS": "1"
       }
     }
   ]
