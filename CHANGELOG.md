@@ -1,5 +1,16 @@
 # blossom-server
 
+## 4.4.0
+
+### Minor Changes
+
+- af5d4c6: Add support for BUD-06 HEAD /upload endpoint
+- af5d4c6: Support auth events with multiple `x` tags
+
+### Patch Changes
+
+- 7908d09: Bump dependencies
+
 ## 4.3.2
 
 ### Patch Changes
