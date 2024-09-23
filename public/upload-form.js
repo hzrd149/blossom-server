@@ -15,48 +15,76 @@ export class UploadForm extends LitElement {
 
   async upload(e) {
     e.preventDefault();
-    if (!this.selected) return alert("Select file first");
 
-    let file = this.selected;
+    try {
+      if (!this.selected) throw new Error("Select file first");
 
-    // handle an edge case where some browsers set the mime type of .m3u8 files to audio/x-mpegurl
-    if (file.type === "audio/x-mpegurl" && file.name.endsWith(".m3u8")) {
-      file = new File([file], file.name, {
-        type: "application/vnd.apple.mpegurl",
+      let file = this.selected;
+
+      // handle an edge case where some browsers set the mime type of .m3u8 files to audio/x-mpegurl
+      if (file.type === "audio/x-mpegurl" && file.name.endsWith(".m3u8")) {
+        file = new File([file], file.name, {
+          type: "application/vnd.apple.mpegurl",
+        });
+      }
+
+      this.status = "Compute SHA256 hash...";
+      const hash = await getFileSha256(file);
+
+      this.status = "Signing...";
+
+      // create auth event
+      const auth = await window.nostr.signEvent({
+        kind: 24242,
+        content: "Authorize Upload",
+        created_at: unixNow(),
+        tags: [
+          ["t", "upload"],
+          ["x", hash],
+          ["expiration", newExpirationValue()],
+        ],
       });
-    }
+      const authorization = "Nostr " + btoa(JSON.stringify(auth));
 
-    this.status = "Compute SHA256 hash...";
-    const hash = await getFileSha256(file);
+      // BUD-06 check upload
+      this.status = "Checking Upload...";
+      const check = await fetch("/upload", {
+        method: "HEAD",
+        headers: {
+          authorization,
+          "X-Content-Type": file.type,
+          "X-Content-Length": file.size,
+          "X-Sha-256": hash,
+        },
+      });
 
-    this.status = "Signing...";
+      if (!check.ok) {
+        throw new Error(check.headers.get("x-upload-message") || "Upload Rejected");
+      }
 
-    // create auth event
-    const auth = await window.nostr.signEvent({
-      kind: 24242,
-      content: "Authorize Upload",
-      created_at: unixNow(),
-      tags: [
-        ["t", "upload"],
-        ["x", hash],
-        ["expiration", newExpirationValue()],
-      ],
-    });
+      // Upload blob
+      this.status = "Uploading...";
+      const res = await fetch("/upload", {
+        method: "PUT",
+        body: file,
+        // attach Authorization: Nostr <base64> header to request
+        headers: { authorization },
+      });
 
-    this.status = "Uploading...";
-    await fetch("/upload", {
-      method: "PUT",
-      body: file,
-      // attach Authorization: Nostr <base64> header to request
-      headers: { authorization: "Nostr " + btoa(JSON.stringify(auth)) },
-    }).then(async (res) => {
       if (res.ok) {
         const body = await res.json();
 
         this.selected = undefined;
         window.open(body.url, "_blank");
-      } else alert(await res.text());
-    });
+      } else {
+        throw new Error(await res.text());
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        alert(error.message);
+      }
+    }
+
     this.status = "Upload";
   }
 

@@ -2,6 +2,20 @@
 
 blossom-server is a Typescript implementation of a [Blossom Server](https://github.com/hzrd149/blossom/blob/master/Server.md)
 
+## Supported BUDs
+
+- BUD-01
+  - `GET /<sha256>` Retrieve blob
+  - `HEAD /<sha256>` Check blob
+- BUD-02
+  - `PUT /upload` Upload blob
+  - `GET /list<pubkey>` List blobs
+  - `DELETE /<sha256>` Delete blob
+- BUD-04
+  - `PUT /mirror` Mirror blob
+- BUD-06
+  - `HEAD /upload` Upload check
+
 ## Running with npx
 
 This app is also packaged as an npm module which you can easily run
@@ -11,18 +25,6 @@ This app is also packaged as an npm module which you can easily run
 wget https://raw.githubusercontent.com/hzrd149/blossom-server/master/config.example.yml -O config.yml
 # run using npx
 npx blossom-server-ts
-```
-
-Or you can install the module using npm or yarn
-
-```sh
-# npm
-npm install
-./node_modules/.bin/blossom-server-ts
-
-# yarn
-yarn add blossom-server-ts
-yarn run blossom-server-ts
 ```
 
 ## Running with docker
@@ -40,16 +42,16 @@ You can also run it using docker compose with the [`docker-compose.yml`](./docke
 
 ## Running from source
 
-This project uses [yarn](https://classic.yarnpkg.com/lang/en/docs/install) to manage dependencies. It needs to be installed first in order to build the app
+This project uses [pnpm](https://pnpm.io/) to manage dependencies. It needs to be installed first in order to build the app
 
 Next clone the repo, install the dependencies, and build
 
 ```sh
 git clone https://github.com/hzrd149/blossom-server.git
 cd blossom-server
-yarn install
-cd admin && yarn install && cd ../
-yarn build
+pnpm install
+cd admin && pnpm install && cd ../
+pnpm build
 ```
 
 Next copy the config and modify it
@@ -62,7 +64,7 @@ nano config.yml
 And finally start the app
 
 ```sh
-yarn start
+pnpm start
 # or
 node .
 ```

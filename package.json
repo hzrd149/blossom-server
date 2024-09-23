@@ -7,10 +7,9 @@
   "author": "hzrd149",
   "license": "MIT",
   "scripts": {
-    "prepack": "yarn build",
     "start": "node build/index.js",
     "build": "tsc",
-    "postbuild": "cd admin && yarn build",
+    "postbuild": "cd admin && pnpm build",
     "dev": "nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --exec 'node' --loader @swc-node/register/esm src/index.ts",
     "format": "prettier -w ."
   },

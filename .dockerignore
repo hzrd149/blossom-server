@@ -5,3 +5,4 @@ node_modules
 database.json
 dist
 admin/node_modules
+config.yml

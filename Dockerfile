@@ -1,29 +1,27 @@
 # syntax=docker/dockerfile:1
-FROM node:20-alpine AS builder
-WORKDIR /app
+FROM node:20-alpine AS base
 
-# Install dependencies
-ENV NODE_ENV=development
-COPY ./package*.json .
-COPY ./yarn.lock .
-RUN yarn install
-COPY ./admin/package*.json ./admin/
-COPY ./admin/yarn.lock ./admin/
-RUN cd admin && yarn install
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /app
 COPY . .
-RUN yarn build
-RUN cd admin && yarn build
 
-FROM node:20-alpine
-WORKDIR /app
+FROM base AS prod-deps
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
-ENV NODE_ENV=production
-COPY ./package*.json .
-COPY ./yarn.lock .
-RUN yarn install
+FROM base AS build
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store cd admin && pnpm install --frozen-lockfile
+RUN pnpm build
+RUN cd admin && pnpm build
 
-COPY --from=builder ./app/build ./build
-COPY --from=builder ./app/admin/dist ./admin/dist
+FROM base AS main
+COPY --from=prod-deps /app/node_modules /app/node_modules
+COPY --from=build ./app/build ./build
+COPY --from=build ./app/admin/dist ./admin/dist
+
 COPY ./public ./public
 
 VOLUME [ "/app/data" ]

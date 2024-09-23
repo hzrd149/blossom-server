@@ -33,6 +33,7 @@ function makeRequestWithAbort(url: URL) {
 }
 
 router.use(mount("/mirror", koaBody()));
+
 router.put<CommonState>("/mirror", async (ctx) => {
   if (!config.upload.enabled) throw new HttpErrors.NotFound("Uploads disabled");
 
@@ -49,7 +50,7 @@ router.put<CommonState>("/mirror", async (ctx) => {
   log(`Mirroring ${downloadUrl.toString()}`);
 
   const { response, controller } = await makeRequestWithAbort(downloadUrl);
-  let upload: UploadMetadata | undefined = undefined;
+  let maybeUpload: UploadMetadata | undefined = undefined;
 
   try {
     if (!response.statusCode) throw new HttpErrors.InternalServerError("Failed to make request");
@@ -59,7 +60,6 @@ router.put<CommonState>("/mirror", async (ctx) => {
     // check rules
     const contentType = response.headers["content-type"];
     const pubkey = ctx.state.auth?.pubkey;
-    const authHash = ctx.state.auth?.tags.find((t) => t[0] === "x")?.[1];
 
     const rule = getFileRule(
       {
@@ -76,11 +76,15 @@ router.put<CommonState>("/mirror", async (ctx) => {
 
     let mimeType: string | undefined = undefined;
 
-    upload = await saveFromResponse(response, downloadUrl);
+    const upload = (maybeUpload = await saveFromResponse(response, downloadUrl));
     mimeType = upload.type;
 
-    if (config.upload.requireAuth && upload.sha256 !== authHash)
-      throw new HttpErrors.BadRequest("Incorrect blob sha256");
+    // check if auth has blob sha256 hash
+    if (
+      config.upload.requireAuth &&
+      (!ctx.state.auth || ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === upload.sha256))
+    )
+      throw new HttpErrors.BadRequest("Auth missing blob sha256 hash");
 
     let blob: BlobMetadata;
 
@@ -108,7 +112,7 @@ router.put<CommonState>("/mirror", async (ctx) => {
   } catch (error) {
     // cancel the request if anything fails
     controller.abort();
-    if (upload) removeUpload(upload);
+    if (maybeUpload) removeUpload(maybeUpload);
 
     throw error;
   }
