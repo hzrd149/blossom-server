@@ -3,6 +3,7 @@ import { NDKKind } from "@nostr-dev-kit/ndk";
 import { BlobPointer, BlobSearch } from "../types.js";
 import logger from "../logger.js";
 import ndk from "../ndk.js";
+import { npubEncode } from "nostr-tools/nip19";
 
 const log = logger.extend("nostr-discovery");
 
@@ -20,7 +21,7 @@ export async function search(search: BlobSearch) {
 
   if (events.length > 0) {
     for (const event of events) {
-      log(`Found 1063 event by ${event.pubkey}`);
+      log(`Found 1063 event by ${npubEncode(event.pubkey)}`);
       const url = event.tags.find((t) => t[0] === "url")?.[1];
       const mimeType = event.tags.find((t) => t[0] === "m")?.[1];
       const infohash = event.tags.find((t) => t[0] === "i")?.[1];
@@ -52,7 +53,7 @@ export async function search(search: BlobSearch) {
   }
 
   if (cdnList) {
-    log("Found pubkey cdn list", search.pubkey, cdnList);
+    log("Found pubkey cdn list", search.pubkey && npubEncode(search.pubkey), cdnList);
 
     for (const cdn of cdnList) {
       pointers.push({

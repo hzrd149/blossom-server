@@ -1,6 +1,7 @@
 import { Rule } from "../config.js";
 import dayjs from "dayjs";
 import logger from "../logger.js";
+import { nip19 } from "nostr-tools";
 
 const log = logger.extend("rules");
 
@@ -9,7 +10,7 @@ export type RuleSearchInput = {
   type?: string;
 };
 export function getFileRule({ pubkey, type }: RuleSearchInput, ruleset: Rule[], requirePubkey: boolean = false) {
-  log("Looking for match", type, pubkey);
+  log("Looking for match", type, pubkey && nip19.npubEncode(pubkey));
 
   return (
     ruleset.find((r) => {

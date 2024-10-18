@@ -11,7 +11,6 @@ import followRedirects from "follow-redirects";
 const { http, https } = followRedirects;
 
 import logger from "../logger.js";
-import { SplitStream } from "../helpers/stream.js";
 import { IncomingMessage } from "node:http";
 
 const log = logger.extend("uploads");
@@ -37,12 +36,17 @@ export function uploadWriteStream(stream: Readable) {
   stream.pipe(write);
   stream.pipe(hash);
 
-  return new Promise<UploadMetadata>((res) => {
+  return new Promise<UploadMetadata>((res, rej) => {
     stream.on("end", async () => {
-      log("Uploaded", id);
-      const type = await fileTypeFromFile(tempFile);
-      const size = (await pfs.stat(tempFile)).size;
-      res({ id, type: type?.mime, tempFile: tempFile, sha256: hash.digest("hex"), size });
+      try {
+        const stats = await pfs.stat(tempFile);
+        log("Uploaded", id);
+        const type = await fileTypeFromFile(tempFile);
+        const size = stats.size;
+        res({ id, type: type?.mime, tempFile: tempFile, sha256: hash.digest("hex"), size });
+      } catch (error) {
+        rej(error);
+      }
     });
   });
 }
