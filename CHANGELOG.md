@@ -1,5 +1,11 @@
 # blossom-server
 
+## 4.4.1
+
+### Patch Changes
+
+- da68352: Fix crash from upload race condition
+
 ## 4.4.0
 
 ### Minor Changes
