@@ -42,9 +42,6 @@ importers:
       '@types/mime-types':
         specifier: ^2.1.4
         version: 2.1.4
-      '@types/node':
-        specifier: ^20.12.7
-        version: 20.16.12
       '@types/react':
         specifier: ^18.2.79
         version: 18.3.11
@@ -1678,6 +1675,7 @@ snapshots:
   '@types/node@20.16.12':
     dependencies:
       undici-types: 6.19.8
+    optional: true
 
   '@types/parse-json@4.0.2': {}
 
@@ -2320,7 +2318,8 @@ snapshots:
 
   typescript@5.6.3: {}
 
-  undici-types@6.19.8: {}
+  undici-types@6.19.8:
+    optional: true
 
   unload@2.2.0:
     dependencies:
