@@ -1,5 +1,12 @@
 # blossom-server
 
+## 4.4.1
+
+### Patch Changes
+
+- 12d21c1: Add BLOSSOM_CONFIG env variable
+- da68352: Fix crash from upload race condition
+
 ## 4.4.0
 
 ### Minor Changes
