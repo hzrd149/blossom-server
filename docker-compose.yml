@@ -11,6 +11,8 @@ services:
       - 3000:3000
     # enable debug logging
     # environment:
+    #   Custom config path
+    #   BLOSSOM_CONFIG: "data/config.yml"
     #   DEBUG: "*"
     volumes:
       # mount data volume

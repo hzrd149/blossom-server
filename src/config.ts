@@ -84,14 +84,19 @@ const defaultConfig: Config = {
   tor: { enabled: false, proxy: "" },
 };
 
+const searchPlaces = ["config.yaml", "config.yml", "config.json"];
+if (process.env.BLOSSOM_CONFIG) searchPlaces.unshift(process.env.BLOSSOM_CONFIG);
+
 const result = await lilconfig("blossom", {
-  searchPlaces: ["config.yaml", "config.yml", "config.json"],
+  searchPlaces,
   loaders: {
     ".yaml": loadYaml,
     ".yml": loadYaml,
     ".json": loadJson,
   },
 }).search();
+
+if (result) logger(`Found config at ${result.filepath}`);
 
 const config = mergeDeep(defaultConfig, result?.config ?? {}) as Config;
 
