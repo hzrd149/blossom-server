@@ -21,8 +21,8 @@ importers:
         specifier: ^11.3.0
         version: 11.4.0
       blossom-server-sdk:
-        specifier: ^0.7.2
-        version: 0.7.2
+        specifier: ^0.7.3
+        version: 0.7.3
       dayjs:
         specifier: ^1.11.13
         version: 1.11.13
@@ -612,8 +612,8 @@ packages:
   block-stream2@2.1.0:
     resolution: {integrity: sha512-suhjmLI57Ewpmq00qaygS8UgEq2ly2PCItenIyhMqVjo4t4pGzqMvfgJuX8iWTeSDdfSSqS6j38fL4ToNL7Pfg==}
 
-  blossom-server-sdk@0.7.2:
-    resolution: {integrity: sha512-BwC/8OA5+V0q3eKx6P4OXnJWpcYeYPUqkNtTxBC/6MSWtoBDiIfm4hRYJ/QOEQY9qfp9KwAC+xjvxm+DaCqS6Q==}
+  blossom-server-sdk@0.7.3:
+    resolution: {integrity: sha512-wcYHOMkbTeGmCd+at01SjGmv6RplCteNa0sUBoRIO9AVna9QLjwos1KEPK9gC/YrwLJXX4DJihRlPfIaXjGR/w==}
 
   brace-expansion@1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
@@ -2280,7 +2280,7 @@ snapshots:
     dependencies:
       readable-stream: 3.6.2
 
-  blossom-server-sdk@0.7.2:
+  blossom-server-sdk@0.7.3:
     dependencies:
       better-sqlite3: 11.4.0
       debug: 4.3.7(supports-color@5.5.0)

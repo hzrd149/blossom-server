@@ -8,17 +8,19 @@ import mount from "koa-mount";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import "./db/old-db-migration.js";
-
 import * as cacheModule from "./cache/index.js";
 import router from "./api/index.js";
 import logger from "./logger.js";
 import { config } from "./config.js";
 import { isHttpError } from "./helpers/error.js";
+import db from "./db/db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = new Koa();
+
+// trust reverse proxy headers
+app.proxy = true;
 
 // set CORS headers
 app.use(
@@ -27,6 +29,7 @@ app.use(
     allowMethods: "*",
     allowHeaders: "Authorization,*",
     exposeHeaders: "*",
+    maxAge: 86400,
   }),
 );
 
@@ -80,6 +83,7 @@ setInterval(() => {
 
 async function shutdown() {
   logger("Saving database...");
+  db.close();
   process.exit(0);
 }
 
