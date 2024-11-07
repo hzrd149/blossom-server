@@ -59,7 +59,7 @@ export class UploadForm extends LitElement {
       });
 
       if (!check.ok) {
-        throw new Error(check.headers.get("x-upload-message") || "Upload Rejected");
+        throw new Error(check.headers.get("x-reason") || "Upload Rejected");
       }
 
       // Upload blob

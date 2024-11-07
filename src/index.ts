@@ -41,7 +41,9 @@ app.use(async (ctx, next) => {
     if (isHttpError(err)) {
       const status = (ctx.status = err.status || 500);
       if (status >= 500) console.error(err.stack);
+      // TODO: remove this when clients no long rely on it
       ctx.body = status > 500 ? { message: "Something went wrong" } : { message: err.message };
+      ctx.set("X-Reason", status > 500 ? "Something went wrong" : err.message);
     } else {
       console.log(err);
       ctx.status = 500;

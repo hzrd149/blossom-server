@@ -17,24 +17,6 @@ type UploadState = CommonState & {
   rule: Rule;
 };
 
-// handle errors
-router.use(async (ctx, next) => {
-  try {
-    await next();
-  } catch (err) {
-    // BUD-06 set `X-Upload-Message` on failure
-    if (isHttpError(err)) {
-      const status = (ctx.status = err.status || 500);
-      ctx.set("X-Upload-Message", status > 500 ? "Something went wrong" : err.message);
-    } else {
-      ctx.set("X-Upload-Message", "Something went wrong");
-    }
-
-    // pass error to parent handler
-    throw err;
-  }
-});
-
 router.all<CommonState>("/upload", async (ctx, next) => {
   if (!config.upload.enabled) throw new HttpErrors.NotFound("Uploads disabled");
 
