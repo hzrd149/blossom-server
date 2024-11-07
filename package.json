@@ -1,6 +1,6 @@
 {
   "name": "blossom-server-ts",
-  "version": "4.5.1",
+  "version": "4.5.2",
   "description": "A blossom server implementation written in Typescript",
   "main": "build/index.js",
   "type": "module",
@@ -10,7 +10,7 @@
     "prepublish": "pnpm build",
     "start": "node build/index.js",
     "build": "tsc",
-    "postbuild": "cd admin && pnpm build",
+    "postbuild": "cd admin && pnpm install && pnpm build",
     "dev": "nodemon -i '**/data/**' -i '**/database.json' -i '**/database.old.json' --exec 'node' --loader @swc-node/register/esm src/index.ts",
     "format": "prettier -w ."
   },
