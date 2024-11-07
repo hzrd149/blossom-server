@@ -1,5 +1,17 @@
 # blossom-server
 
+## 4.5.0
+
+### Minor Changes
+
+- 575ceaa: Use node 22
+- c267585: Remove old database.json migration
+- ad7341c: Return X-Reason header for all errors
+
+### Patch Changes
+
+- c267585: Support reverse proxy headers
+
 ## 4.4.1
 
 ### Patch Changes
