@@ -18,8 +18,8 @@ importers:
         specifier: ^2.10.0
         version: 2.10.1(typescript@5.6.3)
       better-sqlite3:
-        specifier: ^11.3.0
-        version: 11.4.0
+        specifier: ^11.5.0
+        version: 11.5.0
       blossom-server-sdk:
         specifier: ^0.7.3
         version: 0.7.3
@@ -596,8 +596,8 @@ packages:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
 
-  better-sqlite3@11.4.0:
-    resolution: {integrity: sha512-B7C9y2aSvtTwDJIz34iUxMjQWmbAYFmpq0Rwf9weYTtx6jUYsUKVt5ePPYlGyLVBoySppPa41PBrzl1ipMhG7A==}
+  better-sqlite3@11.5.0:
+    resolution: {integrity: sha512-e/6eggfOutzoK0JWiU36jsisdWoHOfN9iWiW/SieKvb7SAa6aGNmBM/UKyp+/wWSXpLlWNN8tCPwoDNPhzUvuQ==}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -2259,7 +2259,7 @@ snapshots:
     dependencies:
       is-windows: 1.0.2
 
-  better-sqlite3@11.4.0:
+  better-sqlite3@11.5.0:
     dependencies:
       bindings: 1.5.0
       prebuild-install: 7.1.2
@@ -2282,7 +2282,7 @@ snapshots:
 
   blossom-server-sdk@0.7.3:
     dependencies:
-      better-sqlite3: 11.4.0
+      better-sqlite3: 11.5.0
       debug: 4.3.7(supports-color@5.5.0)
       mime: 4.0.4
       minio: 8.0.1

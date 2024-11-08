@@ -8,10 +8,14 @@ RUN corepack enable
 WORKDIR /app
 COPY . .
 
-FROM base AS prod-deps
+FROM base AS node-gyp
+# Install required packages for node-gyp
+RUN apk add --no-cache python3 make g++ py3-pip
+
+FROM node-gyp AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
-FROM base AS build
+FROM prod-deps AS build
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store cd admin && pnpm install --frozen-lockfile
 RUN pnpm build
