@@ -1,9 +1,9 @@
 import { NDKKind } from "@nostr-dev-kit/ndk";
+import { npubEncode } from "nostr-tools/nip19";
 
 import { BlobPointer, BlobSearch } from "../types.js";
 import logger from "../logger.js";
 import ndk from "../ndk.js";
-import { npubEncode } from "nostr-tools/nip19";
 
 const log = logger.extend("nostr-discovery");
 
@@ -17,15 +17,19 @@ export async function search(search: BlobSearch) {
       "#x": [search.hash],
     }),
   );
-  const cdnList = search.pubkey ? await getUserCDNList(search.pubkey) : [];
 
+  // try to use the 1063 events
   if (events.length > 0) {
     for (const event of events) {
       log(`Found 1063 event by ${npubEncode(event.pubkey)}`);
       const url = event.tags.find((t) => t[0] === "url")?.[1];
       const mimeType = event.tags.find((t) => t[0] === "m")?.[1];
       const infohash = event.tags.find((t) => t[0] === "i")?.[1];
+      const sizeStr = event.tags.find((t) => t[0] === "size")?.[1];
+      const size = sizeStr ? parseInt(sizeStr) : undefined;
       const magnet = event.tags.find((t) => t[0] === "magnet")?.[1];
+
+      if (!size) throw new Error("Missing size");
 
       if (url) {
         try {
@@ -35,6 +39,7 @@ export async function search(search: BlobSearch) {
             url: new URL(url).toString(),
             mimeType,
             metadata: { pubkey: event.pubkey },
+            size,
           });
         } catch (e) {}
       }
@@ -47,21 +52,9 @@ export async function search(search: BlobSearch) {
           infohash,
           mimeType,
           metadata: { pubkey: event.pubkey },
+          size,
         });
       }
-    }
-  }
-
-  if (cdnList) {
-    log("Found pubkey cdn list", search.pubkey && npubEncode(search.pubkey), cdnList);
-
-    for (const cdn of cdnList) {
-      pointers.push({
-        type: "http",
-        hash: search.hash,
-        url: new URL(search.hash + (search.ext || ""), cdn).toString(),
-        metadata: { pubkey: search.pubkey },
-      });
     }
   }
 

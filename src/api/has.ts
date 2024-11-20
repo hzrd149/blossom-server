@@ -6,7 +6,13 @@ router.head("/:hash", async (ctx, next) => {
   if (!match) return next();
 
   const hash = match[1];
-  const has = blobDB.hasBlob(hash);
-  if (has) ctx.status = 200;
-  else ctx.status = 404;
+  const blob = blobDB.getBlob(hash);
+  if (blob) {
+    ctx.status = 200;
+
+    // signal support for range requests
+    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests
+    ctx.set("Accept-Ranges", "bytes");
+    ctx.set("Content-Length", String(blob.size));
+  } else ctx.status = 404;
 });

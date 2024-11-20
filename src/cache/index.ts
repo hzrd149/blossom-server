@@ -12,10 +12,11 @@ import logger from "../logger.js";
 const log = logger.extend("cache");
 
 export async function search(search: BlobSearch): Promise<CachePointer | undefined> {
-  if (blobDB.hasBlob(search.hash) && (await storage.hasBlob(search.hash))) {
-    const type = await storage.getBlobType(search.hash);
+  const blob = await blobDB.getBlob(search.hash);
+  if (blob && (await storage.hasBlob(search.hash))) {
+    const type = blob.type || (await storage.getBlobType(search.hash));
     log("Found", search.hash);
-    return { type: "cache", hash: search.hash, mimeType: type };
+    return { type: "cache", hash: search.hash, mimeType: type, size: blob.size };
   }
 }
 

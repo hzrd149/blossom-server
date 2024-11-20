@@ -3,9 +3,7 @@ export type CommonSearch = {
   ext?: string;
   mimeType?: string;
 };
-export type NostrSearch = CommonSearch & {
-  pubkey?: string;
-};
+export type NostrSearch = CommonSearch;
 export type TorrentSearch = CommonSearch & {
   infohash?: string;
 };
@@ -18,6 +16,7 @@ export type PointerMetadata = {
 export type CommonPointer = {
   hash: string;
   mimeType?: string;
+  size: number;
   metadata?: PointerMetadata;
 };
 export type HTTPPointer = CommonPointer & {

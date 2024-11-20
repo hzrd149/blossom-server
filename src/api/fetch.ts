@@ -1,9 +1,9 @@
 import { extname } from "node:path";
 import { PassThrough } from "node:stream";
-import { URLSearchParams } from "node:url";
 import dayjs from "dayjs";
 import mime from "mime";
 import HttpErrors from "http-errors";
+import range from "koa-range";
 
 import { config } from "../config.js";
 import { BlobPointer, BlobSearch } from "../types.js";
@@ -18,19 +18,17 @@ import { updateBlobAccess } from "../db/methods.js";
 import { blobDB } from "../db/db.js";
 import { log, router } from "./router.js";
 
-router.get("/:hash", async (ctx, next) => {
+router.get("/:hash", range, async (ctx, next) => {
   const match = ctx.path.match(/([0-9a-f]{64})/);
   if (!match) return next();
 
   const hash = match[1];
   const ext = extname(ctx.path) ?? undefined;
-  const searchParams = new URLSearchParams(ctx.search);
 
   const search: BlobSearch = {
     hash,
     ext,
     mimeType: mime.getType(ctx.path) ?? undefined,
-    pubkey: searchParams.get("pubkey") ?? undefined,
   };
 
   log("Looking for", search.hash);
@@ -42,7 +40,11 @@ router.get("/:hash", async (ctx, next) => {
     const redirect = cacheModule.getRedirect(cachePointer);
     if (redirect) return ctx.redirect(redirect);
 
+    // explicitly set type and length since this is a stream
     if (cachePointer.mimeType) ctx.type = cachePointer.mimeType;
+    ctx.length = cachePointer.size;
+
+    // koa cannot set Content-Length from stream
     ctx.body = await cacheModule.readPointer(cachePointer);
     return;
   }
@@ -74,11 +76,14 @@ router.get("/:hash", async (ctx, next) => {
         }
 
         const pass = (ctx.body = new PassThrough());
+
+        // set the Content-Length since koa cannot set it from a stream
+        ctx.length = pointer.size;
         stream.pipe(pass);
 
         // save to cache
         const rule = getFileRule(
-          { type: pointer.mimeType || search.mimeType, pubkey: pointer.metadata?.pubkey || search.pubkey },
+          { type: pointer.mimeType || search.mimeType, pubkey: pointer.metadata?.pubkey },
           config.storage.rules,
         );
         if (rule) {

@@ -1,7 +1,8 @@
+import * as follow from "follow-redirects";
+const { http, https } = follow;
+
 import { BlobSearch, HTTPPointer } from "../types.js";
 import { config } from "../config.js";
-import http from "node:http";
-import https from "node:https";
 import logger from "../logger.js";
 
 const log = logger.extend("upstream-discovery");
@@ -29,11 +30,21 @@ function checkCDN(cdn: string, search: BlobSearch): Promise<HTTPPointer> {
 
     request.on("response", (res) => {
       res.destroy();
-      if (!res.statusCode) return reject();
+      const contentLength = res.headers["content-length"];
+      const length = contentLength ? parseInt(contentLength) : undefined;
+
+      if (!res.statusCode) return reject(new Error("Missing status code"));
+      if (!length) return reject(new Error("Missing Content-Length"));
+
       if (res.statusCode < 200 || res.statusCode >= 400) {
         reject(new Error("Not Found"));
       } else {
-        resolve({ type: "http", url: url.toString(), hash: search.hash, metadata: { pubkey: search.pubkey } });
+        resolve({
+          type: "http",
+          url: url.toString(),
+          hash: search.hash,
+          size: length,
+        });
       }
     });
 
