@@ -7,13 +7,12 @@ import range from "koa-range";
 
 import { config } from "../config.js";
 import { BlobPointer, BlobSearch } from "../types.js";
-import * as cacheModule from "../cache/index.js";
 import * as upstreamDiscovery from "../discover/upstream.js";
 import * as nostrDiscovery from "../discover/nostr.js";
 import * as httpTransport from "../transport/http.js";
 import * as uploadModule from "../storage/upload.js";
 import { getFileRule } from "../rules/index.js";
-import storage from "../storage/index.js";
+import storage, { getStorageRedirect, readStoragePointer, searchStorage } from "../storage/index.js";
 import { updateBlobAccess } from "../db/methods.js";
 import { blobDB } from "../db/db.js";
 import { log, router } from "./router.js";
@@ -31,23 +30,23 @@ router.get("/:hash", range, async (ctx, next) => {
     mimeType: mime.getType(ctx.path) ?? undefined,
   };
 
-  log("Looking for", search.hash);
-
-  const cachePointer = await cacheModule.search(search);
-  if (cachePointer) {
+  const storageResult = await searchStorage(search);
+  if (storageResult) {
     updateBlobAccess(search.hash, dayjs().unix());
 
-    const redirect = cacheModule.getRedirect(cachePointer);
+    const redirect = getStorageRedirect(storageResult);
     if (redirect) return ctx.redirect(redirect);
 
     // explicitly set type and length since this is a stream
-    if (cachePointer.mimeType) ctx.type = cachePointer.mimeType;
-    ctx.length = cachePointer.size;
+    if (storageResult.mimeType) ctx.type = storageResult.mimeType;
+    ctx.length = storageResult.size;
 
     // koa cannot set Content-Length from stream
-    ctx.body = await cacheModule.readPointer(cachePointer);
+    ctx.body = await readStoragePointer(storageResult);
     return;
   }
+
+  log("Looking for", search.hash);
 
   // we don't have the blob, go looking for it
   const pointers: BlobPointer[] = [];

@@ -8,12 +8,12 @@ import mount from "koa-mount";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import * as cacheModule from "./cache/index.js";
 import router from "./api/index.js";
 import logger from "./logger.js";
 import { config } from "./config.js";
 import { isHttpError } from "./helpers/error.js";
 import db from "./db/db.js";
+import { pruneStorage } from "./storage/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,9 +79,14 @@ try {
 app.listen(process.env.PORT || 3000);
 logger("Started app on port", process.env.PORT || 3000);
 
-setInterval(() => {
-  cacheModule.prune();
-}, 1000 * 30);
+async function cron() {
+  try {
+    await pruneStorage();
+  } catch (error) {}
+  setTimeout(cron, 30_000);
+}
+
+setTimeout(cron, 60_000);
 
 async function shutdown() {
   logger("Saving database...");

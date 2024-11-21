@@ -28,7 +28,7 @@ export type TorrentPointer = CommonPointer & {
   infohash?: string;
   magnet?: string;
 };
-export type CachePointer = CommonPointer & {
-  type: "cache";
+export type StoragePointer = CommonPointer & {
+  type: "storage";
 };
-export type BlobPointer = HTTPPointer | TorrentPointer | CachePointer;
+export type BlobPointer = HTTPPointer | TorrentPointer | StoragePointer;

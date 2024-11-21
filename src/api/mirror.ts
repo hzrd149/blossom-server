@@ -12,7 +12,7 @@ import { CommonState, getBlobDescriptor, log, router, saveAuthToken } from "./ro
 import { getFileRule } from "../rules/index.js";
 import { config } from "../config.js";
 import { hasUsedToken, updateBlobAccess } from "../db/methods.js";
-import { UploadMetadata, readUpload, removeUpload, saveFromResponse } from "../storage/upload.js";
+import { UploadDetails, readUpload, removeUpload, saveFromResponse } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
 
 function makeRequestWithAbort(url: URL) {
@@ -50,7 +50,7 @@ router.put<CommonState>("/mirror", async (ctx) => {
   log(`Mirroring ${downloadUrl.toString()}`);
 
   const { response, controller } = await makeRequestWithAbort(downloadUrl);
-  let maybeUpload: UploadMetadata | undefined = undefined;
+  let maybeUpload: UploadDetails | undefined = undefined;
 
   try {
     if (!response.statusCode) throw new HttpErrors.InternalServerError("Failed to make request");
@@ -74,10 +74,8 @@ router.put<CommonState>("/mirror", async (ctx) => {
       else throw new HttpErrors.Unauthorized(`Server dose not accept ${contentType} blobs`);
     }
 
-    let mimeType: string | undefined = undefined;
-
-    const upload = (maybeUpload = await saveFromResponse(response, downloadUrl));
-    mimeType = upload.type;
+    const upload = (maybeUpload = await saveFromResponse(response));
+    let mimeType = contentType || upload.type;
 
     // check if auth has blob sha256 hash
     if (

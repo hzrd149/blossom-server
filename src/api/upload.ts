@@ -9,7 +9,6 @@ import { config, Rule } from "../config.js";
 import { hasUsedToken, updateBlobAccess } from "../db/methods.js";
 import { readUpload, removeUpload, uploadWriteStream } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
-import { isHttpError } from "../helpers/error.js";
 
 type UploadState = CommonState & {
   contentType: string;
@@ -88,7 +87,7 @@ router.put<UploadState>("/upload", async (ctx) => {
   let blob: BlobMetadata;
 
   if (!blobDB.hasBlob(upload.sha256)) {
-    log("Saving", upload.sha256, mimeType);
+    log("Saving", upload.sha256, mimeType, upload.size);
     await storage.writeBlob(upload.sha256, readUpload(upload), mimeType);
     await removeUpload(upload);
 
