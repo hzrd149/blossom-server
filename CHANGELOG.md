@@ -1,5 +1,15 @@
 # blossom-server
 
+## 4.6.0
+
+### Minor Changes
+
+- 19fc126: Support range requests
+
+### Patch Changes
+
+- 6b6d953: Fix bug with upload size being set to 0
+
 ## 4.5.0
 
 ### Minor Changes
