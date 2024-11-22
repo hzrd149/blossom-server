@@ -23,7 +23,7 @@ export async function search(search: BlobSearch) {
     for (const event of events) {
       log(`Found 1063 event by ${npubEncode(event.pubkey)}`);
       const url = event.tags.find((t) => t[0] === "url")?.[1];
-      const mimeType = event.tags.find((t) => t[0] === "m")?.[1];
+      const type = event.tags.find((t) => t[0] === "m")?.[1];
       const infohash = event.tags.find((t) => t[0] === "i")?.[1];
       const sizeStr = event.tags.find((t) => t[0] === "size")?.[1];
       const size = sizeStr ? parseInt(sizeStr) : undefined;
@@ -34,10 +34,10 @@ export async function search(search: BlobSearch) {
       if (url) {
         try {
           pointers.push({
-            type: "http",
+            kind: "http",
             hash: search.hash,
             url: new URL(url).toString(),
-            mimeType,
+            type: type,
             metadata: { pubkey: event.pubkey },
             size,
           });
@@ -46,11 +46,11 @@ export async function search(search: BlobSearch) {
 
       if (magnet || infohash) {
         pointers.push({
-          type: "torrent",
+          kind: "torrent",
           hash: search.hash,
           magnet,
           infohash,
-          mimeType,
+          type: type,
           metadata: { pubkey: event.pubkey },
           size,
         });

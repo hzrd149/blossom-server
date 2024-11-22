@@ -6,6 +6,8 @@ import { S3StorageOptions } from "blossom-server-sdk";
 
 import logger from "./logger.js";
 import { mergeDeep } from "./helpers/object.js";
+import { VideoOptions } from "./optimize/video.js";
+import { ImageOptions } from "./optimize/image.js";
 
 const log = logger.extend("config");
 
@@ -48,6 +50,13 @@ export type Config = {
     requireAuth: boolean;
     requirePubkeyInRule: boolean;
   };
+  media: {
+    enabled: boolean;
+    requireAuth: boolean;
+    requirePubkeyInRule: boolean;
+    video?: VideoOptions;
+    image?: ImageOptions;
+  };
   list: {
     requireAuth: boolean;
     allowListOthers: boolean;
@@ -80,6 +89,7 @@ const defaultConfig: Config = {
     rules: [],
   },
   upload: { enabled: false, requireAuth: true, requirePubkeyInRule: false },
+  media: { enabled: false, requireAuth: true, requirePubkeyInRule: false },
   list: { requireAuth: false, allowListOthers: false },
   tor: { enabled: false, proxy: "" },
 };

@@ -72,13 +72,56 @@ storage:
     - type: "*"
       expiration: 2 days
 
+# Config for the /upload endpoint
 upload:
-  # enable / disable uploads
+  # enable / disable uploads (default false)
   enabled: true
   # require auth to upload
   requireAuth: true
   # only check rules that include "pubkeys"
   requirePubkeyInRule: false
+
+# Config for the /media endpoint
+media:
+  # /media endpoint enabled (default false)
+  enabled: true
+  # require auth to upload to /media
+  requireAuth: true
+  # only check rules that include "pubkeys"
+  requirePubkeyInRule: false
+
+  # image optimization options
+  image:
+    # image quality 0-100 (default 90)
+    quality: 90
+    # create progressive jpeg / png images for large images > 1024x768 (default true)
+    progressive: true
+    # max width (default 1920)
+    maxWidth: 1920
+    # max height (default 1080)
+    maxHeight: 1080
+    # image format (default webp)
+    outputFormat: "webp"
+    # keep aspect radio when resizing (default true)
+    maintainAspectRatio: true
+    # keep EXIF metadata (default false)
+    keepExif: false
+    # fps for GIFs (default 30)
+    fps: 30
+
+  video:
+    # video quality 0-100 (default 90)
+    quality: 90
+    # max height (default 1080)
+    maxHeight: 1080
+    # max fps (default 30)
+    maxFps: 30
+    # output format [mp4, webm, mkv] (default mp4)
+    format: "webm"
+    # audio codec [aac, mp3, vorbis, opus] (default aac)
+    audioCodec: "aac"
+    # video codec [libx264, libx265, vp8, vp9] (default libx264)
+    videoCodec: "libx264"
 
 list:
   requireAuth: false

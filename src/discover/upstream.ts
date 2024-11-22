@@ -40,7 +40,7 @@ function checkCDN(cdn: string, search: BlobSearch): Promise<HTTPPointer> {
         reject(new Error("Not Found"));
       } else {
         resolve({
-          type: "http",
+          kind: "http",
           url: url.toString(),
           hash: search.hash,
           size: length,

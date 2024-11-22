@@ -1,7 +1,7 @@
 export type CommonSearch = {
   hash: string;
   ext?: string;
-  mimeType?: string;
+  type?: string;
 };
 export type NostrSearch = CommonSearch;
 export type TorrentSearch = CommonSearch & {
@@ -11,24 +11,24 @@ export type BlobSearch = NostrSearch & TorrentSearch;
 
 export type PointerMetadata = {
   pubkey?: string;
-  mimeType?: string;
+  type?: string;
 };
 export type CommonPointer = {
   hash: string;
-  mimeType?: string;
+  type?: string;
   size: number;
   metadata?: PointerMetadata;
 };
 export type HTTPPointer = CommonPointer & {
-  type: "http";
+  kind: "http";
   url: string;
 };
 export type TorrentPointer = CommonPointer & {
-  type: "torrent";
+  kind: "torrent";
   infohash?: string;
   magnet?: string;
 };
 export type StoragePointer = CommonPointer & {
-  type: "storage";
+  kind: "storage";
 };
 export type BlobPointer = HTTPPointer | TorrentPointer | StoragePointer;

@@ -29,6 +29,7 @@
     "dayjs": "^1.11.13",
     "debug": "^4.3.7",
     "file-type": "^19.6.0",
+    "fluent-ffmpeg": "^2.1.3",
     "follow-redirects": "^1.15.9",
     "generate-password": "^1.7.1",
     "http-errors": "^1.8.1",
@@ -44,6 +45,7 @@
     "mkdirp": "^3.0.1",
     "nanoid": "^5.0.8",
     "nostr-tools": "^2.10.3",
+    "sharp": "^0.33.5",
     "socks-proxy-agent": "^8.0.4",
     "ws": "^8.18.0",
     "yaml": "^2.6.1"
@@ -55,6 +57,7 @@
     "@swc/types": "^0.1.12",
     "@types/better-sqlite3": "^7.6.12",
     "@types/debug": "^4.1.12",
+    "@types/fluent-ffmpeg": "^2.1.27",
     "@types/follow-redirects": "^1.14.4",
     "@types/http-errors": "^2.0.4",
     "@types/koa": "^2.15.0",

@@ -3,9 +3,14 @@ import { unixNow, newExpirationValue, getFileSha256, formatBytes } from "./utils
 
 import "./open-blob-form.js";
 
+function isImageOrVideo(file) {
+  return file.type.startsWith("image/") || file.type.startsWith("video/");
+}
+
 export class UploadForm extends LitElement {
   static properties = {
     selected: { state: true },
+    optimize: { state: true },
     status: { state: true, type: String },
   };
 
@@ -64,7 +69,7 @@ export class UploadForm extends LitElement {
 
       // Upload blob
       this.status = "Uploading...";
-      const res = await fetch("/upload", {
+      const res = await fetch(this.optimize ? "/media" : "/upload", {
         method: "PUT",
         body: file,
         // attach Authorization: Nostr <base64> header to request
@@ -90,6 +95,10 @@ export class UploadForm extends LitElement {
 
   inputChange(e) {
     this.selected = e.target.files[0];
+  }
+
+  optimizeChange(e) {
+    this.optimize = !this.optimize;
   }
 
   render() {
@@ -134,6 +143,22 @@ export class UploadForm extends LitElement {
               <input name="blob" type="file" class="hidden" @change="${this.inputChange}" />
             </label>
           </div>
+          ${this.selected &&
+          isImageOrVideo(this.selected) &&
+          html`
+            <div class="flex items-center">
+              <input
+                id="optimize"
+                type="checkbox"
+                class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                .checked="${!!this.optimize}"
+                @change="${this.optimizeChange}"
+              />
+              <label for="optimize" class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+                >Optimize media</label
+              >
+            </div>
+          `}
         </div>
         <div>
           <button

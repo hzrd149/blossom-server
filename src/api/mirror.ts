@@ -75,7 +75,7 @@ router.put<CommonState>("/mirror", async (ctx) => {
     }
 
     const upload = (maybeUpload = await saveFromResponse(response));
-    let mimeType = contentType || upload.type;
+    const type = contentType || upload.type;
 
     // check if auth has blob sha256 hash
     if (
@@ -87,12 +87,12 @@ router.put<CommonState>("/mirror", async (ctx) => {
     let blob: BlobMetadata;
 
     if (!blobDB.hasBlob(upload.sha256)) {
-      log("Saving", upload.sha256, mimeType);
-      await storage.writeBlob(upload.sha256, readUpload(upload), mimeType);
+      log("Saving", upload.sha256, type);
+      await storage.writeBlob(upload.sha256, readUpload(upload), type);
       await removeUpload(upload);
 
       const now = dayjs().unix();
-      blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type: mimeType, uploaded: now });
+      blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type, uploaded: now });
       updateBlobAccess(upload.sha256, dayjs().unix());
     } else {
       blob = blobDB.getBlob(upload.sha256);
@@ -110,7 +110,7 @@ router.put<CommonState>("/mirror", async (ctx) => {
   } catch (error) {
     // cancel the request if anything fails
     controller.abort();
-    if (maybeUpload) removeUpload(maybeUpload);
+    if (maybeUpload) await removeUpload(maybeUpload);
 
     throw error;
   }

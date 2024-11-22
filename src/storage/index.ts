@@ -7,7 +7,8 @@ import logger from "../logger.js";
 import dayjs from "dayjs";
 import { getExpirationTime } from "../rules/index.js";
 import { BlobMetadata } from "blossom-server-sdk";
-import { forgetBlobAccessed } from "../db/methods.js";
+import { forgetBlobAccessed, updateBlobAccess } from "../db/methods.js";
+import { readUpload, removeUpload, UploadDetails } from "./upload.js";
 
 async function createStorage() {
   if (config.storage.backend === "local") {
@@ -37,7 +38,7 @@ export async function searchStorage(search: BlobSearch): Promise<StoragePointer 
     const type = blob.type || (await storage.getBlobType(search.hash));
     const size = blob.size || (await storage.getBlobSize(search.hash));
     log("Found", search.hash);
-    return { type: "storage", hash: search.hash, mimeType: type, size };
+    return { kind: "storage", hash: search.hash, type: type, size };
   }
 }
 
@@ -51,6 +52,27 @@ export function getStorageRedirect(pointer: StoragePointer) {
 
 export async function readStoragePointer(pointer: StoragePointer) {
   return await storage.readBlob(pointer.hash);
+}
+
+export async function addFromUpload(upload: UploadDetails, type?: string) {
+  type = type || upload.type;
+
+  let blob: BlobMetadata;
+
+  if (!blobDB.hasBlob(upload.sha256)) {
+    log("Saving", upload.sha256, type, upload.size);
+    await storage.writeBlob(upload.sha256, readUpload(upload), type);
+    await removeUpload(upload);
+
+    const now = dayjs().unix();
+    blob = blobDB.addBlob({ sha256: upload.sha256, size: upload.size, type, uploaded: now });
+    updateBlobAccess(upload.sha256, dayjs().unix());
+  } else {
+    blob = blobDB.getBlob(upload.sha256);
+    await removeUpload(upload);
+  }
+
+  return blob;
 }
 
 export async function pruneStorage() {

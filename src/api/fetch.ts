@@ -27,7 +27,7 @@ router.get("/:hash", range, async (ctx, next) => {
   const search: BlobSearch = {
     hash,
     ext,
-    mimeType: mime.getType(ctx.path) ?? undefined,
+    type: mime.getType(ctx.path) ?? undefined,
   };
 
   const storageResult = await searchStorage(search);
@@ -38,7 +38,7 @@ router.get("/:hash", range, async (ctx, next) => {
     if (redirect) return ctx.redirect(redirect);
 
     // explicitly set type and length since this is a stream
-    if (storageResult.mimeType) ctx.type = storageResult.mimeType;
+    if (storageResult.type) ctx.type = storageResult.type;
     ctx.length = storageResult.size;
 
     // koa cannot set Content-Length from stream
@@ -64,30 +64,30 @@ router.get("/:hash", range, async (ctx, next) => {
   // download it from pointers if any where found
   for (const pointer of pointers) {
     try {
-      if (pointer.type === "http") {
-        const stream = await httpTransport.readHTTPPointer(pointer);
+      if (pointer.kind === "http") {
+        const response = await httpTransport.readHTTPPointer(pointer);
 
         if (!ctx.type) {
           // if the pointer has a binary stream, try to use the search mime type
-          if (pointer.mimeType === "application/octet-stream" && search.mimeType) ctx.type = search.mimeType;
-          else if (pointer.mimeType) ctx.type = pointer.mimeType;
-          else if (search.mimeType) ctx.type = search.mimeType;
+          if (pointer.type === "application/octet-stream" && search.type) ctx.type = search.type;
+          else if (pointer.type) ctx.type = pointer.type;
+          else if (search.type) ctx.type = search.type;
         }
 
         const pass = (ctx.body = new PassThrough());
 
         // set the Content-Length since koa cannot set it from a stream
         ctx.length = pointer.size;
-        stream.pipe(pass);
+        response.pipe(pass);
 
         // save to cache
         const rule = getFileRule(
-          { type: pointer.mimeType || search.mimeType, pubkey: pointer.metadata?.pubkey },
+          { type: pointer.type || search.type, pubkey: pointer.metadata?.pubkey },
           config.storage.rules,
         );
         if (rule) {
           // save the blob in the background (no await)
-          uploadModule.uploadWriteStream(stream).then(async (upload) => {
+          uploadModule.saveFromResponse(response).then(async (upload) => {
             if (upload.sha256 !== pointer.hash) return;
 
             // if the storage dose not have the blob. upload it
