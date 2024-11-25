@@ -20,6 +20,13 @@ export type UploadDetails = {
   size: number;
 };
 
+export function rmTempFile(path: string) {
+  if (!path.startsWith("/tmp")) throw new Error("Path is not a temp file");
+  try {
+    fs.rmSync(path);
+  } catch (error) {}
+}
+
 export function newTempFile(type?: string) {
   let filename = nanoid(8);
   if (type) filename += "." + mime.getExtension(type);
@@ -38,20 +45,21 @@ export function saveFromUploadRequest(message: IncomingMessage) {
 
     message.pipe(write);
     message.on("error", (err) => {
-      fs.rmSync(tempFile);
+      rmTempFile(tempFile);
       reject(err);
     });
-    message.on("end", async () => {
+
+    write.on("finish", async () => {
       try {
-        log("Finished", tempFile);
         type = type || (await fileTypeFromFile(tempFile))?.mime;
 
         const size = fs.statSync(tempFile).size;
         const sha256 = await getFileHash(tempFile);
 
+        log("Finished", tempFile);
         resolve({ type, tempFile, sha256, size });
       } catch (error) {
-        fs.rmSync(tempFile);
+        rmTempFile(tempFile);
         reject(error);
       }
     });
@@ -59,15 +67,16 @@ export function saveFromUploadRequest(message: IncomingMessage) {
 }
 
 export function saveFromResponse(response: IncomingMessage): Promise<UploadDetails> {
-  let type = response.headers["content-type"];
-
-  const tempFile = newTempFile(type);
-  const write = fs.createWriteStream(tempFile);
-
   return new Promise<UploadDetails>((resolve, reject) => {
+    let type = response.headers["content-type"];
+
+    const tempFile = newTempFile(type);
+    const write = fs.createWriteStream(tempFile);
+
     response.pipe(write);
     response.on("error", (err) => reject(err));
-    response.on("end", async () => {
+
+    write.on("finish", async () => {
       if (!type) type = (await fileTypeFromFile(tempFile))?.mime;
 
       const size = (await pfs.stat(tempFile)).size;
