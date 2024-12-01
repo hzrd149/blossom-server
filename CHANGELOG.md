@@ -1,5 +1,15 @@
 # blossom-server
 
+## 4.7.0
+
+### Minor Changes
+
+- b02c83e: Add /media endpoint
+
+### Patch Changes
+
+- 42ac907: Fix occasional upload failures
+
 ## 4.6.0
 
 ### Minor Changes
