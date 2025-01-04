@@ -1,14 +1,12 @@
 import { ParameterizedContext, Next, DefaultState } from "koa";
 import HttpErrors from "http-errors";
-import { BlobMetadata } from "blossom-server-sdk";
-import dayjs from "dayjs";
 
-import storage, { addFromUpload } from "../storage/index.js";
-import { CommonState, getBlobDescriptor, log, router, saveAuthToken } from "./router.js";
+import { addFromUpload } from "../storage/index.js";
+import { CommonState, getBlobDescriptor, router, saveAuthToken } from "./router.js";
 import { getFileRule } from "../rules/index.js";
 import { config, Rule } from "../config.js";
-import { hasUsedToken, updateBlobAccess } from "../db/methods.js";
-import { readUpload, removeUpload, saveFromUploadRequest } from "../storage/upload.js";
+import { hasUsedToken } from "../db/methods.js";
+import { removeUpload, saveFromUploadRequest } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
 
 export type UploadState = CommonState & {
@@ -17,13 +15,16 @@ export type UploadState = CommonState & {
   rule: Rule;
 };
 
-export function checkUpload(opts: { requireAuth: boolean; requirePubkeyInRule: boolean }) {
+export function checkUpload(
+  authType: "upload" | "media",
+  opts: { requireAuth: boolean; requirePubkeyInRule: boolean },
+) {
   return async (ctx: ParameterizedContext<DefaultState & CommonState>, next: Next) => {
     if (ctx.method === "HEAD" || ctx.method === "PUT") {
       // check auth
       if (opts.requireAuth) {
         if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
-        if (ctx.state.authType !== "upload") throw new HttpErrors.Unauthorized("Auth event should be 'upload'");
+        if (ctx.state.authType !== authType) throw new HttpErrors.Unauthorized("Auth event must be 'upload'");
         if (hasUsedToken(ctx.state.auth.id)) throw new HttpErrors.BadRequest("Auth event already used");
 
         // BUD-06, check if hash is in auth event
@@ -72,7 +73,7 @@ router.all<CommonState>(
     if (!config.upload.enabled) throw new HttpErrors.NotFound("Uploads disabled");
     return await next();
   },
-  checkUpload(config.upload),
+  checkUpload("upload", config.upload),
 );
 router.head<UploadState>("/upload", async (ctx) => {
   ctx.status = 200;

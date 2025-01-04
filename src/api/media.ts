@@ -12,12 +12,12 @@ import { optimizeMedia } from "../optimize/index.js";
 import { getFileHash } from "../helpers/file.js";
 
 router.all<CommonState>(
-  "/upload",
+  "/media",
   async (ctx, next) => {
-    if (!config.media.enabled) throw new HttpErrors.NotFound("Uploads disabled");
+    if (!config.media.enabled) throw new HttpErrors.NotFound("Media uploads disabled");
     return await next();
   },
-  checkUpload(config.media),
+  checkUpload("media", config.media),
 );
 
 router.head<UploadState>("/media", async (ctx) => {
