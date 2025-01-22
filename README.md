@@ -4,17 +4,13 @@ blossom-server is a Typescript implementation of a [Blossom Server](https://gith
 
 ## Supported BUDs
 
-- BUD-01
-  - `GET /<sha256>` Retrieve blob
-  - `HEAD /<sha256>` Check blob
-- BUD-02
-  - `PUT /upload` Upload blob
-  - `GET /list<pubkey>` List blobs
-  - `DELETE /<sha256>` Delete blob
-- BUD-04
-  - `PUT /mirror` Mirror blob
-- BUD-06
-  - `HEAD /upload` Upload check
+- [x] BUD-01
+- [x] BUD-02
+- [ ] ~~BUD~03~~ N/A
+- [x] BUD-04
+- [x] BUD-05
+- [x] BUD-06
+- [ ] BUD-08
 
 ## Running with npx
 
