@@ -1,5 +1,15 @@
 # blossom-server
 
+## 5.0.0
+
+### Major Changes
+
+- 7045928: Require "media" auth event on /media endpoint
+
+### Patch Changes
+
+- c9d905b: Fix s3 storage implementation not listing all objects
+
 ## 4.7.0
 
 ### Minor Changes
