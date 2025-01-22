@@ -21,8 +21,8 @@ importers:
         specifier: ^11.7.0
         version: 11.7.0
       blossom-server-sdk:
-        specifier: ^0.7.3
-        version: 0.7.3
+        specifier: ^0.8.0
+        version: 0.8.0
       dayjs:
         specifier: ^1.11.13
         version: 1.11.13
@@ -729,6 +729,9 @@ packages:
   better-sqlite3@11.7.0:
     resolution: {integrity: sha512-mXpa5jnIKKHeoGzBrUJrc65cXFKcILGZpU3FXR0pradUEm9MA7UZz02qfEejaMcm9iXrSOCenwwYMJ/tZ1y5Ig==}
 
+  better-sqlite3@11.8.1:
+    resolution: {integrity: sha512-9BxNaBkblMjhJW8sMRZxnxVTRgbRmssZW0Oxc1MPBTfiR+WW21e2Mk4qu8CzrcZb1LwPCnFsfDEzq+SNcBU8eg==}
+
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
@@ -742,8 +745,8 @@ packages:
   block-stream2@2.1.0:
     resolution: {integrity: sha512-suhjmLI57Ewpmq00qaygS8UgEq2ly2PCItenIyhMqVjo4t4pGzqMvfgJuX8iWTeSDdfSSqS6j38fL4ToNL7Pfg==}
 
-  blossom-server-sdk@0.7.3:
-    resolution: {integrity: sha512-wcYHOMkbTeGmCd+at01SjGmv6RplCteNa0sUBoRIO9AVna9QLjwos1KEPK9gC/YrwLJXX4DJihRlPfIaXjGR/w==}
+  blossom-server-sdk@0.8.0:
+    resolution: {integrity: sha512-p4RypW4qX5zP48agvR+L+JZ0z5U0iy1LO9Od9ky2lUQZovGcqzms1XMobIihdaN/S5KgKOzroJ0a5DsXGWc7Hg==}
 
   brace-expansion@1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
@@ -2539,6 +2542,11 @@ snapshots:
       bindings: 1.5.0
       prebuild-install: 7.1.2
 
+  better-sqlite3@11.8.1:
+    dependencies:
+      bindings: 1.5.0
+      prebuild-install: 7.1.2
+
   binary-extensions@2.3.0: {}
 
   bindings@1.5.0:
@@ -2555,9 +2563,9 @@ snapshots:
     dependencies:
       readable-stream: 3.6.2
 
-  blossom-server-sdk@0.7.3:
+  blossom-server-sdk@0.8.0:
     dependencies:
-      better-sqlite3: 11.7.0
+      better-sqlite3: 11.8.1
       debug: 4.4.0(supports-color@5.5.0)
       mime: 4.0.6
       minio: 8.0.3

@@ -1,12 +1,13 @@
 import { mkdirp } from "mkdirp";
 import { config } from "../config.js";
+import { BlobMetadata } from "blossom-server-sdk";
 import { LocalStorage, S3Storage, IBlobStorage } from "blossom-server-sdk/storage";
+import dayjs from "dayjs";
+
 import { BlobSearch, StoragePointer } from "../types.js";
 import db, { blobDB } from "../db/db.js";
 import logger from "../logger.js";
-import dayjs from "dayjs";
 import { getExpirationTime } from "../rules/index.js";
-import { BlobMetadata } from "blossom-server-sdk";
 import { forgetBlobAccessed, updateBlobAccess } from "../db/methods.js";
 import { readUpload, removeUpload, UploadDetails } from "./upload.js";
 
@@ -27,10 +28,12 @@ async function createStorage() {
   } else throw new Error("Unknown cache backend " + config.storage.backend);
 }
 
-const storage: IBlobStorage = await createStorage();
-await storage.setup();
-
 const log = logger.extend("storage");
+
+const storage: IBlobStorage = await createStorage();
+
+log("Setting up storage");
+await storage.setup();
 
 export async function searchStorage(search: BlobSearch): Promise<StoragePointer | undefined> {
   const blob = await blobDB.getBlob(search.hash);

@@ -33,7 +33,7 @@ export type Config = {
   dashboard: {
     enabled: boolean;
     username: string;
-    password: string;
+    password?: string;
   };
   discovery: {
     nostr: {
@@ -77,7 +77,7 @@ function loadJson(filepath: string, content: string) {
 const defaultConfig: Config = {
   publicDomain: "",
   databasePath: "data/sqlite.db",
-  dashboard: { enabled: false, username: "admin", password: generate() },
+  dashboard: { enabled: false, username: "admin" },
   discovery: {
     nostr: { enabled: false, relays: [] },
     upstream: { enabled: false, domains: [] },

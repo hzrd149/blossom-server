@@ -14,6 +14,7 @@ import { config } from "./config.js";
 import { isHttpError } from "./helpers/error.js";
 import db from "./db/db.js";
 import { pruneStorage } from "./storage/index.js";
+import { generate } from "generate-password";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,12 +58,14 @@ if (config.dashboard.enabled) {
   const { default: basicAuth } = await import("koa-basic-auth");
   const { default: adminApi } = await import("./admin-api/index.js");
 
-  app.use(mount("/api", basicAuth({ name: config.dashboard.username, pass: config.dashboard.password })));
+  const password = config.dashboard.password || generate();
+  app.use(mount("/api", basicAuth({ name: config.dashboard.username, pass: password })));
   app.use(mount("/api", koaBody()));
   app.use(mount("/api", adminApi.routes())).use(mount("/api", adminApi.allowedMethods()));
   app.use(mount("/admin", serve(path.resolve(__dirname, "../admin/dist"))));
 
-  logger("Dashboard started with", config.dashboard.username, config.dashboard.password);
+  // only log the password if it was generated
+  logger(`Dashboard started with ${config.dashboard.username} ${config.dashboard.password ? "" : password}`);
 }
 
 try {

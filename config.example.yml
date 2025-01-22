@@ -15,19 +15,15 @@ dashboard:
 discovery:
   # find files by querying nostr relays
   nostr:
-    enabled: true
+    enabled: false
     relays:
-      - wss://nostrue.com
-      - wss://relay.damus.io
-      - wss://nostr.wine
-      - wss://nos.lol
-      - wss://nostr-pub.wellorder.net
+      - wss://relay.example.com
   # find files by asking upstream CDNs
   # NOTE: do not set this to your own server, it will create an infinite loop
   upstream:
-    enabled: true
+    enabled: false
     domains:
-      - https://cdn.satellite.earth
+      - https://cdn.example.com
 
 storage:
   # local or s3
