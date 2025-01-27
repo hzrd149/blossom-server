@@ -1,5 +1,15 @@
 # blossom-server
 
+## 5.1.0
+
+### Minor Changes
+
+- ed1904d: Update cleanup cron to remove blobs without owners if enabled
+
+### Patch Changes
+
+- ed1904d: Throw 404 when blob is not found on DELETE /<sha256>
+
 ## 5.0.0
 
 ### Major Changes
