@@ -18,7 +18,7 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
   if (hasUsedToken(ctx.state.auth.id)) throw new Error("Auth already used");
 
   // skip if blob dose not exist
-  if (!blobDB.hasBlob(sha256)) return;
+  if (!blobDB.hasBlob(sha256)) throw new HttpErrors.NotFound("Blob does not exist");
 
   const pubkey = ctx.state.auth.pubkey;
 

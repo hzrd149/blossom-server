@@ -1,0 +1,39 @@
+name: Release next
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release next
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Publish next version
+        run: |
+          pnpm config set //registry.npmjs.org/:_authToken=$NPM_TOKEN && \
+          pnpm changeset version --snapshot next && \
+          pnpm changeset publish --tag next
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
