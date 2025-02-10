@@ -3,6 +3,7 @@ import { formatBytes, newExpirationValue, unixNow } from "./utils.js";
 
 export class MirrorBlobs extends LitElement {
   static properties = {
+    showAll: { state: true, type: Boolean },
     remoteBlobs: { state: true },
     localBlobs: { state: true },
 
@@ -49,8 +50,7 @@ export class MirrorBlobs extends LitElement {
 
   localAuth = null;
   async fetchLocalBlobs() {
-    this.pubkey = await window.nostr?.getPublicKey();
-    if (!this.pubkey) return;
+    const pubkey = await window.nostr.getPublicKey();
 
     this.status = "Signing...";
 
@@ -67,7 +67,7 @@ export class MirrorBlobs extends LitElement {
 
     this.status = "Fetching...";
 
-    this.localBlobs = await fetch("/list/" + this.pubkey, {
+    this.localBlobs = await fetch("/list/" + pubkey, {
       headers: { authorization: "Nostr " + btoa(JSON.stringify(this.localAuth)) },
     }).then((res) => res.json());
 
@@ -110,17 +110,26 @@ export class MirrorBlobs extends LitElement {
     </form>`;
   }
 
-  selectAll() {
-    const missingBlobs = this.remoteBlobs.filter((blob) => !this.localBlobs.some((b) => b.sha256 === blob.sha256));
+  getShownBlobs() {
+    return this.showAll
+      ? this.remoteBlobs
+      : this.remoteBlobs.filter((blob) => !this.localBlobs.some((b) => b.sha256 === blob.sha256));
+  }
 
-    if (this.selected.length === missingBlobs.length) {
+  selectAll() {
+    const blobs = this.getShownBlobs();
+
+    if (this.selected.length === blobs.length) {
       this.selected = [];
-    } else this.selected = missingBlobs.map((b) => b.sha256);
+    } else this.selected = blobs.map((b) => b.sha256);
   }
   toggleSelection(sha256) {
     if (this.selected.includes(sha256)) {
       this.selected = this.selected.filter((s) => s !== sha256);
     } else this.selected = [...this.selected, sha256];
+  }
+  toggleShowAll() {
+    this.showAll = !this.showAll;
   }
 
   async mirrorBlobs() {
@@ -170,10 +179,15 @@ export class MirrorBlobs extends LitElement {
     } else if (this.status) {
       return html`<p class="my-5 text-center text-lg">${this.status}</p>`;
     } else if (this.remoteBlobs && this.localBlobs) {
-      const missingBlobs = this.remoteBlobs.filter((blob) => !this.localBlobs.some((b) => b.sha256 === blob.sha256));
+      const blobs = this.getShownBlobs();
+      const check = html` <label
+        ><input type="checkbox" type="checkbox" .checked="${this.showAll}" @change="${this.toggleShowAll}" /> Show
+        all</label
+      >`;
 
-      if (missingBlobs.length === 0) {
-        return html`<p class="text-green-500 text-lg text-center p-10">All blobs synced ✅</p>`;
+      if (blobs.length === 0) {
+        return html`${check}
+          <p class="text-green-500 text-lg text-center p-10">All blobs synced ✅</p>`;
       }
 
       return html`
@@ -184,6 +198,7 @@ export class MirrorBlobs extends LitElement {
           >
             Select All
           </button>
+          ${check}
           <button
             class="text-md bg-blue-500 text-gray-100 py-1 px-3 rounded-md tracking-wide font-semibold hover:bg-blue-600 cursor-pointer transition ease-in duration-300 flex-shrink-0 ml-auto"
             @click="${this.mirrorBlobs}"
@@ -191,7 +206,7 @@ export class MirrorBlobs extends LitElement {
             Mirror Blobs
           </button>
         </div>
-        ${this.renderBlobs(missingBlobs)}
+        ${this.renderBlobs(blobs)}
       `;
     }
 

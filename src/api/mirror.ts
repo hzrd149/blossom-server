@@ -77,12 +77,11 @@ router.put<CommonState>("/mirror", async (ctx) => {
     const upload = (maybeUpload = await saveFromResponse(response));
     const type = contentType || upload.type;
 
-    // check if auth has blob sha256 hash
-    if (
-      config.upload.requireAuth &&
-      (!ctx.state.auth || ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === upload.sha256))
-    )
-      throw new HttpErrors.BadRequest("Auth missing blob sha256 hash");
+    if (config.upload.requireAuth) {
+      // check if auth has blob sha256 hash
+      if (!ctx.state.auth?.tags.some((t) => t[0] === "x" && t[1] === upload.sha256))
+        throw new HttpErrors.BadRequest("Auth missing blob sha256 hash");
+    }
 
     let blob: BlobMetadata;
 
