@@ -38,13 +38,15 @@ export class UploadForm extends LitElement {
 
       this.status = "Signing...";
 
+      const endpoint = this.optimize ? "/media" : "/upload";
+
       // create auth event
       const auth = await window.nostr.signEvent({
         kind: 24242,
         content: "Authorize Upload",
         created_at: unixNow(),
         tags: [
-          ["t", "upload"],
+          ["t", optimize ? "media" : "upload"],
           ["x", hash],
           ["expiration", newExpirationValue()],
         ],
@@ -53,7 +55,7 @@ export class UploadForm extends LitElement {
 
       // BUD-06 check upload
       this.status = "Checking Upload...";
-      const check = await fetch("/upload", {
+      const check = await fetch(endpoint, {
         method: "HEAD",
         headers: {
           authorization,
@@ -69,7 +71,7 @@ export class UploadForm extends LitElement {
 
       // Upload blob
       this.status = "Uploading...";
-      const res = await fetch(this.optimize ? "/media" : "/upload", {
+      const res = await fetch(endpoint, {
         method: "PUT",
         body: file,
         // attach Authorization: Nostr <base64> header to request

@@ -24,7 +24,7 @@ export function checkUpload(
       // check auth
       if (opts.requireAuth) {
         if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
-        if (ctx.state.authType !== authType) throw new HttpErrors.Unauthorized("Auth event must be 'upload'");
+        if (ctx.state.authType !== authType) throw new HttpErrors.Unauthorized(`Auth event must be '${authType}'`);
         if (hasUsedToken(ctx.state.auth.id)) throw new HttpErrors.BadRequest("Auth event already used");
 
         // BUD-06, check if hash is in auth event
