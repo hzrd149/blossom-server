@@ -1,5 +1,11 @@
 # blossom-server
 
+## 5.1.1
+
+### Patch Changes
+
+- 91919ce: Fix broken media upload on home page
+
 ## 5.1.0
 
 ### Minor Changes
