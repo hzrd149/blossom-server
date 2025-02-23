@@ -126,3 +126,9 @@ list:
 tor:
   enabled: false
   proxy: ""
+
+whitelist:
+  enabled: true
+  domain: "example.com"  # Set the domain for the NIP-05 whitelist
+  errorMessage: "You are not authorized to upload."  # Error message for non-whitelisted users
+  fetchDelay: 3600  # Delay between fetches in seconds
