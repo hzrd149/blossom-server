@@ -99,6 +99,7 @@ const defaultConfig: Config = {
   list: { requireAuth: false, allowListOthers: false },
   tor: { enabled: false, proxy: "" },
   whitelist: {
+    enabled: true,
     domain: "",
     errorMessage: "You are not authorized to upload.",
     fetchDelay: 3600,
