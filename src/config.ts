@@ -66,6 +66,7 @@ export type Config = {
     proxy: string;
   };
   whitelist: {
+    enabled: boolean;
     domain: string;
     errorMessage: string;
     fetchDelay: number;
