@@ -1,5 +1,11 @@
 # blossom-server
 
+## 5.1.2
+
+### Patch Changes
+
+- 029f80a: Fix bug in upload UI
+
 ## 5.1.1
 
 ### Patch Changes
