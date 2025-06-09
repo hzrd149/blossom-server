@@ -1,7 +1,6 @@
 import { lilconfig } from "lilconfig";
 import yaml from "yaml";
 import fs from "node:fs";
-import { generate } from "generate-password";
 import { S3StorageOptions } from "blossom-server-sdk";
 
 import logger from "./logger.js";

@@ -5,3 +5,4 @@ build
 database.json
 config.yml
 dist
+.netrc
