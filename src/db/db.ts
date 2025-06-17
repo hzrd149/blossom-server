@@ -18,14 +18,4 @@ db.prepare(
 
 db.prepare("CREATE INDEX IF NOT EXISTS accessed_timestamp ON accessed (timestamp)").run();
 
-db.prepare(
-  `CREATE TABLE IF NOT EXISTS tokens (
-		id TEXT(64) PRIMARY KEY,
-		type TEXT NOT NULL,
-		pubkey TEXT(64) NOT NULL,
-		expiration INTEGER NOT NULL,
-		event TEXT NOT NULL
-	)`,
-).run();
-
 export default db;

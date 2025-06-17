@@ -8,10 +8,10 @@ import followRedirects from "follow-redirects";
 const { http, https } = followRedirects;
 
 import storage from "../storage/index.js";
-import { CommonState, getBlobDescriptor, log, router, saveAuthToken } from "./router.js";
+import { CommonState, getBlobDescriptor, log, router } from "./router.js";
 import { getFileRule } from "../rules/index.js";
 import { config } from "../config.js";
-import { hasUsedToken, updateBlobAccess } from "../db/methods.js";
+import { updateBlobAccess } from "../db/methods.js";
 import { UploadDetails, readUpload, removeUpload, saveFromResponse } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
 
@@ -41,7 +41,6 @@ router.put<CommonState>("/mirror", async (ctx) => {
   if (config.upload.requireAuth) {
     if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
     if (ctx.state.authType !== "upload") throw new HttpErrors.Unauthorized("Auth event should be 'upload'");
-    if (hasUsedToken(ctx.state.auth.id)) throw new HttpErrors.BadRequest("Auth event already used");
   }
 
   if (!ctx.request.body?.url) throw new HttpErrors.BadRequest("Missing url");
@@ -101,8 +100,6 @@ router.put<CommonState>("/mirror", async (ctx) => {
     if (pubkey && !blobDB.hasOwner(upload.sha256, pubkey)) {
       blobDB.addOwner(blob.sha256, pubkey);
     }
-
-    if (ctx.state.auth) saveAuthToken(ctx.state.auth);
 
     ctx.status = 200;
     ctx.body = getBlobDescriptor(blob, ctx.request);

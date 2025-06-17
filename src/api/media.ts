@@ -3,7 +3,7 @@ import fs from "fs";
 import mime from "mime";
 
 import { addFromUpload } from "../storage/index.js";
-import { CommonState, getBlobDescriptor, router, saveAuthToken } from "./router.js";
+import { CommonState, getBlobDescriptor, router } from "./router.js";
 import { config } from "../config.js";
 import { removeUpload, saveFromUploadRequest, UploadDetails } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
@@ -62,8 +62,6 @@ router.put<UploadState>("/media", async (ctx) => {
     if (ctx.state.auth?.pubkey && !blobDB.hasOwner(upload.sha256, ctx.state.auth.pubkey)) {
       blobDB.addOwner(blob.sha256, ctx.state.auth.pubkey);
     }
-
-    if (ctx.state.auth) saveAuthToken(ctx.state.auth);
 
     ctx.status = 200;
     ctx.body = getBlobDescriptor(blob, ctx.request);

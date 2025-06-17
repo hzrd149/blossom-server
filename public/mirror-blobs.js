@@ -134,29 +134,41 @@ export class MirrorBlobs extends LitElement {
 
   async mirrorBlobs() {
     const blobs = this.remoteBlobs.filter((blob) => this.selected.includes(blob.sha256));
+    const batchSize = 100;
+    let completedBlobs = 0;
 
-    for (const blob of blobs) {
-      this.progress = blobs.indexOf(blob) + 1;
-      this.status = `Signing ${blob.sha256}`;
+    // Process blobs in batches of 100
+    for (let i = 0; i < blobs.length; i += batchSize) {
+      const batch = blobs.slice(i, i + batchSize);
 
-      // create auth event
-      const auth = await window.nostr.signEvent({
+      this.status = `Signing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(blobs.length / batchSize)}`;
+
+      // Create single auth event for all blobs in this batch
+      const batchTags = [
+        ["t", "upload"],
+        ["expiration", newExpirationValue()],
+        ...batch.map((blob) => ["x", blob.sha256]),
+      ];
+
+      const batchAuth = await window.nostr.signEvent({
         kind: 24242,
-        content: "Mirror Blob",
+        content: "Mirror Blobs",
         created_at: unixNow(),
-        tags: [
-          ["t", "upload"],
-          ["x", blob.sha256],
-          ["expiration", newExpirationValue()],
-        ],
+        tags: batchTags,
       });
 
-      this.status = `Mirroring ${blob.sha256}`;
-      await fetch("/mirror", {
-        method: "PUT",
-        body: JSON.stringify({ url: blob.url }),
-        headers: { authorization: "Nostr " + btoa(JSON.stringify(auth)), "Content-Type": "application/json" },
-      });
+      // Mirror each blob in the batch using the same auth event
+      for (const blob of batch) {
+        completedBlobs++;
+        this.progress = completedBlobs;
+        this.status = `Mirroring ${blob.sha256}`;
+
+        await fetch("/mirror", {
+          method: "PUT",
+          body: JSON.stringify({ url: blob.url }),
+          headers: { authorization: "Nostr " + btoa(JSON.stringify(batchAuth)), "Content-Type": "application/json" },
+        });
+      }
     }
 
     this.progress = undefined;
@@ -258,7 +270,7 @@ export class MirrorBlobs extends LitElement {
       <div class="flex mt-4 text-sm text-blue-400">
         <a href="#">back to upload</a>
 
-        <a class="ml-auto" href="https://github.com/hzrd149/blossom">🌸 Blossom Spec</a>
+        <a class="ml-auto" href="https://github.com/hzrd149/blossom">🌸 Blossom</a>
       </div>
     </div>`;
   }

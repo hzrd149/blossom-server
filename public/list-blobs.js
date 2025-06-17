@@ -173,7 +173,7 @@ export class ListForm extends LitElement {
       <div class="flex mt-4 text-sm text-blue-400">
         <a href="#">back to upload</a>
 
-        <a class="ml-auto" href="https://github.com/hzrd149/blossom">🌸 Blossom Spec</a>
+        <a class="ml-auto" href="https://github.com/hzrd149/blossom">🌸 Blossom</a>
       </div>
     </div>`;
   }

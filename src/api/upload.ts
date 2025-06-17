@@ -2,10 +2,9 @@ import { ParameterizedContext, Next, DefaultState } from "koa";
 import HttpErrors from "http-errors";
 
 import { addFromUpload } from "../storage/index.js";
-import { CommonState, getBlobDescriptor, router, saveAuthToken } from "./router.js";
+import { CommonState, getBlobDescriptor, router } from "./router.js";
 import { getFileRule } from "../rules/index.js";
 import { config, Rule } from "../config.js";
-import { hasUsedToken } from "../db/methods.js";
 import { removeUpload, saveFromUploadRequest } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
 
@@ -25,7 +24,6 @@ export function checkUpload(
       if (opts.requireAuth) {
         if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
         if (ctx.state.authType !== authType) throw new HttpErrors.Unauthorized(`Auth event must be '${authType}'`);
-        if (hasUsedToken(ctx.state.auth.id)) throw new HttpErrors.BadRequest("Auth event already used");
 
         // BUD-06, check if hash is in auth event
         const sha256 = ctx.header["x-sha-256"];
@@ -100,8 +98,6 @@ router.put<UploadState>("/upload", async (ctx) => {
     if (ctx.state.auth?.pubkey && !blobDB.hasOwner(upload.sha256, ctx.state.auth.pubkey)) {
       blobDB.addOwner(blob.sha256, ctx.state.auth.pubkey);
     }
-
-    if (ctx.state.auth) saveAuthToken(ctx.state.auth);
 
     ctx.status = 200;
     ctx.body = getBlobDescriptor(blob, ctx.request);

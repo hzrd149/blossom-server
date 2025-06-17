@@ -6,7 +6,6 @@ import { verifyEvent, NostrEvent } from "nostr-tools";
 import { BlobMetadata } from "blossom-server-sdk";
 
 import logger from "../logger.js";
-import { addToken } from "../db/methods.js";
 import { getBlobURL } from "../helpers/blob.js";
 
 export const log = logger.extend("api");
@@ -33,16 +32,6 @@ function parseAuthEvent(auth: NostrEvent) {
   if (!verifyEvent(auth)) throw new HttpErrors.BadRequest("Invalid Auth event");
 
   return { auth, type, expiration: parseInt(expiration) };
-}
-
-export function saveAuthToken(event: NostrEvent) {
-  const { expiration, type } = parseAuthEvent(event);
-  addToken({
-    id: event.id,
-    expiration: expiration,
-    type: type,
-    event,
-  });
 }
 
 // parse auth headers

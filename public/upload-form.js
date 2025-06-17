@@ -179,7 +179,7 @@ export class UploadForm extends LitElement {
         ${window.nostr && html`<a class="text-md text-blue-500" href="#mirror">Mirror Blobs</a>`}
         <!-- <a class="text-md text-red-500" href="#delete">Request delete</a> -->
       </div>
-      <a class="text-sm text-blue-400 ml-auto mt-4" href="https://github.com/hzrd149/blossom">🌸 Blossom Spec</a>
+      <a class="text-sm text-blue-400 ml-auto mt-4" href="https://github.com/hzrd149/blossom">🌸 Blossom</a>
     </div>`;
   }
 }
