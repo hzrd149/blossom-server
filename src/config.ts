@@ -66,11 +66,37 @@ export type Config = {
   };
 };
 
+/**
+ * Recursively interpolates environment variables in configuration objects.
+ * Replaces strings like "${VAR_NAME}" with the corresponding environment variable value.
+ * If the environment variable is not set, the original string is kept.
+ */
+function interpolateEnvVars(obj: any): any {
+  if (typeof obj === 'string') {
+    // Match ${VAR_NAME} pattern
+    return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+      const envValue = process.env[varName];
+      return envValue !== undefined ? envValue : match;
+    });
+  } else if (Array.isArray(obj)) {
+    return obj.map(interpolateEnvVars);
+  } else if (obj !== null && typeof obj === 'object') {
+    const result: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = interpolateEnvVars(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
 function loadYaml(filepath: string, content: string) {
-  return yaml.parse(content);
+  const parsed = yaml.parse(content);
+  return interpolateEnvVars(parsed);
 }
 function loadJson(filepath: string, content: string) {
-  return JSON.parse(content);
+  const parsed = JSON.parse(content);
+  return interpolateEnvVars(parsed);
 }
 
 const defaultConfig: Config = {
