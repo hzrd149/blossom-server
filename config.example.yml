@@ -1,3 +1,10 @@
+# Blossom Server Configuration
+# 
+# Environment Variable Support:
+# You can use environment variables in this config file using the syntax: "${VAR_NAME}"
+# For example: password: "${BLOSSOM_ADMIN_PASSWORD}"
+# If the environment variable is not set, the original string will be kept.
+
 # Override the domain thats is used in the blobs "url" field
 # By default it uses the domain the incoming HTTP request was made on
 publicDomain: ""
@@ -11,6 +18,8 @@ dashboard:
   username: admin
   # if password is left blank it will be generated each time the app starts
   # password: ""
+  # You can also use environment variables like this:
+  # password: "${BLOSSOM_ADMIN_PASSWORD}"
 
 discovery:
   # find files by querying nostr relays
@@ -48,6 +57,11 @@ storage:
   #   region: us-east-1
   #   If this is set the server will redirect clients when loading blobs
   #   publicURL: https://s3.region.example.com/
+  #   
+  #   You can also use environment variables for sensitive values:
+  #   accessKey: "${S3_ACCESS_KEY}"
+  #   secretKey: "${S3_SECRET_KEY}"
+  #   bucket: "${S3_BUCKET_NAME}"
 
   # rules are checked in descending order. if a blob matches a rule it is kept
   # "type" (required) the type of the blob, "*" can be used to match any type
