@@ -1,5 +1,12 @@
 # blossom-server
 
+## 5.2.0
+
+### Minor Changes
+
+- 194d4a4: Allow auth tokens to be used multiple times
+- 3db7d86: Add variable interpolation in config
+
 ## 5.1.2
 
 ### Patch Changes
