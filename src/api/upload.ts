@@ -7,6 +7,7 @@ import { getFileRule } from "../rules/index.js";
 import { config, Rule } from "../config.js";
 import { removeUpload, saveFromUploadRequest } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
+import { isWhitelisted, fetchWhitelist } from '../whitelist.js';
 
 export type UploadState = CommonState & {
   contentType: string;
@@ -78,6 +79,17 @@ router.head<UploadState>("/upload", async (ctx) => {
 });
 
 router.put<UploadState>("/upload", async (ctx) => {
+  if (!config.upload.enabled) throw new HttpErrors.NotFound("Uploads disabled");
+
+  const pubkey = ctx.state.auth?.pubkey;
+  if (!pubkey) throw new HttpErrors.Unauthorized("Missing public key");
+
+  await fetchWhitelist(); // Ensure the whitelist is up-to-date
+
+  if (config.whitelist.enabled && pubkey && !isWhitelisted(pubkey)) {
+    throw new HttpErrors.Forbidden(config.whitelist.errorMessage);
+  }
+
   const { contentType } = ctx.state;
 
   let upload = await saveFromUploadRequest(ctx.req);
@@ -95,8 +107,8 @@ router.put<UploadState>("/upload", async (ctx) => {
     const blob = await addFromUpload(upload, type);
 
     // add owner
-    if (ctx.state.auth?.pubkey && !blobDB.hasOwner(upload.sha256, ctx.state.auth.pubkey)) {
-      blobDB.addOwner(blob.sha256, ctx.state.auth.pubkey);
+    if (pubkey && !blobDB.hasOwner(upload.sha256, pubkey)) {
+      blobDB.addOwner(blob.sha256, pubkey);
     }
 
     ctx.status = 200;
