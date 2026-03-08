@@ -14,6 +14,7 @@ import { config } from "../config.js";
 import { updateBlobAccess } from "../db/methods.js";
 import { UploadDetails, readUpload, removeUpload, saveFromResponse } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
+import { isWhitelisted } from "../whitelist.js";
 
 function makeRequestWithAbort(url: URL) {
   return new Promise<{ response: IncomingMessage; controller: AbortController }>((res, rej) => {
@@ -41,6 +42,14 @@ router.put<CommonState>("/mirror", async (ctx) => {
   if (config.upload.requireAuth) {
     if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
     if (ctx.state.authType !== "upload") throw new HttpErrors.Unauthorized("Auth event should be 'upload'");
+  }
+
+  // check whitelist
+  if (config.whitelist.enabled) {
+    const pubkey = ctx.state.auth?.pubkey;
+    if (!pubkey || !(await isWhitelisted(pubkey))) {
+      throw new HttpErrors.Unauthorized(config.whitelist.errorMessage ?? "You are not authorized to upload.");
+    }
   }
 
   if (!ctx.request.body?.url) throw new HttpErrors.BadRequest("Missing url");

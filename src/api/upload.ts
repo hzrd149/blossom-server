@@ -7,6 +7,7 @@ import { getFileRule } from "../rules/index.js";
 import { config, Rule } from "../config.js";
 import { removeUpload, saveFromUploadRequest } from "../storage/upload.js";
 import { blobDB } from "../db/db.js";
+import { isWhitelisted } from "../whitelist.js";
 
 export type UploadState = CommonState & {
   contentType: string;
@@ -30,6 +31,14 @@ export function checkUpload(
         if (typeof sha256 !== "string") throw new HttpErrors.BadRequest("Missing X-SHA-256 header");
         if (!ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === sha256))
           throw new HttpErrors.Unauthorized("Auth missing sha256");
+      }
+
+      // check whitelist
+      if (config.whitelist.enabled) {
+        const pubkey = ctx.state.auth?.pubkey;
+        if (!pubkey || !(await isWhitelisted(pubkey))) {
+          throw new HttpErrors.Unauthorized(config.whitelist.errorMessage ?? "You are not authorized to upload.");
+        }
       }
 
       // check rules
