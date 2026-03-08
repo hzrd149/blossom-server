@@ -64,6 +64,12 @@ export type Config = {
     enabled: boolean;
     proxy: string;
   };
+  whitelist: {
+    enabled: boolean;
+    domain: string;
+    errorMessage: string;
+    fetchDelay: number;
+  };
 };
 
 /**
@@ -117,6 +123,12 @@ const defaultConfig: Config = {
   media: { enabled: false, requireAuth: true, requirePubkeyInRule: false },
   list: { requireAuth: false, allowListOthers: false },
   tor: { enabled: false, proxy: "" },
+  whitelist: {
+    enabled: true,
+    domain: "",
+    errorMessage: "You are not authorized to upload.",
+    fetchDelay: 3600,
+  },
 };
 
 const searchPlaces = ["config.yaml", "config.yml", "config.json"];
