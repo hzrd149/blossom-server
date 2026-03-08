@@ -64,6 +64,18 @@ export type Config = {
     enabled: boolean;
     proxy: string;
   };
+  whitelist: {
+    /** Enable the NIP-05 whitelist. When true, only whitelisted pubkeys may upload/mirror/delete. */
+    enabled: boolean;
+    /** NIP-05 domain to fetch pubkeys from (fetches /.well-known/nostr.json). */
+    nip05Domain?: string;
+    /** Hard-coded hex pubkeys that are always allowed, regardless of domain fetch result. */
+    pubkeys?: string[];
+    /** Error message returned to non-whitelisted users. */
+    errorMessage?: string;
+    /** How often to re-fetch the NIP-05 domain list, in seconds. Default: 3600. */
+    refreshInterval?: number;
+  };
 };
 
 /**
@@ -72,7 +84,7 @@ export type Config = {
  * If the environment variable is not set, the original string is kept.
  */
 function interpolateEnvVars(obj: any): any {
-  if (typeof obj === 'string') {
+  if (typeof obj === "string") {
     // Match ${VAR_NAME} pattern
     return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
       const envValue = process.env[varName];
@@ -80,7 +92,7 @@ function interpolateEnvVars(obj: any): any {
     });
   } else if (Array.isArray(obj)) {
     return obj.map(interpolateEnvVars);
-  } else if (obj !== null && typeof obj === 'object') {
+  } else if (obj !== null && typeof obj === "object") {
     const result: any = {};
     for (const [key, value] of Object.entries(obj)) {
       result[key] = interpolateEnvVars(value);
@@ -117,6 +129,13 @@ const defaultConfig: Config = {
   media: { enabled: false, requireAuth: true, requirePubkeyInRule: false },
   list: { requireAuth: false, allowListOthers: false },
   tor: { enabled: false, proxy: "" },
+  whitelist: {
+    enabled: false,
+    nip05Domain: undefined,
+    pubkeys: undefined,
+    errorMessage: "You are not authorized to upload.",
+    refreshInterval: 3600,
+  },
 };
 
 const searchPlaces = ["config.yaml", "config.yml", "config.json"];

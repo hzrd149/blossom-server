@@ -5,6 +5,7 @@ import { forgetBlobAccessed } from "../db/methods.js";
 import { blobDB } from "../db/db.js";
 import { config } from "../config.js";
 import storage from "../storage/index.js";
+import { isWhitelisted } from "../whitelist.js";
 
 router.delete<CommonState>("/:hash", async (ctx, next) => {
   const match = ctx.path.match(/([0-9a-f]{64})(\.[a-z]+)?/);
@@ -15,6 +16,14 @@ router.delete<CommonState>("/:hash", async (ctx, next) => {
   if (ctx.state.authType !== "delete") throw new HttpErrors.Unauthorized("Incorrect Auth type");
   if (!ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === sha256))
     throw new HttpErrors.Unauthorized("Auth missing hash");
+
+  // check whitelist
+  if (config.whitelist.enabled) {
+    const pubkey = ctx.state.auth.pubkey;
+    if (!(await isWhitelisted(pubkey))) {
+      throw new HttpErrors.Unauthorized(config.whitelist.errorMessage ?? "You are not authorized to upload.");
+    }
+  }
 
   // skip if blob dose not exist
   if (!blobDB.hasBlob(sha256)) throw new HttpErrors.NotFound("Blob does not exist");

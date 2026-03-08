@@ -1,5 +1,5 @@
 # Blossom Server Configuration
-# 
+#
 # Environment Variable Support:
 # You can use environment variables in this config file using the syntax: "${VAR_NAME}"
 # For example: password: "${BLOSSOM_ADMIN_PASSWORD}"
@@ -57,7 +57,7 @@ storage:
   #   region: us-east-1
   #   If this is set the server will redirect clients when loading blobs
   #   publicURL: https://s3.region.example.com/
-  #   
+  #
   #   You can also use environment variables for sensitive values:
   #   accessKey: "${S3_ACCESS_KEY}"
   #   secretKey: "${S3_SECRET_KEY}"
@@ -140,3 +140,19 @@ list:
 tor:
   enabled: false
   proxy: ""
+# NIP-05 whitelist: restrict uploads, mirrors, and deletes to users registered on a NIP-05 domain.
+# When enabled, a pubkey must appear in either the NIP-05 domain fetch or the hard-coded list.
+# The NIP-05 list is re-fetched every `refreshInterval` seconds. On fetch failure, the last
+# known-good cache is preserved; hard-coded pubkeys are always trusted regardless.
+# whitelist:
+#   # Enable the whitelist (default: false)
+#   enabled: false
+#   # NIP-05 domain to fetch pubkeys from (fetches https://<domain>/.well-known/nostr.json)
+#   nip05Domain: "example.com"
+#   # Optional hard-coded hex pubkeys always allowed, regardless of domain fetch result
+#   pubkeys:
+#     - "hex_pubkey_here"
+#   # Custom 401 error message for non-whitelisted users
+#   errorMessage: "You are not authorized to upload."
+#   # How often to re-fetch the NIP-05 domain list, in seconds (default: 3600)
+#   refreshInterval: 3600
