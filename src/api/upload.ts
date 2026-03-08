@@ -25,11 +25,11 @@ export function checkUpload(
         if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
         if (ctx.state.authType !== authType) throw new HttpErrors.Unauthorized(`Auth event must be '${authType}'`);
 
-        // BUD-06, check if hash is in auth event
+        // BUD-11: x tag is required for upload/media endpoints; X-SHA-256 header must be present
         const sha256 = ctx.header["x-sha-256"];
-        if (typeof sha256 === "string" && !ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === sha256)) {
-          throw new HttpErrors.BadRequest("Auth missing sha256");
-        }
+        if (typeof sha256 !== "string") throw new HttpErrors.BadRequest("Missing X-SHA-256 header");
+        if (!ctx.state.auth.tags.some((t) => t[0] === "x" && t[1] === sha256))
+          throw new HttpErrors.Unauthorized("Auth missing sha256");
       }
 
       // check rules
