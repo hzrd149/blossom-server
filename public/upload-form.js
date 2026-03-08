@@ -12,6 +12,7 @@ export class UploadForm extends LitElement {
     selected: { state: true },
     optimize: { state: true },
     status: { state: true, type: String },
+    dragging: { state: true, type: Boolean },
   };
 
   createRenderRoot() {
@@ -106,11 +107,28 @@ export class UploadForm extends LitElement {
   handleDragOver(e) {
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }
+
+  handleDragEnter(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.dragging = true;
+  }
+
+  handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only clear dragging state when leaving the drop zone itself, not a child element
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      this.dragging = false;
+    }
   }
 
   handleDrop(e) {
     e.preventDefault();
     e.stopPropagation();
+    this.dragging = false;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       this.selected = e.dataTransfer.files[0];
     }
@@ -152,8 +170,13 @@ export class UploadForm extends LitElement {
           <label class="text-sm font-bold text-gray-500 tracking-wide">Selected File</label>
           <div class="flex items-center justify-center w-full">
             <label
-              class="flex flex-col rounded-lg border-4 border-dashed w-full h-50 p-10 group text-center cursor-pointer"
+              class="flex flex-col rounded-lg border-4 border-dashed w-full h-50 p-10 group text-center cursor-pointer ${this
+                .dragging
+                ? "border-blue-500 bg-blue-50"
+                : ""}"
               @dragover="${this.handleDragOver}"
+              @dragenter="${this.handleDragEnter}"
+              @dragleave="${this.handleDragLeave}"
               @drop="${this.handleDrop}"
             >
               ${preview}
