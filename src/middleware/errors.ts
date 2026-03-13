@@ -6,7 +6,7 @@ import { HTTPException } from "@hono/hono/http-exception";
  */
 export function errorResponse(
   ctx: Context,
-  status: 400 | 401 | 403 | 404 | 411 | 413 | 415 | 429 | 500 | 503,
+  status: 400 | 401 | 403 | 404 | 411 | 413 | 415 | 429 | 500 | 502 | 503,
   reason: string,
 ): Response {
   return ctx.body(reason, status, {

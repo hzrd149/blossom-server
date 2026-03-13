@@ -92,8 +92,8 @@ const server = Deno.serve(
       );
       console.log("  BUD-02: DELETE /:sha256         ready");
       console.log(
-        "  BUD-02: GET /list/:pubkey       " +
-          (config.list.enabled ? "ready" : "disabled"),
+        "  BUD-04: PUT /mirror             " +
+          (config.mirror.enabled ? "ready" : "disabled"),
       );
       console.log(
         "  BUD-06: HEAD /upload            " +

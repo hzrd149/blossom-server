@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
+import { decodeBase64Url } from "@std/encoding/base64url";
 import { verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 
@@ -21,13 +22,17 @@ declare module "@hono/hono" {
 /**
  * Parse and validate a BUD-11 auth event from an Authorization header.
  * Throws HTTPException on any validation failure.
+ *
+ * BUD-11 requires Base64url encoding (JWT variant: no padding, - and _ instead
+ * of + and /). Uses @std/encoding/base64url which handles both padded and
+ * unpadded Base64url correctly.
  */
-function parseAuthEvent(raw: string, serverDomain: string | null): NostrEvent {
+export function parseAuthEvent(raw: string, serverDomain: string | null): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
 
   let auth: NostrEvent;
   try {
-    auth = JSON.parse(atob(raw)) as NostrEvent;
+    auth = JSON.parse(new TextDecoder().decode(decodeBase64Url(raw))) as NostrEvent;
   } catch {
     throw new HTTPException(400, {
       message: "Invalid Authorization header encoding",

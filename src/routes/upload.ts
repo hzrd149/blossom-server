@@ -75,7 +75,10 @@ export function buildUploadRouter(
   // HEAD /upload — BUD-06 preflight
   // ---------------------------------------------------------------------------
 
-  app.on("HEAD", "/upload", async (ctx) => {
+  // Hono routes HEAD requests through GET handlers (app.on("HEAD",...) is not
+  // supported). We register this as GET /upload and check the method inside.
+  // PUT /upload (actual upload) is registered separately below.
+  app.get("/upload", async (ctx) => {
     if (!config.upload.enabled) {
       return errorResponse(ctx, 403, "Uploads are disabled on this server");
     }
@@ -190,9 +193,14 @@ export function buildUploadRouter(
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
     }
 
-    if (auth && xSha256) {
+    // BUD-11: x tags are required for upload. When auth is present, verify the
+    // token's x tags authorize this specific blob hash. If no x tags are present
+    // on the token, any blob is permitted (open upload token). If x tags ARE
+    // present but X-SHA-256 was not provided, the hash is unknown and the check
+    // will fail — clients must supply X-SHA-256 when using scoped tokens.
+    if (auth) {
       try {
-        requireXTag(auth, xSha256);
+        requireXTag(auth, xSha256 ?? "");
       } catch (err) {
         await ctx.req.raw.body?.cancel();
         if (err instanceof HTTPException) {

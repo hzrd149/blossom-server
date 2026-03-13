@@ -48,11 +48,13 @@ const UploadSchema = z.object({
   allowedTypes: z.array(z.string()).default([]),
 });
 
-const ListSchema = z.object({
-  // BUD-02 list is unrecommended; off by default
-  enabled: z.boolean().default(false),
-  requireAuth: z.boolean().default(false),
-  allowListOthers: z.boolean().default(true),
+const MirrorSchema = z.object({
+  // Enable the PUT /mirror endpoint (BUD-04).
+  enabled: z.boolean().default(true),
+  requireAuth: z.boolean().default(true),
+  // Timeout in milliseconds for the outbound fetch to the origin server.
+  // 0 = no timeout (not recommended in production).
+  fetchTimeout: z.number().int().min(0).default(30_000),
 });
 
 const DeleteSchema = z.object({
@@ -96,7 +98,9 @@ export const ConfigSchema = z
     upload: UploadSchema.optional().transform((v) =>
       v ?? UploadSchema.parse({})
     ),
-    list: ListSchema.optional().transform((v) => v ?? ListSchema.parse({})),
+    mirror: MirrorSchema.optional().transform((v) =>
+      v ?? MirrorSchema.parse({})
+    ),
     delete: DeleteSchema.optional().transform((v) =>
       v ?? DeleteSchema.parse({})
     ),
