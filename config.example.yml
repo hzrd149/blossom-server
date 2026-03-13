@@ -76,11 +76,11 @@ upload:
   # receive 411 Length Required.
   maxSize: 104857600 # 100 MB
 
-  # Number of hash worker threads for SHA-256 computation.
+  # Number of upload worker threads.
   # 0 = auto (navigator.hardwareConcurrency — one per CPU core).
   # When all workers are busy, new uploads receive 503 Service Unavailable.
   # There is no queue: rejection is fast (~6ms) and body bytes are never read.
-  hashWorkers: 0
+  workers: 0
 
   # Allowed MIME types. Empty list = all types accepted.
   # Example: ["image/jpeg", "image/png", "image/webp", "video/mp4"]

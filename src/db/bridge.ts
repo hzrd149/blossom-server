@@ -11,18 +11,29 @@
  */
 
 import type { Client } from "@libsql/client";
-import { hasBlob, getBlob, insertBlob, isOwner, getBlobStats, type BlobRecord } from "./blobs.ts";
+import {
+  type BlobRecord,
+  getBlob,
+  getBlobStats,
+  hasBlob,
+  insertBlob,
+  isOwner,
+} from "./blobs.ts";
 
 // ---------------------------------------------------------------------------
 // Wire types (structured-cloned over MessageChannel)
 // ---------------------------------------------------------------------------
 
 export type DbRequest =
-  | { reqId: number; op: "hasBlob";    args: [sha256: string] }
-  | { reqId: number; op: "getBlob";    args: [sha256: string] }
-  | { reqId: number; op: "insertBlob"; args: [blob: BlobRecord, uploaderPubkey: string] }
-  | { reqId: number; op: "isOwner";    args: [sha256: string, pubkey: string] }
-  | { reqId: number; op: "getStats";   args: [] };
+  | { reqId: number; op: "hasBlob"; args: [sha256: string] }
+  | { reqId: number; op: "getBlob"; args: [sha256: string] }
+  | {
+    reqId: number;
+    op: "insertBlob";
+    args: [blob: BlobRecord, uploaderPubkey: string];
+  }
+  | { reqId: number; op: "isOwner"; args: [sha256: string, pubkey: string] }
+  | { reqId: number; op: "getStats"; args: [] };
 
 export interface DbResponse {
   reqId: number;
@@ -74,20 +85,24 @@ export function installDbBridge(db: Client, port: MessagePort): void {
           // Exhaustive check: if a new op is added to DbRequest but not
           // handled above, TypeScript makes this a compile error.
           const _exhaustive: never = msg;
-          port.postMessage({
-            reqId: (_exhaustive as DbRequest).reqId,
-            error: `Unknown DB op`,
-          } satisfies DbResponse);
+          port.postMessage(
+            {
+              reqId: (_exhaustive as DbRequest).reqId,
+              error: `Unknown DB op`,
+            } satisfies DbResponse,
+          );
           return;
         }
       }
 
       port.postMessage({ reqId: msg.reqId, result } satisfies DbResponse);
     } catch (err) {
-      port.postMessage({
-        reqId: msg.reqId,
-        error: err instanceof Error ? err.message : String(err),
-      } satisfies DbResponse);
+      port.postMessage(
+        {
+          reqId: msg.reqId,
+          error: err instanceof Error ? err.message : String(err),
+        } satisfies DbResponse,
+      );
     }
   };
 }

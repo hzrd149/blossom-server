@@ -5,10 +5,12 @@ import type { IBlobStorage, WriteSession } from "./interface.ts";
 /**
  * Local filesystem storage adapter.
  *
- * Blobs are stored as:   <dir>/<sha256>          (no extension — type stored in DB)
+ * Blobs are stored as:   <dir>/<sha256>.<ext>   (extension derived from MIME type)
+ * Blobs with no known extension stored as: <dir>/<sha256>
  * Temp files written to: <dir>/.tmp/<ulid>
  *
  * Both paths are on the same filesystem, so Deno.rename() is always atomic.
+ * The DB is the index: look up sha256 → get type → derive ext → open <sha256>.<ext>.
  */
 export class LocalStorage implements IBlobStorage {
   readonly dir: string;
@@ -24,35 +26,38 @@ export class LocalStorage implements IBlobStorage {
     await Deno.mkdir(this.tmpDir, { recursive: true });
   }
 
-  private blobPath(hash: string): string {
-    return join(this.dir, hash);
+  private blobPath(hash: string, ext: string): string {
+    return ext ? join(this.dir, `${hash}.${ext}`) : join(this.dir, hash);
   }
 
   private tmpPath(id: string): string {
     return join(this.tmpDir, id);
   }
 
-  async has(hash: string): Promise<boolean> {
+  async has(hash: string, ext: string): Promise<boolean> {
     try {
-      await Deno.stat(this.blobPath(hash));
+      await Deno.stat(this.blobPath(hash, ext));
       return true;
     } catch {
       return false;
     }
   }
 
-  async read(hash: string): Promise<ReadableStream<Uint8Array> | null> {
+  async read(
+    hash: string,
+    ext: string,
+  ): Promise<ReadableStream<Uint8Array> | null> {
     try {
-      const file = await Deno.open(this.blobPath(hash), { read: true });
+      const file = await Deno.open(this.blobPath(hash, ext), { read: true });
       return file.readable; // ReadableStream; file is closed when stream ends
     } catch {
       return null;
     }
   }
 
-  async size(hash: string): Promise<number | null> {
+  async size(hash: string, ext: string): Promise<number | null> {
     try {
-      const stat = await Deno.stat(this.blobPath(hash));
+      const stat = await Deno.stat(this.blobPath(hash, ext));
       return stat.size;
     } catch {
       return null;
@@ -60,8 +65,8 @@ export class LocalStorage implements IBlobStorage {
   }
 
   // Local storage doesn't store MIME type on disk — type is in the DB.
-  async type(_hash: string): Promise<string | null> {
-    return null;
+  type(_hash: string, _ext: string): Promise<string | null> {
+    return Promise.resolve(null);
   }
 
   async beginWrite(sizeHint: number | null): Promise<WriteSession> {
@@ -100,12 +105,16 @@ export class LocalStorage implements IBlobStorage {
     return { id, writable, done };
   }
 
-  async commitWrite(session: WriteSession, hash: string): Promise<void> {
+  async commitWrite(
+    session: WriteSession,
+    hash: string,
+    ext: string,
+  ): Promise<void> {
     const tmpPath = this.tmpPath(session.id);
-    const finalPath = this.blobPath(hash);
+    const finalPath = this.blobPath(hash, ext);
 
     // If a blob with this hash already exists, discard the temp file (dedup)
-    if (await this.has(hash)) {
+    if (await this.has(hash, ext)) {
       await Deno.remove(tmpPath).catch(() => {});
       return;
     }
@@ -119,9 +128,9 @@ export class LocalStorage implements IBlobStorage {
     await Deno.remove(tmpPath).catch(() => {});
   }
 
-  async remove(hash: string): Promise<boolean> {
+  async remove(hash: string, ext: string): Promise<boolean> {
     try {
-      await Deno.remove(this.blobPath(hash));
+      await Deno.remove(this.blobPath(hash, ext));
       return true;
     } catch {
       return false;

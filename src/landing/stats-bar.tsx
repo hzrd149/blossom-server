@@ -25,7 +25,10 @@ export const StatsBar: FC<{ stats: BlobStats }> = ({ stats }) => (
     <div class="grid grid-cols-3 gap-4">
       <StatCard label="Total Blobs" value={stats.blobCount.toLocaleString()} />
       <StatCard label="Storage Used" value={formatBytes(stats.totalSize)} />
-      <StatCard label="Uploads (24h)" value={stats.dailyUploads.toLocaleString()} />
+      <StatCard
+        label="Uploads (24h)"
+        value={stats.dailyUploads.toLocaleString()}
+      />
     </div>
   </section>
 );

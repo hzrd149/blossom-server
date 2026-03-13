@@ -13,6 +13,7 @@
     "@hono/hono": "jsr:@hono/hono@^4.12.7",
     "@libsql/client": "npm:@libsql/client@^0.17.0",
     "@std/assert": "jsr:@std/assert@1",
+    "@std/media-types": "jsr:@std/media-types@^1.1.0",
     "@std/crypto": "jsr:@std/crypto@^1.0.5",
     "@std/encoding": "jsr:@std/encoding@^1.0.10",
     "@std/log": "jsr:@std/log@^0.224.14",

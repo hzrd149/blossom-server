@@ -1,1 +1,948 @@
-var Ze=Object.defineProperty;var Ge=(e,t)=>{for(var n in t)Ze(e,n,{get:t[n],enumerable:!0})};var Z={};Ge(Z,{button:()=>Ve,clearCache:()=>pt,composeRef:()=>z,form:()=>Fe,input:()=>Ke,link:()=>Be,meta:()=>je,script:()=>Ie,style:()=>_e,title:()=>Le});var $=Symbol("RENDERER"),M=Symbol("ERROR_HANDLER"),g=Symbol("STASH"),K=Symbol("INTERNAL"),V=Symbol("MEMO"),he=Symbol("PERMALINK");var L={title:[],script:["src"],style:["data-href"],link:["href"],meta:["name","httpEquiv","charset","itemProp"]},J={},T="data-precedence",Q=e=>e.rel==="stylesheet"&&"precedence"in e,Y=(e,t)=>e==="link"?t:L[e].length>0;var ee=e=>Array.isArray(e)?e:[e];var et=new Map([["className","class"],["htmlFor","for"],["crossOrigin","crossorigin"],["httpEquiv","http-equiv"],["itemProp","itemprop"],["fetchPriority","fetchpriority"],["noModule","nomodule"],["formAction","formaction"]]),U=e=>et.get(e)||e,te=(e,t)=>{for(let[n,r]of Object.entries(e)){let o=n[0]==="-"||!/[A-Z]/.test(n)?n:n.replace(/[A-Z]/g,s=>`-${s.toLowerCase()}`);t(o,r==null?null:typeof r=="number"?o.match(/^(?:a|border-im|column(?:-c|s)|flex(?:$|-[^b])|grid-(?:ar|[^a])|font-w|li|or|sca|st|ta|wido|z)|ty$/)?`${r}`:`${r}px`:r)}};var ne=e=>(e[K]=!0,e);var ye=e=>({value:t,children:n})=>{if(!n)return;let r={children:[{tag:ne(()=>{e.push(t)}),props:{}}]};Array.isArray(n)?r.children.push(...n.flat()):r.children.push(n),r.children.push({tag:ne(()=>{e.pop()}),props:{}});let o={tag:"",props:r,type:""};return o[M]=s=>{throw e.pop(),s},o},I=e=>{let t=[e],n=ye(t);return n.values=t,n.Provider=n,P.push(n),n};var P=[];var A=e=>e.values.at(-1);var B="_hp",tt={Change:"Input",DoubleClick:"DblClick"},nt={svg:"2000/svg",math:"1998/Math/MathML"},R=[],oe=new WeakMap,O,Ce=()=>O,k=e=>"t"in e,re={onClick:["click",!1]},ge=e=>{if(!e.startsWith("on"))return;if(re[e])return re[e];let t=e.match(/^on([A-Z][a-zA-Z]+?(?:PointerCapture)?)(Capture)?$/);if(t){let[,n,r]=t;return re[e]=[(tt[n]||n).toLowerCase(),!!r]}},xe=(e,t)=>O&&e instanceof SVGElement&&/[A-Z]/.test(t)&&(t in e.style||t.match(/^(?:o|pai|str|u|ve)/))?t.replace(/([A-Z])/g,"-$1").toLowerCase():t,rt=(e,t,n)=>{t||={};for(let r in t){let o=t[r];if(r!=="children"&&(!n||n[r]!==o)){r=U(r);let s=ge(r);if(s){if(n?.[r]!==o&&(n&&e.removeEventListener(s[0],n[r],s[1]),o!=null)){if(typeof o!="function")throw new Error(`Event handler for "${r}" is not a function`);e.addEventListener(s[0],o,s[1])}}else if(r==="dangerouslySetInnerHTML"&&o)e.innerHTML=o.__html;else if(r==="ref"){let a;typeof o=="function"?a=o(e)||(()=>o(null)):o&&"current"in o&&(o.current=e,a=()=>o.current=null),oe.set(e,a)}else if(r==="style"){let a=e.style;typeof o=="string"?a.cssText=o:(a.cssText="",o!=null&&te(o,a.setProperty.bind(a)))}else{if(r==="value"){let c=e.nodeName;if(c==="INPUT"||c==="TEXTAREA"||c==="SELECT"){if(e.value=o==null||o===!1?null:o,c==="TEXTAREA"){e.textContent=o;continue}else if(c==="SELECT"){e.selectedIndex===-1&&(e.selectedIndex=0);continue}}}else(r==="checked"&&e.nodeName==="INPUT"||r==="selected"&&e.nodeName==="OPTION")&&(e[r]=o);let a=xe(e,r);o==null||o===!1?e.removeAttribute(a):o===!0?e.setAttribute(a,""):typeof o=="string"||typeof o=="number"?e.setAttribute(a,o):e.setAttribute(a,o.toString())}}}if(n)for(let r in n){let o=n[r];if(r!=="children"&&!(r in t)){r=U(r);let s=ge(r);s?e.removeEventListener(s[0],o,s[1]):r==="ref"?oe.get(e)?.():e.removeAttribute(xe(e,r))}}},ot=(e,t)=>{t[g][0]=0,R.push([e,t]);let n=t.tag[$]||t.tag,r=n.defaultProps?{...n.defaultProps,...t.props}:t.props;try{return[n.call(null,r)]}finally{R.pop()}},ke=(e,t,n,r,o)=>{e.vR?.length&&(r.push(...e.vR),delete e.vR),typeof e.tag=="function"&&e[g][1][ae]?.forEach(s=>o.push(s)),e.vC.forEach(s=>{if(k(s))n.push(s);else if(typeof s.tag=="function"||s.tag===""){s.c=t;let a=n.length;if(ke(s,t,n,r,o),s.s){for(let c=a;c<n.length;c++)n[c].s=!0;s.s=!1}}else n.push(s),s.vR?.length&&(r.push(...s.vR),delete s.vR)})},st=e=>{for(;e&&(e.tag===B||!e.e);)e=e.tag===B||!e.vC?.[0]?e.nN:e.vC[0];return e?.e},Ae=e=>{k(e)||(e[g]?.[1][ae]?.forEach(t=>t[2]?.()),oe.get(e.e)?.(),e.p===2&&e.vC?.forEach(t=>t.p=2),e.vC?.forEach(Ae)),e.p||(e.e?.remove(),delete e.e),typeof e.tag=="function"&&(_.delete(e),q.delete(e),delete e[g][3],e.a=!0)},se=(e,t,n)=>{e.c=t,we(e,t,n)},Ee=(e,t)=>{if(t){for(let n=0,r=e.length;n<r;n++)if(e[n]===t)return n}},be=Symbol(),we=(e,t,n)=>{let r=[],o=[],s=[];ke(e,t,r,o,s),o.forEach(Ae);let a=n?void 0:t.childNodes,c,d=null;if(n)c=-1;else if(!a.length)c=0;else{let l=Ee(a,st(e.nN));l!==void 0?(d=a[l],c=l):c=Ee(a,r.find(f=>f.tag!==B&&f.e)?.e)??-1,c===-1&&(n=!0)}for(let l=0,f=r.length;l<f;l++,c++){let i=r[l],p;if(i.s&&i.e)p=i.e,i.s=!1;else{let E=n||!i.e;k(i)?(i.e&&i.d&&(i.e.textContent=i.t),i.d=!1,p=i.e||=document.createTextNode(i.t)):(p=i.e||=i.n?document.createElementNS(i.n,i.tag):document.createElement(i.tag),rt(p,i.props,i.pP),we(i,p,E))}i.tag===B?c--:n?p.parentNode||t.appendChild(p):a[c]!==p&&a[c-1]!==p&&(a[c+1]===p?t.appendChild(a[c]):t.insertBefore(p,d||a[c]||null))}if(e.pP&&(e.pP=void 0),s.length){let l=[],f=[];s.forEach(([,i,,p,E])=>{i&&l.push(i),p&&f.push(p),E?.()}),l.forEach(i=>i()),f.length&&requestAnimationFrame(()=>{f.forEach(i=>i())})}},it=(e,t)=>!!(e&&e.length===t.length&&e.every((n,r)=>n[1]===t[r][1])),q=new WeakMap,W=(e,t,n)=>{let r=!n&&t.pC;n&&(t.pC||=t.vC);let o;try{n||=typeof t.tag=="function"?ot(e,t):ee(t.props.children),n[0]?.tag===""&&n[0][M]&&(o=n[0][M],e[5].push([e,o,t]));let s=r?[...t.pC]:t.vC?[...t.vC]:void 0,a=[],c;for(let d=0;d<n.length;d++){if(Array.isArray(n[d])){n.splice(d,1,...n[d].flat(1/0)),d--;continue}let l=Te(n[d]);if(l){typeof l.tag=="function"&&!l.tag[K]&&(P.length>0&&(l[g][2]=P.map(i=>[i,i.values.at(-1)])),e[5]?.length&&(l[g][3]=e[5].at(-1)));let f;if(s&&s.length){let i=s.findIndex(k(l)?p=>k(p):l.key!==void 0?p=>p.key===l.key&&p.tag===l.tag:p=>p.tag===l.tag);i!==-1&&(f=s[i],s.splice(i,1))}if(f)if(k(l))f.t!==l.t&&(f.t=l.t,f.d=!0),l=f;else{let i=f.pP=f.props;if(f.props=l.props,f.f||=l.f||t.f,typeof l.tag=="function"){let p=f[g][2];f[g][2]=l[g][2]||[],f[g][3]=l[g][3],!f.f&&((f.o||f)===l.o||f.tag[V]?.(i,f.props))&&it(p,f[g][2])&&(f.s=!0)}l=f}else if(!k(l)&&O){let i=A(O);i&&(l.n=i)}if(!k(l)&&!l.s&&(W(e,l),delete l.f),a.push(l),c&&!c.s&&!l.s)for(let i=c;i&&!k(i);i=i.vC?.at(-1))i.nN=l;c=l}}t.vR=r?[...t.vC,...s||[]]:s||[],t.vC=a,r&&delete t.pC}catch(s){if(t.f=!0,s===be){if(o)return;throw s}let[a,c,d]=t[g]?.[3]||[];if(c){let l=()=>j([0,!1,e[2]],d),f=q.get(d)||[];f.push(l),q.set(d,f);let i=c(s,()=>{let p=q.get(d);if(p){let E=p.indexOf(l);if(E!==-1)return p.splice(E,1),l()}});if(i){if(e[0]===1)e[1]=!0;else if(W(e,d,[i]),(c.length===1||e!==a)&&d.c){se(d,d.c,!1);return}throw be}}throw s}finally{o&&e[5].pop()}},Te=e=>{if(!(e==null||typeof e=="boolean")){if(typeof e=="string"||typeof e=="number")return{t:e.toString(),d:!0};if("vR"in e&&(e={tag:e.tag,props:e.props,key:e.key,f:e.f,type:e.tag,ref:e.props.ref,o:e.o||e}),typeof e.tag=="function")e[g]=[0,[]];else{let t=nt[e.tag];t&&(O||=I(""),e.props.children=[{tag:O,props:{value:e.n=`http://www.w3.org/${t}`,children:e.props.children}}])}return e}},De=(e,t,n)=>{e.c===t&&(e.c=n,e.vC.forEach(r=>De(r,t,n)))},ve=(e,t)=>{t[g][2]?.forEach(([n,r])=>{n.values.push(r)});try{W(e,t,void 0)}catch{return}if(t.a){delete t.a;return}t[g][2]?.forEach(([n])=>{n.values.pop()}),(e[0]!==1||!e[1])&&se(t,t.c,!1)},_=new WeakMap,Se=[],j=async(e,t)=>{e[5]||=[];let n=_.get(t);n&&n[0](void 0);let r,o=new Promise(s=>r=s);if(_.set(t,[r,()=>{e[2]?e[2](e,t,s=>{ve(s,t)}).then(()=>r(t)):(ve(e,t),r(t))}]),Se.length)Se.at(-1).add(t);else{await Promise.resolve();let s=_.get(t);s&&(_.delete(t),s[1]())}return o},lt=(e,t)=>{let n=[];n[5]=[],n[4]=!0,W(n,e,void 0),n[4]=!1;let r=document.createDocumentFragment();se(e,r,!0),De(e,r,t),t.replaceChildren(r)},ie=(e,t)=>{lt(Te({tag:"",props:{children:e}}),t)};var le=(e,t,n)=>({tag:B,props:{children:e},key:n,e:t,p:1});var at=0,ae=1,ct=2,ft=3;var ce=new WeakMap,Pe=(e,t)=>!e||!t||e.length!==t.length||t.some((n,r)=>n!==e[r]);var ut;var Me=[];var S=e=>{let t=()=>typeof e=="function"?e():e,n=R.at(-1);if(!n)return[t(),()=>{}];let[,r]=n,o=r[g][1][at]||=[],s=r[g][0]++;return o[s]||=[t(),a=>{let c=ut,d=o[s];if(typeof a=="function"&&(a=a(d[0])),!Object.is(a,d[0]))if(d[0]=a,Me.length){let[l,f]=Me.at(-1);Promise.all([l===3?r:j([l,!1,c],r),f]).then(([i])=>{if(!i||!(l===2||l===3))return;let p=i.vC;requestAnimationFrame(()=>{setTimeout(()=>{p===i.vC&&j([l===3?1:0,!1,c],i)})})})}else j([0,!1,c],r)}]};var b=(e,t)=>{let n=R.at(-1);if(!n)return e;let[,r]=n,o=r[g][1][ct]||=[],s=r[g][0]++,a=o[s];return Pe(a?.[1],t)?o[s]=[e,t]:e=o[s][0],e};var fe=e=>{let t=ce.get(e);if(t){if(t.length===2)throw t[1];return t[0]}throw e.then(n=>ce.set(e,[n]),n=>ce.set(e,[void 0,n])),e},ue=(e,t)=>{let n=R.at(-1);if(!n)return e();let[,r]=n,o=r[g][1][ft]||=[],s=r[g][0]++,a=o[s];return Pe(a?.[1],t)&&(o[s]=[e(),t]),o[s][0]};var Oe=I({pending:!1,data:null,method:null,action:null}),Re=new Set,Ne=e=>{Re.add(e),e.finally(()=>Re.delete(e))};var pt=()=>{pe=Object.create(null),de=Object.create(null)},z=(e,t)=>ue(()=>n=>{let r;e&&(typeof e=="function"?r=e(n)||(()=>{e(null)}):e&&"current"in e&&(e.current=n,r=()=>{e.current=null}));let o=t(n);return()=>{o?.(),r?.()}},[e]),pe=Object.create(null),de=Object.create(null),H=(e,t,n,r,o)=>{if(t?.itemProp)return{tag:e,props:t,type:e,ref:t.ref};let s=document.head,{onLoad:a,onError:c,precedence:d,blocking:l,...f}=t,i=null,p=!1,E=L[e],N=Y(e,r),G=u=>u.getAttribute("rel")==="stylesheet"&&u.getAttribute(T)!==null,C;if(N){let u=s.querySelectorAll(e);e:for(let h of u)if(!(e==="link"&&!G(h))){for(let y of E)if(h.getAttribute(y)===t[y]){i=h;break e}}if(!i){let h=E.reduce((y,x)=>t[x]===void 0?y:`${y}-${x}-${t[x]}`,e);p=!de[h],i=de[h]||=(()=>{let y=document.createElement(e);for(let x of E)t[x]!==void 0&&y.setAttribute(x,t[x]);return t.rel&&y.setAttribute("rel",t.rel),y})()}}else C=s.querySelectorAll(e);d=r?d??"":void 0,r&&(f[T]=d);let F=b(u=>{if(N){if(e==="link"&&d!==void 0){let y=!1;for(let x of s.querySelectorAll(e)){let v=x.getAttribute(T);if(v===null){s.insertBefore(u,x);return}if(y&&v!==d){s.insertBefore(u,x);return}v===d&&(y=!0)}s.appendChild(u);return}let h=!1;for(let y of s.querySelectorAll(e)){if(h&&y.getAttribute(T)!==d){s.insertBefore(u,y);return}y.getAttribute(T)===d&&(h=!0)}s.appendChild(u)}else if(e==="link")s.contains(u)||s.appendChild(u);else if(C){let h=!1;for(let y of C)if(y===u){h=!0;break}h||s.insertBefore(u,s.contains(C[0])?C[0]:s.querySelector(e)),C=void 0}},[N,d,e]),w=z(t.ref,u=>{let h=E[0];if(n===2&&(u.innerHTML=""),(p||C)&&F(u),!c&&!a||!h)return;let y=pe[u.getAttribute(h)]||=new Promise((x,v)=>{u.addEventListener("load",x),u.addEventListener("error",v)});a&&(y=y.then(a)),c&&(y=y.catch(c)),y.catch(()=>{})});if(o&&l==="render"){let u=L[e][0];if(u&&t[u]){let h=t[u],y=pe[h]||=new Promise((x,v)=>{F(i),i.addEventListener("load",x),i.addEventListener("error",v)});fe(y)}}let D={tag:e,type:e,props:{...f,ref:w},ref:w};return D.p=n,i&&(D.e=i),le(D,s)},Le=e=>{let t=Ce();return(t&&A(t))?.endsWith("svg")?{tag:"title",props:e,type:"title",ref:e.ref}:H("title",e,void 0,!1,!1)},Ie=e=>!e||["src","async"].some(t=>!e[t])?{tag:"script",props:e,type:"script",ref:e.ref}:H("script",e,1,!1,!0),_e=e=>!e||!["href","precedence"].every(t=>t in e)?{tag:"style",props:e,type:"style",ref:e.ref}:(e["data-href"]=e.href,delete e.href,H("style",e,2,!0,!0)),Be=e=>!e||["onLoad","onError"].some(t=>t in e)||e.rel==="stylesheet"&&(!("precedence"in e)||"disabled"in e)?{tag:"link",props:e,type:"link",ref:e.ref}:H("link",e,1,Q(e),!0),je=e=>H("meta",e,void 0,!1,!1),He=Symbol(),Fe=e=>{let{action:t,...n}=e;typeof t!="function"&&(n.action=t);let[r,o]=S([null,!1]),s=b(async l=>{let f=l.isTrusted?t:l.detail[He];if(typeof f!="function")return;l.preventDefault();let i=new FormData(l.target);o([i,!0]);let p=f(i);p instanceof Promise&&(Ne(p),await p),o([null,!0])},[]),a=z(e.ref,l=>(l.addEventListener("submit",s),()=>{l.removeEventListener("submit",s)})),[c,d]=r;return r[1]=!1,{tag:Oe,props:{value:{pending:c!==null,data:c,method:c?"post":null,action:c?t:null},children:{tag:"form",props:{...n,ref:a},type:"form",ref:a}},f:d}},$e=(e,{formAction:t,...n})=>{if(typeof t=="function"){let r=b(o=>{o.preventDefault(),o.currentTarget.form.dispatchEvent(new CustomEvent("submit",{detail:{[He]:t}}))},[]);n.ref=z(n.ref,o=>(o.addEventListener("click",r),()=>{o.removeEventListener("click",r)}))}return{tag:e,props:n,type:e,ref:n.ref}},Ke=e=>$e("input",e),Ve=e=>$e("button",e);Object.assign(J,{title:Le,script:Ie,style:_e,link:Be,meta:je,form:Fe,input:Ke,button:Ve});var m=(e,t,n)=>(typeof e=="string"&&Z[e]&&(e=Z[e]),{tag:e,type:e,props:t,key:n,ref:t.ref});async function dt(e){let t=await e.arrayBuffer(),n=await crypto.subtle.digest("SHA-256",t);return Array.from(new Uint8Array(n)).map(r=>r.toString(16).padStart(2,"0")).join("")}function qe(e){if(e===0)return"0 B";let t=["B","KB","MB","GB"],n=Math.floor(Math.log(e)/Math.log(1024)),r=e/Math.pow(1024,n);return`${r%1===0?r:r.toFixed(2)} ${t[n]}`}function mt({requireAuth:e}){let[t,n]=S(null),[r,o]=S("idle"),[s,a]=S(null),[c,d]=S(null),[l,f]=S(!1),i=b(()=>{n(null),o("idle"),a(null),d(null)},[]),p=b(u=>{n(u),o("idle"),a(null),d(null)},[]),E=b(u=>{u.preventDefault(),f(!1);let h=u.dataTransfer?.files[0];h&&p(h)},[p]),N=b(u=>{u.preventDefault(),f(!0)},[]),G=b(()=>f(!1),[]),C=b(u=>{let h=u.target.files?.[0];h&&p(h)},[p]),F=b(async()=>{if(t){a(null);try{let u;if(e){o("hashing");let x=await dt(t);o("signing");let v=globalThis.nostr;if(!v)throw new Error("No Nostr extension detected. Install Alby or nos2x to sign uploads.");let We=Math.floor(Date.now()/1e3)+300,ze=await v.signEvent({kind:24242,content:"Upload file",created_at:Math.floor(Date.now()/1e3),tags:[["t","upload"],["x",x],["expiration",String(We)]]});u="Nostr "+btoa(JSON.stringify(ze))}o("uploading");let h=await fetch("/upload",{method:"PUT",headers:{"Content-Type":t.type||"application/octet-stream",...u?{Authorization:u}:{}},body:t});if(!h.ok){let x=h.headers.get("X-Reason")??h.statusText;throw new Error(`Upload failed (${h.status}): ${x}`)}let y=await h.json();d(y),o("done")}catch(u){a(u instanceof Error?u.message:String(u)),o("error")}}},[t,e]);if(r==="done"&&c)return m("div",{class:"space-y-4",children:[m("div",{class:"bg-green-950 border border-green-800 rounded-xl p-6 space-y-3",children:[m("p",{class:"text-green-400 font-semibold",children:"Upload complete"}),m("div",{class:"space-y-1 text-sm text-gray-300",children:[m("p",{children:[m("span",{class:"text-gray-500",children:"Size: "}),qe(c.size)]}),m("p",{children:[m("span",{class:"text-gray-500",children:"Type: "}),c.type||"unknown"]})]}),m("div",{class:"flex items-center gap-2",children:[m("input",{class:"flex-1 bg-gray-900 text-gray-200 text-xs font-mono px-3 py-2 rounded border border-gray-700 truncate",value:c.url,readOnly:!0,onClick:u=>u.target.select()}),m("button",{class:"shrink-0 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-3 py-2 rounded border border-gray-700",onClick:()=>navigator.clipboard.writeText(c.url),children:"Copy"})]})]}),m("button",{class:"text-sm text-gray-400 underline hover:text-gray-200",onClick:i,children:"Upload another"})]});let w=r==="hashing"||r==="signing"||r==="uploading",D={idle:"",hashing:"Computing hash...",signing:"Waiting for Nostr signature...",uploading:"Uploading...",done:"",error:""};return m("div",{class:"space-y-4",children:[m("label",{class:`block border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${l?"border-blue-500 bg-blue-950":"border-gray-700 hover:border-gray-500"}`,onDragOver:N,onDragLeave:G,onDrop:E,children:[m("input",{type:"file",class:"sr-only",onChange:C}),t?m("div",{class:"space-y-1",children:[m("p",{class:"font-medium text-white",children:t.name}),m("p",{class:"text-sm text-gray-400",children:[qe(t.size),t.type?` \xB7 ${t.type}`:""]}),m("p",{class:"text-xs text-gray-500 mt-2",children:"Click or drop to replace"})]}):m("div",{class:"space-y-2",children:[m("p",{class:"text-gray-300",children:"Drop a file here or click to select"}),m("p",{class:"text-xs text-gray-500",children:e?"Nostr extension required to sign uploads":"No auth required"})]})]}),w&&m("p",{class:"text-sm text-blue-400 text-center",children:D[r]}),r==="error"&&s&&m("p",{class:"text-sm text-red-400 bg-red-950 border border-red-800 rounded-lg px-4 py-3",children:s}),m("button",{class:`w-full py-3 rounded-xl font-semibold transition-colors ${t&&!w?"bg-blue-600 hover:bg-blue-500 text-white cursor-pointer":"bg-gray-800 text-gray-500 cursor-not-allowed"}`,onClick:F,disabled:!t||w,children:w?D[r]:"Upload"})]})}var me=document.getElementById("upload-root");if(me){let e=me.dataset.requireAuth==="true";ie(m(mt,{requireAuth:e}),me)}
+var Ze = Object.defineProperty;
+var Ge = (e, t) => {
+  for (var n in t) Ze(e, n, { get: t[n], enumerable: !0 });
+};
+var Z = {};
+Ge(Z, {
+  button: () => Ve,
+  clearCache: () => pt,
+  composeRef: () => z,
+  form: () => Fe,
+  input: () => Ke,
+  link: () => Be,
+  meta: () => je,
+  script: () => Ie,
+  style: () => _e,
+  title: () => Le,
+});
+var $ = Symbol("RENDERER"),
+  M = Symbol("ERROR_HANDLER"),
+  g = Symbol("STASH"),
+  K = Symbol("INTERNAL"),
+  V = Symbol("MEMO"),
+  he = Symbol("PERMALINK");
+var L = {
+    title: [],
+    script: ["src"],
+    style: ["data-href"],
+    link: ["href"],
+    meta: ["name", "httpEquiv", "charset", "itemProp"],
+  },
+  J = {},
+  T = "data-precedence",
+  Q = (e) => e.rel === "stylesheet" && "precedence" in e,
+  Y = (e, t) => e === "link" ? t : L[e].length > 0;
+var ee = (e) => Array.isArray(e) ? e : [e];
+var et = new Map([
+    ["className", "class"],
+    ["htmlFor", "for"],
+    ["crossOrigin", "crossorigin"],
+    ["httpEquiv", "http-equiv"],
+    ["itemProp", "itemprop"],
+    ["fetchPriority", "fetchpriority"],
+    ["noModule", "nomodule"],
+    ["formAction", "formaction"],
+  ]),
+  U = (e) => et.get(e) || e,
+  te = (e, t) => {
+    for (let [n, r] of Object.entries(e)) {
+      let o = n[0] === "-" || !/[A-Z]/.test(n)
+        ? n
+        : n.replace(/[A-Z]/g, (s) => `-${s.toLowerCase()}`);
+      t(
+        o,
+        r == null ? null : typeof r == "number"
+          ? o.match(
+              /^(?:a|border-im|column(?:-c|s)|flex(?:$|-[^b])|grid-(?:ar|[^a])|font-w|li|or|sca|st|ta|wido|z)|ty$/,
+            )
+            ? `${r}`
+            : `${r}px`
+          : r,
+      );
+    }
+  };
+var ne = (e) => (e[K] = !0, e);
+var ye = (e) => ({ value: t, children: n }) => {
+    if (!n) return;
+    let r = {
+      children: [{
+        tag: ne(() => {
+          e.push(t);
+        }),
+        props: {},
+      }],
+    };
+    Array.isArray(n) ? r.children.push(...n.flat()) : r.children.push(n),
+      r.children.push({
+        tag: ne(() => {
+          e.pop();
+        }),
+        props: {},
+      });
+    let o = { tag: "", props: r, type: "" };
+    return o[M] = (s) => {
+      throw e.pop(), s;
+    },
+      o;
+  },
+  I = (e) => {
+    let t = [e], n = ye(t);
+    return n.values = t, n.Provider = n, P.push(n), n;
+  };
+var P = [];
+var A = (e) => e.values.at(-1);
+var B = "_hp",
+  tt = { Change: "Input", DoubleClick: "DblClick" },
+  nt = { svg: "2000/svg", math: "1998/Math/MathML" },
+  R = [],
+  oe = new WeakMap(),
+  O,
+  Ce = () => O,
+  k = (e) => "t" in e,
+  re = { onClick: ["click", !1] },
+  ge = (e) => {
+    if (!e.startsWith("on")) return;
+    if (re[e]) return re[e];
+    let t = e.match(/^on([A-Z][a-zA-Z]+?(?:PointerCapture)?)(Capture)?$/);
+    if (t) {
+      let [, n, r] = t;
+      return re[e] = [(tt[n] || n).toLowerCase(), !!r];
+    }
+  },
+  xe = (e, t) =>
+    O && e instanceof SVGElement && /[A-Z]/.test(t) &&
+      (t in e.style || t.match(/^(?:o|pai|str|u|ve)/))
+      ? t.replace(/([A-Z])/g, "-$1").toLowerCase()
+      : t,
+  rt = (e, t, n) => {
+    t ||= {};
+    for (let r in t) {
+      let o = t[r];
+      if (r !== "children" && (!n || n[r] !== o)) {
+        r = U(r);
+        let s = ge(r);
+        if (s) {
+          if (
+            n?.[r] !== o &&
+            (n && e.removeEventListener(s[0], n[r], s[1]), o != null)
+          ) {
+            if (typeof o != "function") {
+              throw new Error(`Event handler for "${r}" is not a function`);
+            }
+            e.addEventListener(s[0], o, s[1]);
+          }
+        } else if (r === "dangerouslySetInnerHTML" && o) e.innerHTML = o.__html;
+        else if (r === "ref") {
+          let a;
+          typeof o == "function"
+            ? a = o(e) || (() => o(null))
+            : o && "current" in o &&
+              (o.current = e, a = () => o.current = null), oe.set(e, a);
+        } else if (r === "style") {
+          let a = e.style;
+          typeof o == "string"
+            ? a.cssText = o
+            : (a.cssText = "", o != null && te(o, a.setProperty.bind(a)));
+        } else {
+          if (r === "value") {
+            let c = e.nodeName;
+            if (c === "INPUT" || c === "TEXTAREA" || c === "SELECT") {
+              if (
+                e.value = o == null || o === !1 ? null : o, c === "TEXTAREA"
+              ) {
+                e.textContent = o;
+                continue;
+              } else if (c === "SELECT") {
+                e.selectedIndex === -1 && (e.selectedIndex = 0);
+                continue;
+              }
+            }
+          } else {(r === "checked" && e.nodeName === "INPUT" ||
+              r === "selected" && e.nodeName === "OPTION") && (e[r] = o);}
+          let a = xe(e, r);
+          o == null || o === !1
+            ? e.removeAttribute(a)
+            : o === !0
+            ? e.setAttribute(a, "")
+            : typeof o == "string" || typeof o == "number"
+            ? e.setAttribute(a, o)
+            : e.setAttribute(a, o.toString());
+        }
+      }
+    }
+    if (n) {
+      for (let r in n) {
+        let o = n[r];
+        if (r !== "children" && !(r in t)) {
+          r = U(r);
+          let s = ge(r);
+          s
+            ? e.removeEventListener(s[0], o, s[1])
+            : r === "ref"
+            ? oe.get(e)?.()
+            : e.removeAttribute(xe(e, r));
+        }
+      }
+    }
+  },
+  ot = (e, t) => {
+    t[g][0] = 0, R.push([e, t]);
+    let n = t.tag[$] || t.tag,
+      r = n.defaultProps ? { ...n.defaultProps, ...t.props } : t.props;
+    try {
+      return [n.call(null, r)];
+    } finally {
+      R.pop();
+    }
+  },
+  ke = (e, t, n, r, o) => {
+    e.vR?.length && (r.push(...e.vR), delete e.vR),
+      typeof e.tag == "function" && e[g][1][ae]?.forEach((s) => o.push(s)),
+      e.vC.forEach((s) => {
+        if (k(s)) n.push(s);
+        else if (typeof s.tag == "function" || s.tag === "") {
+          s.c = t;
+          let a = n.length;
+          if (ke(s, t, n, r, o), s.s) {
+            for (let c = a; c < n.length; c++) n[c].s = !0;
+            s.s = !1;
+          }
+        } else n.push(s), s.vR?.length && (r.push(...s.vR), delete s.vR);
+      });
+  },
+  st = (e) => {
+    for (; e && (e.tag === B || !e.e);) {
+      e = e.tag === B || !e.vC?.[0] ? e.nN : e.vC[0];
+    }
+    return e?.e;
+  },
+  Ae = (e) => {
+    k(e) ||
+    (e[g]?.[1][ae]?.forEach((t) => t[2]?.()),
+      oe.get(e.e)?.(),
+      e.p === 2 && e.vC?.forEach((t) => t.p = 2),
+      e.vC?.forEach(Ae)),
+      e.p || (e.e?.remove(), delete e.e),
+      typeof e.tag == "function" &&
+      (_.delete(e), q.delete(e), delete e[g][3], e.a = !0);
+  },
+  se = (e, t, n) => {
+    e.c = t, we(e, t, n);
+  },
+  Ee = (e, t) => {
+    if (t) {
+      for (let n = 0, r = e.length; n < r; n++) {
+        if (e[n] === t) return n;
+      }
+    }
+  },
+  be = Symbol(),
+  we = (e, t, n) => {
+    let r = [], o = [], s = [];
+    ke(e, t, r, o, s), o.forEach(Ae);
+    let a = n ? void 0 : t.childNodes, c, d = null;
+    if (n) c = -1;
+    else if (!a.length) c = 0;
+    else {
+      let l = Ee(a, st(e.nN));
+      l !== void 0
+        ? (d = a[l], c = l)
+        : c = Ee(a, r.find((f) => f.tag !== B && f.e)?.e) ?? -1,
+        c === -1 && (n = !0);
+    }
+    for (let l = 0, f = r.length; l < f; l++, c++) {
+      let i = r[l], p;
+      if (i.s && i.e) p = i.e, i.s = !1;
+      else {
+        let E = n || !i.e;
+        k(i)
+          ? (i.e && i.d && (i.e.textContent = i.t),
+            i.d = !1,
+            p = i.e ||= document.createTextNode(i.t))
+          : (p = i.e ||= i.n
+            ? document.createElementNS(i.n, i.tag)
+            : document.createElement(i.tag),
+            rt(p, i.props, i.pP),
+            we(i, p, E));
+      }
+      i.tag === B
+        ? c--
+        : n
+        ? p.parentNode || t.appendChild(p)
+        : a[c] !== p && a[c - 1] !== p && (a[c + 1] === p
+          ? t.appendChild(a[c])
+          : t.insertBefore(p, d || a[c] || null));
+    }
+    if (e.pP && (e.pP = void 0), s.length) {
+      let l = [], f = [];
+      s.forEach(([, i, , p, E]) => {
+        i && l.push(i), p && f.push(p), E?.();
+      }),
+        l.forEach((i) => i()),
+        f.length && requestAnimationFrame(() => {
+          f.forEach((i) => i());
+        });
+    }
+  },
+  it = (e, t) =>
+    !!(e && e.length === t.length && e.every((n, r) => n[1] === t[r][1])),
+  q = new WeakMap(),
+  W = (e, t, n) => {
+    let r = !n && t.pC;
+    n && (t.pC ||= t.vC);
+    let o;
+    try {
+      n ||= typeof t.tag == "function" ? ot(e, t) : ee(t.props.children),
+        n[0]?.tag === "" && n[0][M] && (o = n[0][M], e[5].push([e, o, t]));
+      let s = r ? [...t.pC] : t.vC ? [...t.vC] : void 0, a = [], c;
+      for (let d = 0; d < n.length; d++) {
+        if (Array.isArray(n[d])) {
+          n.splice(d, 1, ...n[d].flat(1 / 0)), d--;
+          continue;
+        }
+        let l = Te(n[d]);
+        if (l) {
+          typeof l.tag == "function" && !l.tag[K] &&
+            (P.length > 0 && (l[g][2] = P.map((i) => [i, i.values.at(-1)])),
+              e[5]?.length && (l[g][3] = e[5].at(-1)));
+          let f;
+          if (s && s.length) {
+            let i = s.findIndex(
+              k(l)
+                ? (p) => k(p)
+                : l.key !== void 0
+                ? (p) => p.key === l.key && p.tag === l.tag
+                : (p) => p.tag === l.tag,
+            );
+            i !== -1 && (f = s[i], s.splice(i, 1));
+          }
+          if (f) {
+            if (k(l)) f.t !== l.t && (f.t = l.t, f.d = !0), l = f;
+            else {
+              let i = f.pP = f.props;
+              if (
+                f.props = l.props,
+                  f.f ||= l.f || t.f,
+                  typeof l.tag == "function"
+              ) {
+                let p = f[g][2];
+                f[g][2] = l[g][2] || [],
+                  f[g][3] = l[g][3],
+                  !f.f && ((f.o || f) === l.o || f.tag[V]?.(i, f.props)) &&
+                  it(p, f[g][2]) && (f.s = !0);
+              }
+              l = f;
+            }
+          } else if (!k(l) && O) {
+            let i = A(O);
+            i && (l.n = i);
+          }
+          if (
+            !k(l) && !l.s && (W(e, l), delete l.f), a.push(l), c && !c.s && !l.s
+          ) { for (let i = c; i && !k(i); i = i.vC?.at(-1)) i.nN = l; }
+          c = l;
+        }
+      }
+      t.vR = r ? [...t.vC, ...s || []] : s || [], t.vC = a, r && delete t.pC;
+    } catch (s) {
+      if (t.f = !0, s === be) {
+        if (o) return;
+        throw s;
+      }
+      let [a, c, d] = t[g]?.[3] || [];
+      if (c) {
+        let l = () => j([0, !1, e[2]], d), f = q.get(d) || [];
+        f.push(l), q.set(d, f);
+        let i = c(s, () => {
+          let p = q.get(d);
+          if (p) {
+            let E = p.indexOf(l);
+            if (E !== -1) return p.splice(E, 1), l();
+          }
+        });
+        if (i) {
+          if (e[0] === 1) e[1] = !0;
+          else if (W(e, d, [i]), (c.length === 1 || e !== a) && d.c) {
+            se(d, d.c, !1);
+            return;
+          }
+          throw be;
+        }
+      }
+      throw s;
+    } finally {
+      o && e[5].pop();
+    }
+  },
+  Te = (e) => {
+    if (!(e == null || typeof e == "boolean")) {
+      if (typeof e == "string" || typeof e == "number") {
+        return { t: e.toString(), d: !0 };
+      }
+      if (
+        "vR" in e &&
+        (e = {
+          tag: e.tag,
+          props: e.props,
+          key: e.key,
+          f: e.f,
+          type: e.tag,
+          ref: e.props.ref,
+          o: e.o || e,
+        }), typeof e.tag == "function"
+      ) e[g] = [0, []];
+      else {
+        let t = nt[e.tag];
+        t &&
+          (O ||= I(""),
+            e.props.children = [{
+              tag: O,
+              props: {
+                value: e.n = `http://www.w3.org/${t}`,
+                children: e.props.children,
+              },
+            }]);
+      }
+      return e;
+    }
+  },
+  De = (e, t, n) => {
+    e.c === t && (e.c = n, e.vC.forEach((r) => De(r, t, n)));
+  },
+  ve = (e, t) => {
+    t[g][2]?.forEach(([n, r]) => {
+      n.values.push(r);
+    });
+    try {
+      W(e, t, void 0);
+    } catch {
+      return;
+    }
+    if (t.a) {
+      delete t.a;
+      return;
+    }
+    t[g][2]?.forEach(([n]) => {
+      n.values.pop();
+    }), (e[0] !== 1 || !e[1]) && se(t, t.c, !1);
+  },
+  _ = new WeakMap(),
+  Se = [],
+  j = async (e, t) => {
+    e[5] ||= [];
+    let n = _.get(t);
+    n && n[0](void 0);
+    let r, o = new Promise((s) => r = s);
+    if (
+      _.set(t, [r, () => {
+        e[2]
+          ? e[2](e, t, (s) => {
+            ve(s, t);
+          }).then(() => r(t))
+          : (ve(e, t), r(t));
+      }]), Se.length
+    ) Se.at(-1).add(t);
+    else {
+      await Promise.resolve();
+      let s = _.get(t);
+      s && (_.delete(t), s[1]());
+    }
+    return o;
+  },
+  lt = (e, t) => {
+    let n = [];
+    n[5] = [], n[4] = !0, W(n, e, void 0), n[4] = !1;
+    let r = document.createDocumentFragment();
+    se(e, r, !0), De(e, r, t), t.replaceChildren(r);
+  },
+  ie = (e, t) => {
+    lt(Te({ tag: "", props: { children: e } }), t);
+  };
+var le = (e, t, n) => ({ tag: B, props: { children: e }, key: n, e: t, p: 1 });
+var at = 0, ae = 1, ct = 2, ft = 3;
+var ce = new WeakMap(),
+  Pe = (e, t) =>
+    !e || !t || e.length !== t.length || t.some((n, r) => n !== e[r]);
+var ut;
+var Me = [];
+var S = (e) => {
+  let t = () => typeof e == "function" ? e() : e, n = R.at(-1);
+  if (!n) return [t(), () => {}];
+  let [, r] = n, o = r[g][1][at] ||= [], s = r[g][0]++;
+  return o[s] ||= [t(), (a) => {
+    let c = ut, d = o[s];
+    if (typeof a == "function" && (a = a(d[0])), !Object.is(a, d[0])) {
+      if (d[0] = a, Me.length) {
+        let [l, f] = Me.at(-1);
+        Promise.all([l === 3 ? r : j([l, !1, c], r), f]).then(([i]) => {
+          if (!i || !(l === 2 || l === 3)) {
+            return;
+          }
+          let p = i.vC;
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              p === i.vC && j([l === 3 ? 1 : 0, !1, c], i);
+            });
+          });
+        });
+      } else j([0, !1, c], r);
+    }
+  }];
+};
+var b = (e, t) => {
+  let n = R.at(-1);
+  if (!n) return e;
+  let [, r] = n, o = r[g][1][ct] ||= [], s = r[g][0]++, a = o[s];
+  return Pe(a?.[1], t) ? o[s] = [e, t] : e = o[s][0], e;
+};
+var fe = (e) => {
+    let t = ce.get(e);
+    if (t) {
+      if (t.length === 2) throw t[1];
+      return t[0];
+    }
+    throw e.then((n) => ce.set(e, [n]), (n) => ce.set(e, [void 0, n])), e;
+  },
+  ue = (e, t) => {
+    let n = R.at(-1);
+    if (!n) return e();
+    let [, r] = n, o = r[g][1][ft] ||= [], s = r[g][0]++, a = o[s];
+    return Pe(a?.[1], t) && (o[s] = [e(), t]), o[s][0];
+  };
+var Oe = I({ pending: !1, data: null, method: null, action: null }),
+  Re = new Set(),
+  Ne = (e) => {
+    Re.add(e), e.finally(() => Re.delete(e));
+  };
+var pt = () => {
+    pe = Object.create(null), de = Object.create(null);
+  },
+  z = (e, t) =>
+    ue(() => (n) => {
+      let r;
+      e && (typeof e == "function"
+        ? r = e(n) || (() => {
+          e(null);
+        })
+        : e && "current" in e && (e.current = n,
+          r = () => {
+            e.current = null;
+          }));
+      let o = t(n);
+      return () => {
+        o?.(), r?.();
+      };
+    }, [e]),
+  pe = Object.create(null),
+  de = Object.create(null),
+  H = (e, t, n, r, o) => {
+    if (t?.itemProp) return { tag: e, props: t, type: e, ref: t.ref };
+    let s = document.head,
+      { onLoad: a, onError: c, precedence: d, blocking: l, ...f } = t,
+      i = null,
+      p = !1,
+      E = L[e],
+      N = Y(e, r),
+      G = (u) =>
+        u.getAttribute("rel") === "stylesheet" && u.getAttribute(T) !== null,
+      C;
+    if (N) {
+      let u = s.querySelectorAll(e);
+      e: for (let h of u) {
+        if (!(e === "link" && !G(h))) {
+          for (let y of E) {
+            if (h.getAttribute(y) === t[y]) {
+              i = h;
+              break e;
+            }
+          }
+        }
+      }
+      if (!i) {
+        let h = E.reduce(
+          (y, x) => t[x] === void 0 ? y : `${y}-${x}-${t[x]}`,
+          e,
+        );
+        p = !de[h],
+          i = de[h] ||= (() => {
+            let y = document.createElement(e);
+            for (let x of E) t[x] !== void 0 && y.setAttribute(x, t[x]);
+            return t.rel && y.setAttribute("rel", t.rel), y;
+          })();
+      }
+    } else C = s.querySelectorAll(e);
+    d = r ? d ?? "" : void 0, r && (f[T] = d);
+    let F = b((u) => {
+        if (N) {
+          if (e === "link" && d !== void 0) {
+            let y = !1;
+            for (let x of s.querySelectorAll(e)) {
+              let v = x.getAttribute(T);
+              if (v === null) {
+                s.insertBefore(u, x);
+                return;
+              }
+              if (y && v !== d) {
+                s.insertBefore(u, x);
+                return;
+              }
+              v === d && (y = !0);
+            }
+            s.appendChild(u);
+            return;
+          }
+          let h = !1;
+          for (let y of s.querySelectorAll(e)) {
+            if (h && y.getAttribute(T) !== d) {
+              s.insertBefore(u, y);
+              return;
+            }
+            y.getAttribute(T) === d && (h = !0);
+          }
+          s.appendChild(u);
+        } else if (e === "link") s.contains(u) || s.appendChild(u);
+        else if (C) {
+          let h = !1;
+          for (let y of C) {
+            if (y === u) {
+              h = !0;
+              break;
+            }
+          }
+          h || s.insertBefore(u, s.contains(C[0]) ? C[0] : s.querySelector(e)),
+            C = void 0;
+        }
+      }, [N, d, e]),
+      w = z(t.ref, (u) => {
+        let h = E[0];
+        if (n === 2 && (u.innerHTML = ""), (p || C) && F(u), !c && !a || !h) {
+          return;
+        }
+        let y = pe[u.getAttribute(h)] ||= new Promise((x, v) => {
+          u.addEventListener("load", x), u.addEventListener("error", v);
+        });
+        a && (y = y.then(a)), c && (y = y.catch(c)), y.catch(() => {});
+      });
+    if (o && l === "render") {
+      let u = L[e][0];
+      if (u && t[u]) {
+        let h = t[u],
+          y = pe[h] ||= new Promise((x, v) => {
+            F(i), i.addEventListener("load", x), i.addEventListener("error", v);
+          });
+        fe(y);
+      }
+    }
+    let D = { tag: e, type: e, props: { ...f, ref: w }, ref: w };
+    return D.p = n, i && (D.e = i), le(D, s);
+  },
+  Le = (e) => {
+    let t = Ce();
+    return (t && A(t))?.endsWith("svg")
+      ? { tag: "title", props: e, type: "title", ref: e.ref }
+      : H("title", e, void 0, !1, !1);
+  },
+  Ie = (e) =>
+    !e || ["src", "async"].some((t) => !e[t])
+      ? { tag: "script", props: e, type: "script", ref: e.ref }
+      : H("script", e, 1, !1, !0),
+  _e = (e) =>
+    !e || !["href", "precedence"].every((t) => t in e)
+      ? { tag: "style", props: e, type: "style", ref: e.ref }
+      : (e["data-href"] = e.href, delete e.href, H("style", e, 2, !0, !0)),
+  Be = (e) =>
+    !e || ["onLoad", "onError"].some((t) => t in e) ||
+      e.rel === "stylesheet" && (!("precedence" in e) || "disabled" in e)
+      ? { tag: "link", props: e, type: "link", ref: e.ref }
+      : H("link", e, 1, Q(e), !0),
+  je = (e) => H("meta", e, void 0, !1, !1),
+  He = Symbol(),
+  Fe = (e) => {
+    let { action: t, ...n } = e;
+    typeof t != "function" && (n.action = t);
+    let [r, o] = S([null, !1]),
+      s = b(async (l) => {
+        let f = l.isTrusted ? t : l.detail[He];
+        if (typeof f != "function") return;
+        l.preventDefault();
+        let i = new FormData(l.target);
+        o([i, !0]);
+        let p = f(i);
+        p instanceof Promise && (Ne(p), await p), o([null, !0]);
+      }, []),
+      a = z(e.ref, (l) => (l.addEventListener("submit", s), () => {
+        l.removeEventListener("submit", s);
+      })),
+      [c, d] = r;
+    return r[1] = !1, {
+      tag: Oe,
+      props: {
+        value: {
+          pending: c !== null,
+          data: c,
+          method: c ? "post" : null,
+          action: c ? t : null,
+        },
+        children: {
+          tag: "form",
+          props: { ...n, ref: a },
+          type: "form",
+          ref: a,
+        },
+      },
+      f: d,
+    };
+  },
+  $e = (e, { formAction: t, ...n }) => {
+    if (typeof t == "function") {
+      let r = b((o) => {
+        o.preventDefault(),
+          o.currentTarget.form.dispatchEvent(
+            new CustomEvent("submit", { detail: { [He]: t } }),
+          );
+      }, []);
+      n.ref = z(n.ref, (o) => (o.addEventListener("click", r), () => {
+        o.removeEventListener("click", r);
+      }));
+    }
+    return { tag: e, props: n, type: e, ref: n.ref };
+  },
+  Ke = (e) => $e("input", e),
+  Ve = (e) => $e("button", e);
+Object.assign(J, {
+  title: Le,
+  script: Ie,
+  style: _e,
+  link: Be,
+  meta: je,
+  form: Fe,
+  input: Ke,
+  button: Ve,
+});
+var m = (
+  e,
+  t,
+  n,
+) => (typeof e == "string" && Z[e] && (e = Z[e]),
+  { tag: e, type: e, props: t, key: n, ref: t.ref });
+async function dt(e) {
+  let t = await e.arrayBuffer(), n = await crypto.subtle.digest("SHA-256", t);
+  return Array.from(new Uint8Array(n)).map((r) =>
+    r.toString(16).padStart(2, "0")
+  ).join("");
+}
+function qe(e) {
+  if (e === 0) return "0 B";
+  let t = ["B", "KB", "MB", "GB"],
+    n = Math.floor(Math.log(e) / Math.log(1024)),
+    r = e / Math.pow(1024, n);
+  return `${r % 1 === 0 ? r : r.toFixed(2)} ${t[n]}`;
+}
+function mt({ requireAuth: e }) {
+  let [t, n] = S(null),
+    [r, o] = S("idle"),
+    [s, a] = S(null),
+    [c, d] = S(null),
+    [l, f] = S(!1),
+    i = b(() => {
+      n(null), o("idle"), a(null), d(null);
+    }, []),
+    p = b((u) => {
+      n(u), o("idle"), a(null), d(null);
+    }, []),
+    E = b((u) => {
+      u.preventDefault(), f(!1);
+      let h = u.dataTransfer?.files[0];
+      h && p(h);
+    }, [p]),
+    N = b((u) => {
+      u.preventDefault(), f(!0);
+    }, []),
+    G = b(() => f(!1), []),
+    C = b((u) => {
+      let h = u.target.files?.[0];
+      h && p(h);
+    }, [p]),
+    F = b(async () => {
+      if (t) {
+        a(null);
+        try {
+          let u;
+          if (e) {
+            o("hashing");
+            let x = await dt(t);
+            o("signing");
+            let v = globalThis.nostr;
+            if (!v) {
+              throw new Error(
+                "No Nostr extension detected. Install Alby or nos2x to sign uploads.",
+              );
+            }
+            let We = Math.floor(Date.now() / 1e3) + 300,
+              ze = await v.signEvent({
+                kind: 24242,
+                content: "Upload file",
+                created_at: Math.floor(Date.now() / 1e3),
+                tags: [["t", "upload"], ["x", x], ["expiration", String(We)]],
+              });
+            u = "Nostr " + btoa(JSON.stringify(ze));
+          }
+          o("uploading");
+          let h = await fetch("/upload", {
+            method: "PUT",
+            headers: {
+              "Content-Type": t.type || "application/octet-stream",
+              ...u ? { Authorization: u } : {},
+            },
+            body: t,
+          });
+          if (!h.ok) {
+            let x = h.headers.get("X-Reason") ?? h.statusText;
+            throw new Error(`Upload failed (${h.status}): ${x}`);
+          }
+          let y = await h.json();
+          d(y), o("done");
+        } catch (u) {
+          a(u instanceof Error ? u.message : String(u)), o("error");
+        }
+      }
+    }, [t, e]);
+  if (r === "done" && c) {
+    return m("div", {
+      class: "space-y-4",
+      children: [
+        m("div", {
+          class:
+            "bg-green-950 border border-green-800 rounded-xl p-6 space-y-3",
+          children: [
+            m("p", {
+              class: "text-green-400 font-semibold",
+              children: "Upload complete",
+            }),
+            m("div", {
+              class: "space-y-1 text-sm text-gray-300",
+              children: [
+                m("p", {
+                  children: [
+                    m("span", { class: "text-gray-500", children: "Size: " }),
+                    qe(c.size),
+                  ],
+                }),
+                m("p", {
+                  children: [
+                    m("span", { class: "text-gray-500", children: "Type: " }),
+                    c.type || "unknown",
+                  ],
+                }),
+              ],
+            }),
+            m("div", {
+              class: "flex items-center gap-2",
+              children: [
+                m("input", {
+                  class:
+                    "flex-1 bg-gray-900 text-gray-200 text-xs font-mono px-3 py-2 rounded border border-gray-700 truncate",
+                  value: c.url,
+                  readOnly: !0,
+                  onClick: (u) => u.target.select(),
+                }),
+                m("button", {
+                  class:
+                    "shrink-0 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-3 py-2 rounded border border-gray-700",
+                  onClick: () => navigator.clipboard.writeText(c.url),
+                  children: "Copy",
+                }),
+              ],
+            }),
+          ],
+        }),
+        m("button", {
+          class: "text-sm text-gray-400 underline hover:text-gray-200",
+          onClick: i,
+          children: "Upload another",
+        }),
+      ],
+    });
+  }
+  let w = r === "hashing" || r === "signing" || r === "uploading",
+    D = {
+      idle: "",
+      hashing: "Computing hash...",
+      signing: "Waiting for Nostr signature...",
+      uploading: "Uploading...",
+      done: "",
+      error: "",
+    };
+  return m("div", {
+    class: "space-y-4",
+    children: [
+      m("label", {
+        class:
+          `block border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
+            l
+              ? "border-blue-500 bg-blue-950"
+              : "border-gray-700 hover:border-gray-500"
+          }`,
+        onDragOver: N,
+        onDragLeave: G,
+        onDrop: E,
+        children: [
+          m("input", { type: "file", class: "sr-only", onChange: C }),
+          t
+            ? m("div", {
+              class: "space-y-1",
+              children: [
+                m("p", { class: "font-medium text-white", children: t.name }),
+                m("p", {
+                  class: "text-sm text-gray-400",
+                  children: [qe(t.size), t.type ? ` \xB7 ${t.type}` : ""],
+                }),
+                m("p", {
+                  class: "text-xs text-gray-500 mt-2",
+                  children: "Click or drop to replace",
+                }),
+              ],
+            })
+            : m("div", {
+              class: "space-y-2",
+              children: [
+                m("p", {
+                  class: "text-gray-300",
+                  children: "Drop a file here or click to select",
+                }),
+                m("p", {
+                  class: "text-xs text-gray-500",
+                  children: e
+                    ? "Nostr extension required to sign uploads"
+                    : "No auth required",
+                }),
+              ],
+            }),
+        ],
+      }),
+      w &&
+      m("p", { class: "text-sm text-blue-400 text-center", children: D[r] }),
+      r === "error" && s &&
+      m("p", {
+        class:
+          "text-sm text-red-400 bg-red-950 border border-red-800 rounded-lg px-4 py-3",
+        children: s,
+      }),
+      m("button", {
+        class: `w-full py-3 rounded-xl font-semibold transition-colors ${
+          t && !w
+            ? "bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
+            : "bg-gray-800 text-gray-500 cursor-not-allowed"
+        }`,
+        onClick: F,
+        disabled: !t || w,
+        children: w ? D[r] : "Upload",
+      }),
+    ],
+  });
+}
+var me = document.getElementById("upload-root");
+if (me) {
+  let e = me.dataset.requireAuth === "true";
+  ie(m(mt, { requireAuth: e }), me);
+}

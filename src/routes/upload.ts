@@ -14,20 +14,20 @@
  *   9. Await { hash, size } from worker
  *  10. Verify computed hash === X-SHA-256 header (if provided) — worker also checks,
  *      but we re-verify here before committing
- *  11. Deno.rename(tmpPath → finalPath) — atomic commit, main thread
+ *  11. Deno.rename(tmpPath → <storageDir>/<hash>.<ext>) — atomic commit, main thread
  *  12. db.insertBlob() — metadata write, main thread
  *  13. Return BlobDescriptor JSON
  *
  * Worker responsibilities (upload-worker.ts):
  *   - Open tmpPath for writing
- *   - Tee stream internally: hash branch (SHA-256) + write branch (disk)
- *   - Both branches drain concurrently
+ *   - Accumulate chunks for SHA-256
  *   - Post { hash, size } or { error } back
  */
 
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
+import { extension as extFromMime } from "@std/media-types";
 import { join } from "@std/path";
 import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
@@ -45,35 +45,23 @@ interface BlobDescriptor {
   uploaded: number;
 }
 
-function getBlobUrl(hash: string, mimeType: string | null, baseUrl: string): string {
-  const ext = mimeToExt(mimeType);
-  return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
+/**
+ * Derive a file extension from a MIME type.
+ * Returns empty string for unknown types or application/octet-stream.
+ * Uses @std/media-types for comprehensive MIME → extension coverage.
+ */
+export function mimeToExt(mime: string | null): string {
+  if (!mime || mime === "application/octet-stream") return "";
+  return extFromMime(mime) ?? "";
 }
 
-/** Rough MIME → extension mapping for BUD-02 URL requirement. */
-function mimeToExt(mime: string | null): string {
-  if (!mime) return "";
-  const map: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "image/avif": "avif",
-    "image/svg+xml": "svg",
-    "video/mp4": "mp4",
-    "video/webm": "webm",
-    "video/ogg": "ogv",
-    "audio/mpeg": "mp3",
-    "audio/ogg": "ogg",
-    "audio/wav": "wav",
-    "application/pdf": "pdf",
-    "application/json": "json",
-    "text/plain": "txt",
-    "text/html": "html",
-    "application/zip": "zip",
-    "application/octet-stream": "",
-  };
-  return map[mime.split(";")[0].trim()] ?? "";
+function getBlobUrl(
+  hash: string,
+  mimeType: string | null,
+  baseUrl: string,
+): string {
+  const ext = mimeToExt(mimeType);
+  return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
 }
 
 export function buildUploadRouter(
@@ -104,7 +92,8 @@ export function buildUploadRouter(
     }
 
     const xSha256 = ctx.req.header("x-sha-256");
-    const xContentType = ctx.req.header("x-content-type") ?? "application/octet-stream";
+    const xContentType = ctx.req.header("x-content-type") ??
+      "application/octet-stream";
     const xContentLength = ctx.req.header("x-content-length");
 
     if (!xContentLength) {
@@ -183,7 +172,8 @@ export function buildUploadRouter(
     }
 
     // --- 4. MIME type check ---
-    const contentType = ctx.req.header("content-type") ?? "application/octet-stream";
+    const contentType = ctx.req.header("content-type") ??
+      "application/octet-stream";
     const mimeType = contentType.split(";")[0].trim();
     if (
       config.upload.allowedTypes.length > 0 &&
@@ -212,6 +202,9 @@ export function buildUploadRouter(
       }
     }
 
+    // Derive file extension from MIME type — used for on-disk filename and URL
+    const ext = mimeToExt(mimeType);
+
     // --- 6. Dedup: if blob already exists, skip the whole write ---
     if (xSha256 && await hasBlob(db, xSha256)) {
       await ctx.req.raw.body?.cancel();
@@ -222,13 +215,15 @@ export function buildUploadRouter(
           await insertBlob(db, existing, auth.pubkey);
         }
         const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-        return ctx.json({
-          url: getBlobUrl(existing.sha256, existing.type, baseUrl),
-          sha256: existing.sha256,
-          size: existing.size,
-          type: existing.type ?? "application/octet-stream",
-          uploaded: existing.uploaded,
-        } satisfies BlobDescriptor);
+        return ctx.json(
+          {
+            url: getBlobUrl(existing.sha256, existing.type, baseUrl),
+            sha256: existing.sha256,
+            size: existing.size,
+            type: existing.type ?? "application/octet-stream",
+            uploaded: existing.uploaded,
+          } satisfies BlobDescriptor,
+        );
       }
     }
 
@@ -279,14 +274,20 @@ export function buildUploadRouter(
       );
     }
 
-    // --- 10. Atomic commit: rename temp → final path ---
-    const finalPath = join(storageDir, hash);
+    // --- 10. Atomic commit: rename temp → <hash>.<ext> ---
+    // The final filename always carries the file extension so the blob can be
+    // served directly from disk with the correct name. The DB type column is
+    // the authoritative source; the extension is derived from it on every read.
+    const finalName = ext ? `${hash}.${ext}` : hash;
+    const finalPath = join(storageDir, finalName);
     try {
       await Deno.rename(tmpPath, finalPath);
     } catch (err) {
       // If the final blob already exists (race between two identical uploads),
       // remove the temp file and continue — the existing file is correct.
-      const exists = await Deno.stat(finalPath).then(() => true).catch(() => false);
+      const exists = await Deno.stat(finalPath).then(() => true).catch(() =>
+        false
+      );
       if (!exists) {
         await Deno.remove(tmpPath).catch(() => {});
         throw err;
@@ -306,13 +307,15 @@ export function buildUploadRouter(
 
     // --- 12. Return BlobDescriptor ---
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-    return ctx.json({
-      url: getBlobUrl(hash, blobRecord.type, baseUrl),
-      sha256: hash,
-      size,
-      type: blobRecord.type ?? "application/octet-stream",
-      uploaded: now,
-    } satisfies BlobDescriptor);
+    return ctx.json(
+      {
+        url: getBlobUrl(hash, blobRecord.type, baseUrl),
+        sha256: hash,
+        size,
+        type: blobRecord.type ?? "application/octet-stream",
+        uploaded: now,
+      } satisfies BlobDescriptor,
+    );
   });
 
   return app;

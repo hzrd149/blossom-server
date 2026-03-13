@@ -22,7 +22,9 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
       <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-4">
         <div class="flex items-center justify-between">
           <span class="text-gray-400 text-sm">Max upload size</span>
-          <span class="font-mono text-white">{formatBytes(upload.maxSize)}</span>
+          <span class="font-mono text-white">
+            {formatBytes(upload.maxSize)}
+          </span>
         </div>
         <div class="flex items-center justify-between">
           <span class="text-gray-400 text-sm">Authentication</span>

@@ -100,21 +100,25 @@ self.onmessage = async (event: MessageEvent<InitMessage | RequestMessage>) => {
       const res = await app.fetch(request);
       const body = await res.text();
 
-      self.postMessage({
-        type: "response",
-        id: req.id,
-        status: res.status,
-        headers: [...res.headers] as [string, string][],
-        body,
-      } satisfies ResponseMessage);
+      self.postMessage(
+        {
+          type: "response",
+          id: req.id,
+          status: res.status,
+          headers: [...res.headers] as [string, string][],
+          body,
+        } satisfies ResponseMessage,
+      );
     } catch (err) {
-      self.postMessage({
-        type: "response",
-        id: req.id,
-        status: 500,
-        headers: [["Content-Type", "text/plain"]],
-        body: err instanceof Error ? err.message : "Internal error",
-      } satisfies ResponseMessage);
+      self.postMessage(
+        {
+          type: "response",
+          id: req.id,
+          status: 500,
+          headers: [["Content-Type", "text/plain"]],
+          body: err instanceof Error ? err.message : "Internal error",
+        } satisfies ResponseMessage,
+      );
     }
   };
 };

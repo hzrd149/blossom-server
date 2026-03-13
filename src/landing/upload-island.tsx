@@ -7,7 +7,9 @@ import type { FC } from "@hono/hono/jsx";
  * requireAuth is passed as a data attribute so the client bundle
  * can read it without a separate API call.
  */
-export const UploadIsland: FC<{ requireAuth: boolean; uploadEnabled: boolean }> = (
+export const UploadIsland: FC<
+  { requireAuth: boolean; uploadEnabled: boolean }
+> = (
   { requireAuth, uploadEnabled },
 ) => (
   <section>
@@ -28,7 +30,9 @@ export const UploadIsland: FC<{ requireAuth: boolean; uploadEnabled: boolean }> 
       )
       : (
         <div class="bg-gray-900 rounded-xl border border-gray-800 p-8 text-center">
-          <p class="text-gray-500 text-sm">Uploads are disabled on this server.</p>
+          <p class="text-gray-500 text-sm">
+            Uploads are disabled on this server.
+          </p>
         </div>
       )}
   </section>

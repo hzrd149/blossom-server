@@ -4,7 +4,7 @@
  * Usage:
  *   const session = await storage.beginWrite(contentLength);
  *   await requestBody.pipeTo(session.writable);
- *   await storage.commitWrite(session, computedHash);
+ *   await storage.commitWrite(session, computedHash, ext);
  *
  * If anything goes wrong before commitWrite:
  *   await storage.abortWrite(session);
@@ -20,20 +20,20 @@ export interface WriteSession {
 
 export interface IBlobStorage {
   /** Returns true if a blob with this hash exists in storage. */
-  has(hash: string): Promise<boolean>;
+  has(hash: string, ext: string): Promise<boolean>;
 
   /**
    * Returns a ReadableStream of the blob's bytes, or null if not found.
    * For local storage: Deno.open → file.readable (zero-copy).
    * For S3: fetch(url) → response.body (zero-copy).
    */
-  read(hash: string): Promise<ReadableStream<Uint8Array> | null>;
+  read(hash: string, ext: string): Promise<ReadableStream<Uint8Array> | null>;
 
   /** Returns the stored byte size of the blob, or null if not found. */
-  size(hash: string): Promise<number | null>;
+  size(hash: string, ext: string): Promise<number | null>;
 
   /** Returns the stored MIME type, or null if unknown/not found. */
-  type(hash: string): Promise<string | null>;
+  type(hash: string, ext: string): Promise<string | null>;
 
   /**
    * Begin a two-phase write.
@@ -43,13 +43,14 @@ export interface IBlobStorage {
 
   /**
    * Commit a completed write session.
-   * For local: atomically renames the temp file to <hash>.
+   * For local: atomically renames the temp file to <hash>.<ext> (or <hash> if ext is empty).
    * For S3: calls CompleteMultipartUpload.
    *
    * @param session The session returned by beginWrite.
    * @param hash    The verified SHA-256 hex string of the written bytes.
+   * @param ext     The file extension (without dot), e.g. "jpg". Empty string if unknown.
    */
-  commitWrite(session: WriteSession, hash: string): Promise<void>;
+  commitWrite(session: WriteSession, hash: string, ext: string): Promise<void>;
 
   /**
    * Abort a write session, cleaning up any temp resources.
@@ -58,5 +59,5 @@ export interface IBlobStorage {
   abortWrite(session: WriteSession): Promise<void>;
 
   /** Removes a blob from storage. Returns true if it existed. */
-  remove(hash: string): Promise<boolean>;
+  remove(hash: string, ext: string): Promise<boolean>;
 }

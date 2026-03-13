@@ -9,14 +9,20 @@
  * Nostr signing uses NIP-07 window.nostr (browser extension).
  * SHA-256 is computed via WebCrypto (available in all modern browsers).
  */
-import { useState, useCallback } from "hono/jsx/dom";
+import { useCallback, useState } from "hono/jsx/dom";
 import { render } from "hono/jsx/dom";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type UploadStatus = "idle" | "hashing" | "signing" | "uploading" | "done" | "error";
+type UploadStatus =
+  | "idle"
+  | "hashing"
+  | "signing"
+  | "uploading"
+  | "done"
+  | "error";
 
 interface UploadResult {
   sha256: string;
@@ -159,11 +165,11 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
           <p class="text-green-400 font-semibold">Upload complete</p>
           <div class="space-y-1 text-sm text-gray-300">
             <p>
-              <span class="text-gray-500">Size: </span>
+              <span class="text-gray-500">Size:</span>
               {formatBytes(result.size)}
             </p>
             <p>
-              <span class="text-gray-500">Type: </span>
+              <span class="text-gray-500">Type:</span>
               {result.type || "unknown"}
             </p>
           </div>
@@ -237,7 +243,9 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
             <div class="space-y-2">
               <p class="text-gray-300">Drop a file here or click to select</p>
               <p class="text-xs text-gray-500">
-                {requireAuth ? "Nostr extension required to sign uploads" : "No auth required"}
+                {requireAuth
+                  ? "Nostr extension required to sign uploads"
+                  : "No auth required"}
               </p>
             </div>
           )}

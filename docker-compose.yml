@@ -1,0 +1,14 @@
+volumes:
+  data: {}
+
+services:
+  blossom:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # Named volume for SQLite DB and blob storage
+      - data:/app/data
+      # Host-mounted config (read-only). Copy config.example.yml → config.yml to start.
+      - ./config.yml:/app/config.yml:ro
+    restart: unless-stopped

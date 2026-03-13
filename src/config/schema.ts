@@ -41,9 +41,9 @@ const UploadSchema = z.object({
     .int()
     .positive()
     .default(100 * 1024 * 1024), // 100MB
-  // Number of hash worker threads. 0 = navigator.hardwareConcurrency.
+  // Number of upload worker threads. 0 = navigator.hardwareConcurrency.
   // No queue: pool full → 503 immediately.
-  hashWorkers: z.number().int().min(0).default(0),
+  workers: z.number().int().min(0).default(0),
   // Allowed MIME types. Empty array = all types allowed.
   allowedTypes: z.array(z.string()).default([]),
 });
@@ -93,10 +93,16 @@ export const ConfigSchema = z
     storage: StorageSchema.optional().transform((v) =>
       v ?? StorageSchema.parse({})
     ),
-    upload: UploadSchema.optional().transform((v) => v ?? UploadSchema.parse({})),
+    upload: UploadSchema.optional().transform((v) =>
+      v ?? UploadSchema.parse({})
+    ),
     list: ListSchema.optional().transform((v) => v ?? ListSchema.parse({})),
-    delete: DeleteSchema.optional().transform((v) => v ?? DeleteSchema.parse({})),
-    landing: LandingSchema.optional().transform((v) => v ?? LandingSchema.parse({})),
+    delete: DeleteSchema.optional().transform((v) =>
+      v ?? DeleteSchema.parse({})
+    ),
+    landing: LandingSchema.optional().transform((v) =>
+      v ?? LandingSchema.parse({})
+    ),
   })
   .transform((raw) => {
     // Merge deprecated databasePath into the database section.

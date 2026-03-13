@@ -9,8 +9,8 @@
 
 import type { Client } from "@libsql/client";
 import {
-  getBlobStats,
   getBlob,
+  getBlobStats,
   hasBlob,
   insertBlob,
   isOwner,

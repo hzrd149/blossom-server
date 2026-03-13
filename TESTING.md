@@ -110,7 +110,7 @@ Test cases:
 - `port: 99999` → parse error
 - `port: 0` → parse error
 - `storage.backend: "gcs"` → parse error
-- `upload.hashWorkers: -1` → parse error
+- `upload.workers: -1` → parse error
 - Valid full config round-trips correctly
 
 ### 4. `src/db/bridge.ts` + `src/db/proxy.ts` — **medium priority**
@@ -275,7 +275,7 @@ Test cases (only if `list.enabled: true`):
 The no-queue / 503-on-full policy is a core security property.
 
 Test cases:
-- Spin up server with `hashWorkers: 1`
+- Spin up server with `workers: 1`
 - Send 2 concurrent uploads (second should get `503`)
 - After first upload completes, server accepts new uploads again
 

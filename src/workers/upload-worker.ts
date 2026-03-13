@@ -97,7 +97,10 @@ self.onmessage = async (event: MessageEvent<InitMessage | JobMessage>) => {
       db = new DbProxy(msg.dbPort);
     } else {
       // Remote libSQL: open a direct connection inside this isolate
-      const client = createClient({ url: msg.dbUrl, authToken: msg.dbAuthToken });
+      const client = createClient({
+        url: msg.dbUrl,
+        authToken: msg.dbAuthToken,
+      });
       db = new DirectDbHandle(client);
     }
     return;
@@ -117,7 +120,11 @@ async function handleJob(msg: JobMessage): Promise<void> {
   let file: Deno.FsFile | null = null;
 
   try {
-    file = await Deno.open(tmpPath, { write: true, create: true, truncate: true });
+    file = await Deno.open(tmpPath, {
+      write: true,
+      create: true,
+      truncate: true,
+    });
 
     // Accumulate all chunks for hashing. We cannot use @std/crypto with a
     // ReadableStream that is also being piped elsewhere (tee causes deadlock
@@ -156,20 +163,26 @@ async function handleJob(msg: JobMessage): Promise<void> {
     // Verify against declared hash if provided
     if (xSha256 !== null && hash !== xSha256) {
       await Deno.remove(tmpPath).catch(() => {});
-      self.postMessage({
-        id,
-        error: `Hash mismatch: declared ${xSha256}, computed ${hash}`,
-      } satisfies JobError);
+      self.postMessage(
+        {
+          id,
+          error: `Hash mismatch: declared ${xSha256}, computed ${hash}`,
+        } satisfies JobError,
+      );
       return;
     }
 
     self.postMessage({ id, hash, size: totalSize } satisfies JobSuccess);
   } catch (err) {
-    try { file?.close(); } catch { /* already closed */ }
+    try {
+      file?.close();
+    } catch { /* already closed */ }
     await Deno.remove(tmpPath).catch(() => {});
-    self.postMessage({
-      id,
-      error: err instanceof Error ? err.message : String(err),
-    } satisfies JobError);
+    self.postMessage(
+      {
+        id,
+        error: err instanceof Error ? err.message : String(err),
+      } satisfies JobError,
+    );
   }
 }

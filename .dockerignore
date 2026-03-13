@@ -1,8 +1,26 @@
-data
-.env
-node_modules
-.github
-database.json
-dist
-admin/node_modules
+# Runtime data — never bake into image; mounted as a named volume
+data/
+
+# Config — mounted at runtime via docker-compose.yml volume
 config.yml
+
+# Legacy Node.js implementation — not used by the Deno server
+legacy-nodejs/
+
+# Tests — not needed at runtime
+tests/
+
+# Git submodule (BUD spec reference) — read-only docs, not needed at runtime
+blossom/
+
+# Session files
+.sessions/
+
+# Dev environment
+.env
+.github/
+.vscode/
+
+# Node artifacts (not used by Deno, but guard against accidental copy)
+node_modules/
+dist/

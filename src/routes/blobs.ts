@@ -2,7 +2,7 @@
  * BUD-01: GET /:sha256[.ext] and HEAD /:sha256[.ext]
  *
  * Zero-copy streaming download:
- *   storage.read(hash) → ReadableStream → Response body
+ *   storage.read(hash, ext) → ReadableStream → Response body
  *   Hono passes stream to Deno.serve() unchanged
  *   Deno.serve() pipes to TCP socket via OS async I/O
  *
@@ -11,18 +11,25 @@
 
 import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
+import { extension as extFromMime } from "@std/media-types";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getBlob, touchBlob } from "../db/blobs.ts";
-import { optionalAuth, requireAuth } from "../middleware/auth.ts";
+import { optionalAuth } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
+/** Derive the stored file extension from a MIME type. Empty string if none. */
+function mimeToExt(mime: string | null): string {
+  if (!mime || mime === "application/octet-stream") return "";
+  return extFromMime(mime) ?? "";
+}
+
 export function buildBlobsRouter(
   db: Client,
   storage: IBlobStorage,
-  config: Config,
+  _config: Config,
 ): Hono {
   const app = new Hono();
 
@@ -45,14 +52,17 @@ export function buildBlobsRouter(
     // Future: add config.get.requireAuth
     const _auth = optionalAuth(ctx);
 
-    // Lookup metadata
+    // Lookup metadata — DB is the index; type column tells us the on-disk extension
     const blob = await getBlob(db, hash);
     if (!blob) {
       return errorResponse(ctx, 404, "Blob not found");
     }
 
+    // Derive the extension the file was stored with
+    const ext = mimeToExt(blob.type);
+
     // Check storage has the actual file
-    if (!(await storage.has(hash))) {
+    if (!(await storage.has(hash, ext))) {
       return errorResponse(ctx, 404, "Blob not found in storage");
     }
 
@@ -85,7 +95,7 @@ export function buildBlobsRouter(
       }
 
       const { start, end } = rangeResult;
-      const stream = await readRange(storage, hash, start, end);
+      const stream = await readRange(storage, hash, ext, start, end);
       if (!stream) return errorResponse(ctx, 404, "Blob not found in storage");
 
       return new Response(stream, {
@@ -99,7 +109,7 @@ export function buildBlobsRouter(
     }
 
     // Full blob stream — zero-copy
-    const stream = await storage.read(hash);
+    const stream = await storage.read(hash, ext);
     if (!stream) return errorResponse(ctx, 404, "Blob not found in storage");
 
     return new Response(stream, { status: 200, headers });
@@ -142,12 +152,13 @@ export function parseRange(
 async function readRange(
   storage: IBlobStorage,
   hash: string,
+  ext: string,
   start: number,
   end: number,
 ): Promise<ReadableStream<Uint8Array> | null> {
   // The storage interface returns the full stream; we slice it here.
   // A future optimization: LocalStorage can seek to start and read (end-start+1) bytes.
-  const fullStream = await storage.read(hash);
+  const fullStream = await storage.read(hash, ext);
   if (!fullStream) return null;
 
   let bytesSkipped = 0;

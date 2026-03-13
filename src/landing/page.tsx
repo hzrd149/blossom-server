@@ -14,7 +14,9 @@ export const LandingPage: FC<{ db: DbProxy; config: Config }> = async (
   return (
     <Layout title={config.landing.title}>
       <header class="space-y-1">
-        <h1 class="text-4xl font-bold tracking-tight">{config.landing.title}</h1>
+        <h1 class="text-4xl font-bold tracking-tight">
+          {config.landing.title}
+        </h1>
         <p class="text-gray-400">
           A{" "}
           <a

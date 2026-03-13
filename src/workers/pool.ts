@@ -83,12 +83,16 @@ export class UploadWorkerPool {
         // Main thread executes all DB ops via the bridge.
         const { port1, port2 } = new MessageChannel();
         installDbBridge(db, port1);
-        worker.postMessage({ type: "init", dbMode: "local", dbPort: port2 }, [port2]);
+        worker.postMessage({ type: "init", dbMode: "local", dbPort: port2 }, [
+          port2,
+        ]);
       }
 
       // Route job results back to waiting Promises
       worker.onmessage = (
-        event: MessageEvent<{ id: string; hash?: string; size?: number; error?: string }>,
+        event: MessageEvent<
+          { id: string; hash?: string; size?: number; error?: string }
+        >,
       ) => {
         const { id, hash, size, error } = event.data;
         const pending = this.pending.get(id);
@@ -184,17 +188,19 @@ export class UploadWorkerPool {
 let _pool: UploadWorkerPool | null = null;
 
 export function initPool(
-  hashWorkers: number,
+  workers: number,
   db: Client,
   dbConfig: DbConfig,
 ): UploadWorkerPool {
-  const size = hashWorkers > 0 ? hashWorkers : navigator.hardwareConcurrency;
+  const size = workers > 0 ? workers : navigator.hardwareConcurrency;
   _pool = new UploadWorkerPool(size, db, dbConfig);
   console.log(`Upload worker pool initialized with ${size} workers.`);
   return _pool;
 }
 
 export function getPool(): UploadWorkerPool {
-  if (!_pool) throw new Error("Worker pool not initialized. Call initPool() first.");
+  if (!_pool) {
+    throw new Error("Worker pool not initialized. Call initPool() first.");
+  }
   return _pool;
 }
