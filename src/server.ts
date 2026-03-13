@@ -4,7 +4,6 @@
  */
 
 import { Hono } from "@hono/hono";
-import { logger } from "hono/logger";
 import type { Client } from "@libsql/client";
 import type { IBlobStorage } from "./storage/interface.ts";
 import type { Config } from "./config/schema.ts";
@@ -12,17 +11,18 @@ import type { Config } from "./config/schema.ts";
 import { corsMiddleware } from "./middleware/cors.ts";
 import { authMiddleware } from "./middleware/auth.ts";
 import { onError } from "./middleware/errors.ts";
+import { requestLogger } from "./middleware/logger.ts";
 
 import { buildBlobsRouter } from "./routes/blobs.ts";
 import { buildUploadRouter } from "./routes/upload.ts";
 import { buildMirrorRouter } from "./routes/mirror.ts";
+import { buildMediaRouter } from "./routes/media.ts";
 import { buildDeleteRouter } from "./routes/delete.ts";
 import { buildLandingRouter } from "./routes/landing.ts";
 
 export function buildApp(
   db: Client,
   storage: IBlobStorage,
-  storageDir: string,
   config: Config,
   landingWorker?: Worker,
 ): Hono {
@@ -32,7 +32,7 @@ export function buildApp(
   app.onError(onError);
 
   // Request/response logging
-  app.use("*", logger());
+  app.use("*", requestLogger);
 
   // BUD-01: CORS headers on all responses + OPTIONS preflight
   app.use("*", corsMiddleware);
@@ -48,12 +48,14 @@ export function buildApp(
 
   // BUD-02 + BUD-06: PUT /upload, HEAD /upload
   // Mounted before the blob route so HEAD /upload is not caught by HEAD /:filename.
-  // Upload route takes storageDir (not the storage adapter) because the
-  // worker does file I/O directly and only needs the path for Deno.rename.
-  app.route("/", buildUploadRouter(db, storageDir, config));
+  app.route("/", buildUploadRouter(db, storage, config));
 
   // BUD-04: PUT /mirror
-  app.route("/", buildMirrorRouter(db, storageDir, config));
+  app.route("/", buildMirrorRouter(db, storage, config));
+
+  // BUD-05: PUT /media, HEAD /media
+  // Mounted after /mirror and before /delete so it doesn't interfere with exact paths.
+  app.route("/", buildMediaRouter(db, storage, config));
 
   // BUD-02: DELETE /:sha256
   app.route("/", buildDeleteRouter(db, storage, config));

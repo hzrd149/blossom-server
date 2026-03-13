@@ -149,6 +149,32 @@ export async function getBlobStats(db: Client): Promise<BlobStats> {
   };
 }
 
+/** Returns the optimized blob SHA-256 for a given original SHA-256, or null if not found. */
+export async function getMediaDerivative(
+  db: Client,
+  originalSha256: string,
+): Promise<string | null> {
+  const rs = await db.execute({
+    sql: "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
+    args: [originalSha256],
+  });
+  const row = rs.rows[0];
+  if (!row) return null;
+  return row[0] as string;
+}
+
+/** Records an original → optimized SHA-256 mapping in media_derivatives. */
+export async function insertMediaDerivative(
+  db: Client,
+  originalSha256: string,
+  optimizedSha256: string,
+): Promise<void> {
+  await db.execute({
+    sql: "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
+    args: [originalSha256, optimizedSha256],
+  });
+}
+
 /** Check whether a pubkey is an owner of a blob. */
 export async function isOwner(
   db: Client,

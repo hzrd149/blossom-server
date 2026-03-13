@@ -28,12 +28,12 @@ import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
 import { extension as extFromMime } from "@std/media-types";
-import { join } from "@std/path";
 import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth, requireXTag } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
+import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 
@@ -67,7 +67,7 @@ function getBlobUrl(
 
 export function buildUploadRouter(
   db: Client,
-  storageDir: string,
+  storage: IBlobStorage,
   config: Config,
 ): Hono {
   const app = new Hono();
@@ -181,7 +181,10 @@ export function buildUploadRouter(
     const contentLength = parseInt(contentLengthHeader, 10);
     if (isNaN(contentLength) || contentLength < 0) {
       await ctx.req.raw.body?.cancel();
-      debug(debugPrefix, `rejected: invalid Content-Length "${contentLengthHeader}"`);
+      debug(
+        debugPrefix,
+        `rejected: invalid Content-Length "${contentLengthHeader}"`,
+      );
       return errorResponse(ctx, 400, "Invalid Content-Length header");
     }
 
@@ -245,7 +248,10 @@ export function buildUploadRouter(
       await ctx.req.raw.body?.cancel();
       const existing = await getBlob(db, xSha256);
       if (existing) {
-        debug(debugPrefix, `dedup hit — returning existing blob ${xSha256.slice(0, 8)}`);
+        debug(
+          debugPrefix,
+          `dedup hit — returning existing blob ${xSha256.slice(0, 8)}`,
+        );
         // Register this pubkey as an owner if they aren't already
         if (auth && !await isOwner(db, xSha256, auth.pubkey)) {
           await insertBlob(db, existing, auth.pubkey);
@@ -281,22 +287,35 @@ export function buildUploadRouter(
       );
     }
 
-    // --- 8. Generate temp path + dispatch to worker ---
-    // tmpPath is inside the storage dir so Deno.rename() is always atomic
-    // (same filesystem guaranteed).
-    const tmpPath = join(storageDir, ".tmp", ulid());
+    // --- 8. Begin write session + dispatch to worker ---
+    // beginWrite() allocates a local tmp file on disk. For local storage this
+    // is inside the blobs dir (.tmp/). For S3 storage this is in the configured
+    // s3.tmpDir. The worker writes directly to session.tmpPath — zero bytes
+    // reach S3 until commitWrite() is called after hash verification.
+    const session = await storage.beginWrite(contentLength);
 
     debug(
       debugPrefix,
-      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${xSha256?.slice(0, 8) ?? "unknown"}`,
+      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${
+        xSha256?.slice(0, 8) ?? "unknown"
+      }`,
     );
 
-    const jobPromise = pool.dispatch(body, tmpPath, contentLength, xSha256);
+    const jobPromise = pool.dispatch(
+      body,
+      session.tmpPath,
+      contentLength,
+      xSha256,
+    );
     if (!jobPromise) {
       // Race condition: another request claimed the last worker between
       // pool.available check and dispatch(). Rare but safe to handle.
       await body.cancel().catch(() => {});
-      debug(debugPrefix, "rejected: worker race — all workers claimed before dispatch");
+      await storage.abortWrite(session).catch(() => {});
+      debug(
+        debugPrefix,
+        "rejected: worker race — all workers claimed before dispatch",
+      );
       return errorResponse(
         ctx,
         503,
@@ -309,9 +328,13 @@ export function buildUploadRouter(
     let size: number;
     try {
       ({ hash, size } = await jobPromise);
-      debug(debugPrefix, `worker complete — hash=${hash.slice(0, 8)} size=${size}`);
+      debug(
+        debugPrefix,
+        `worker complete — hash=${hash.slice(0, 8)} size=${size}`,
+      );
     } catch (err) {
-      // Worker already cleaned up tmpPath
+      // Worker already deleted session.tmpPath on failure — abortWrite is a no-op.
+      await storage.abortWrite(session).catch(() => {});
       const msg = err instanceof Error ? err.message : "Upload failed";
       debug(debugPrefix, `worker error — ${msg}`);
       return errorResponse(ctx, 400, msg);
@@ -323,7 +346,7 @@ export function buildUploadRouter(
       try {
         requireXTag(auth, hash);
       } catch (err) {
-        await Deno.remove(tmpPath).catch(() => {});
+        await storage.abortWrite(session).catch(() => {});
         const msg = err instanceof HTTPException ? err.message : String(err);
         debug(debugPrefix, `rejected: deferred x-tag check failed — ${msg}`);
         if (err instanceof HTTPException) {
@@ -333,25 +356,15 @@ export function buildUploadRouter(
       }
     }
 
-    // --- 10. Atomic commit: rename temp → <hash>.<ext> ---
-    // The final filename always carries the file extension so the blob can be
-    // served directly from disk with the correct name. The DB type column is
-    // the authoritative source; the extension is derived from it on every read.
-    const finalName = ext ? `${hash}.${ext}` : hash;
-    const finalPath = join(storageDir, finalName);
+    // --- 10. Commit: move verified tmp file to final storage location ---
+    // For local storage: atomic Deno.rename() to <hash>.<ext>.
+    // For S3 storage: stream the verified local tmp file to S3, then delete it.
+    // commitWrite() handles dedup internally (no-op if blob already exists).
     try {
-      await Deno.rename(tmpPath, finalPath);
+      await storage.commitWrite(session, hash, ext);
     } catch (err) {
-      // If the final blob already exists (race between two identical uploads),
-      // remove the temp file and continue — the existing file is correct.
-      const exists = await Deno.stat(finalPath).then(() => true).catch(() =>
-        false
-      );
-      if (!exists) {
-        await Deno.remove(tmpPath).catch(() => {});
-        throw err;
-      }
-      await Deno.remove(tmpPath).catch(() => {});
+      await storage.abortWrite(session).catch(() => {});
+      throw err;
     }
 
     // --- 11. Insert metadata ---
@@ -365,7 +378,12 @@ export function buildUploadRouter(
     await insertBlob(db, blobRecord, auth?.pubkey ?? "anonymous");
 
     // --- 12. Return BlobDescriptor ---
-    debug(debugPrefix, `upload complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`);
+    debug(
+      debugPrefix,
+      `upload complete — ${hash} (${size} bytes, ${
+        blobRecord.type ?? "application/octet-stream"
+      })`,
+    );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     return ctx.json(
       {

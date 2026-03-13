@@ -1,5 +1,5 @@
 import { type Client, createClient } from "@libsql/client";
-import { dirname } from "@std/path";
+import { dirname, join } from "@std/path";
 
 let _client: Client | null = null;
 
@@ -30,19 +30,28 @@ export async function initDb(config: DbConfig): Promise<Client> {
     client = createClient({ url: `file:${config.path}` });
   }
 
-  // Run initial migration
-  const migrationSql = await Deno.readTextFile(
-    new URL("./migrations/001_initial.sql", import.meta.url),
-  );
+  // Run all migrations in alphabetical (numeric) order.
+  // All statements use CREATE TABLE IF NOT EXISTS — safe to re-run at startup.
+  const migrationsDir = new URL("./migrations/", import.meta.url);
+  const entries: string[] = [];
+  for await (const entry of Deno.readDir(migrationsDir)) {
+    if (entry.isFile && entry.name.endsWith(".sql")) {
+      entries.push(entry.name);
+    }
+  }
+  entries.sort();
 
-  // Execute each statement separately (LibSQL doesn't support multi-statement exec)
-  const statements = migrationSql
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  for (const stmt of statements) {
-    await client.execute(stmt);
+  for (const name of entries) {
+    const sql = await Deno.readTextFile(
+      new URL(join("./migrations/", name), import.meta.url),
+    );
+    const statements = sql
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    for (const stmt of statements) {
+      await client.execute(stmt);
+    }
   }
 
   // WAL mode and related pragmas are SQLite-only — skip for remote libSQL

@@ -11,8 +11,10 @@
  */
 
 import { loadConfig } from "./src/config/loader.ts";
-import { initDb, type DbConfig } from "./src/db/client.ts";
+import { type DbConfig, initDb } from "./src/db/client.ts";
+import type { IBlobStorage } from "./src/storage/interface.ts";
 import { LocalStorage } from "./src/storage/local.ts";
+import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
 import { installDbBridge } from "./src/db/bridge.ts";
 import { buildApp } from "./src/server.ts";
@@ -35,22 +37,49 @@ const db = await initDb(dbConfig);
 console.log("  Database: ready");
 
 // Init storage
-let storage: LocalStorage;
-let storageDir: string;
+let storage: IBlobStorage;
 if (config.storage.backend === "local") {
-  storageDir = config.storage.local?.dir ?? "./data/blobs";
-  storage = new LocalStorage(storageDir);
-  await storage.setup();
+  const storageDir = config.storage.local?.dir ?? "./data/blobs";
+  const local = new LocalStorage(storageDir);
+  await local.setup();
+  storage = local;
   console.log(`  Storage:  local (${storageDir})`);
 } else {
-  // S3 adapter not yet implemented
-  console.error("S3 storage backend is not yet implemented.");
-  Deno.exit(1);
+  const s3Config = config.storage.s3;
+  if (!s3Config) {
+    console.error(
+      "S3 storage backend selected but no [storage.s3] config section found.",
+    );
+    Deno.exit(1);
+  }
+  const s3 = new S3Storage({
+    endpoint: s3Config.endpoint,
+    bucket: s3Config.bucket,
+    accessKey: s3Config.accessKey,
+    secretKey: s3Config.secretKey,
+    region: s3Config.region,
+    publicURL: s3Config.publicURL,
+    tmpDir: s3Config.tmpDir,
+  });
+  console.log(
+    `  Storage:  s3 — verifying bucket access (${s3Config.bucket} @ ${s3Config.endpoint})...`,
+  );
+  await s3.setup();
+  storage = s3;
+  console.log(
+    `  Storage:  s3 ready (bucket=${s3Config.bucket} endpoint=${s3Config.endpoint})`,
+  );
 }
 
 // Init upload worker pool — dbConfig determines whether workers use MessageChannel
 // (local SQLite) or open their own direct connections (remote libSQL / Turso).
-const pool = initPool(config.upload.workers, config.upload.maxJobsPerWorker, config.upload.throughputWindowMs, db, dbConfig);
+const pool = initPool(
+  config.upload.workers,
+  config.upload.maxJobsPerWorker,
+  config.upload.throughputWindowMs,
+  db,
+  dbConfig,
+);
 console.log(`  Workers:  ${pool.size} upload workers`);
 
 // Init landing page worker (optional — off by default)
@@ -77,7 +106,7 @@ if (config.landing.enabled) {
 }
 
 // Build Hono app
-const app = buildApp(db, storage, storageDir, config, landingWorker);
+const app = buildApp(db, storage, config, landingWorker);
 
 // Start server
 const server = Deno.serve(

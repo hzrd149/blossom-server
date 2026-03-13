@@ -14,8 +14,13 @@ export interface WriteSession {
   writable: WritableStream<Uint8Array>;
   /** Resolves (or rejects) when writable is fully closed/errored. */
   done: Promise<void>;
-  /** Opaque identifier used by the adapter internally. */
-  id: string;
+  /**
+   * Absolute path to the local temp file where bytes are being written.
+   * The upload worker receives this path and opens the file for writing
+   * directly (bypassing the writable stream). The storage adapter uses it
+   * internally for commitWrite / abortWrite cleanup.
+   */
+  tmpPath: string;
 }
 
 export interface IBlobStorage {
@@ -57,6 +62,20 @@ export interface IBlobStorage {
    * Safe to call if commitWrite was already called (no-op).
    */
   abortWrite(session: WriteSession): Promise<void>;
+
+  /**
+   * Commit an already-written local file into storage as a blob.
+   * Used by the media route after optimization: the optimized file is on local
+   * disk and needs to be committed to the final storage location.
+   *
+   * For local: atomically renames srcPath to <hash>.<ext> (or <hash> if ext is empty).
+   * For S3: streams srcPath to S3 as the final object key, then removes srcPath.
+   *
+   * @param srcPath Absolute path to the source file on local disk.
+   * @param hash    The verified SHA-256 hex string of the file's bytes.
+   * @param ext     The file extension (without dot), e.g. "jpg". Empty string if unknown.
+   */
+  commitFile(srcPath: string, hash: string, ext: string): Promise<void>;
 
   /** Removes a blob from storage. Returns true if it existed. */
   remove(hash: string, ext: string): Promise<boolean>;

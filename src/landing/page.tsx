@@ -33,6 +33,8 @@ export const LandingPage: FC<{ db: DbProxy; config: Config }> = async (
       <UploadIsland
         requireAuth={config.upload.requireAuth}
         uploadEnabled={config.upload.enabled}
+        mediaEnabled={config.media.enabled}
+        mediaRequireAuth={config.media.requireAuth}
       />
     </Layout>
   );

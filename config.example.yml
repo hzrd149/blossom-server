@@ -114,3 +114,91 @@ list:
 delete:
   # Require a valid BUD-11 auth token to delete blobs.
   requireAuth: true
+
+mirror:
+  # Enable the PUT /mirror endpoint (BUD-04).
+  enabled: true
+
+  # Require a valid BUD-11 Nostr auth token for mirroring.
+  requireAuth: true
+
+  # Timeout in milliseconds for the outbound fetch to the origin server.
+  # 0 = no timeout (not recommended in production).
+  fetchTimeout: 30000
+
+media:
+  # Enable the PUT /media endpoint (BUD-05).
+  # Clients upload an image or video; the server optimises/transcodes it,
+  # stores the optimised derivative, and returns its hash and URL.
+  # Requires ffmpeg to be installed on the host (for video transcoding).
+  enabled: true
+
+  # Require a valid BUD-11 Nostr auth token with t="media" for media uploads.
+  requireAuth: true
+
+  # Maximum input file size in bytes before reading the body.
+  maxSize: 524288000 # 500 MB
+
+  image:
+    # Output quality 0–100 (default 90).
+    quality: 90
+
+    # Produce progressive JPEG / interlaced PNG for better streaming on slow
+    # connections. Has no effect when outputFormat is "webp". (default true)
+    progressive: true
+
+    # Maximum output width in pixels. Images wider than this are scaled down
+    # while preserving aspect ratio. (default 1920)
+    maxWidth: 1920
+
+    # Maximum output height in pixels. (default 1080)
+    maxHeight: 1080
+
+    # Output image format: "webp" | "jpeg" | "png" (default "webp")
+    outputFormat: "webp"
+
+    # Preserve aspect ratio when resizing. (default true)
+    # Setting this to false stretches the image to exactly maxWidth×maxHeight.
+    maintainAspectRatio: true
+
+    # Keep EXIF metadata in the output file. (default false)
+    # When false, all EXIF data is stripped (recommended for privacy).
+    keepExif: false
+
+    # Maximum frame rate for animated GIF output.
+    # Frames that would exceed this rate are dropped. (default 30)
+    fps: 30
+
+  video:
+    # Output quality 0–100 mapped to a CRF value.
+    # quality=100 → CRF=0 (lossless), quality=0 → CRF=51 (worst). (default 90)
+    quality: 90
+
+    # Maximum output height in pixels. Width is scaled to preserve aspect ratio.
+    # Uses ffmpeg's fit-inside scaling: ?x<maxHeight>. (default 1080)
+    maxHeight: 1080
+
+    # Maximum output frame rate. Frames above this threshold are dropped.
+    # The source FPS is probed via ffprobe and clamped to this value. (default 30)
+    maxFps: 30
+
+    # Output container format: "mp4" | "webm" | "mkv" (default "mp4")
+    # mp4 is the most widely compatible; webm is preferred for web delivery.
+    format: "mp4"
+
+    # Audio codec. Must be compatible with the chosen format.
+    #   mp4 / mkv: "aac" (default), "mp3"
+    #   webm:      "opus" (default for webm), "vorbis"
+    audioCodec: "aac"
+
+    # Video codec. Must be compatible with the chosen format.
+    #   mp4 / mkv: "libx264" (default), "libx265"
+    #   webm:      "vp9" (default for webm), "vp8"
+    videoCodec: "libx264"
+
+landing:
+  # Enable the SSR landing page at GET /.
+  enabled: false
+
+  # Page title shown in <title> and <h1>.
+  title: "Blossom Server"

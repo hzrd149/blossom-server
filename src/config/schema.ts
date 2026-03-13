@@ -18,6 +18,11 @@ const S3StorageSchema = z.object({
   region: z.string().optional(),
   // If set, GET /:sha256 redirects here instead of proxying
   publicURL: z.string().optional(),
+  // Local directory used to buffer uploads before they are committed to S3.
+  // Uploads are written here first; only verified blobs are transferred to S3.
+  // Must have enough free space for the largest expected upload.
+  // Default: "./data/s3-tmp"
+  tmpDir: z.string().default("./data/s3-tmp"),
 });
 
 const StorageSchema = z.object({
@@ -54,6 +59,46 @@ const UploadSchema = z.object({
   throughputWindowMs: z.number().int().min(100).default(1_000),
   // Allowed MIME types. Empty array = all types allowed.
   allowedTypes: z.array(z.string()).default([]),
+});
+
+const ImageOptimizeSchema = z.object({
+  quality: z.number().int().min(0).max(100).default(90),
+  // Produce progressive JPEG or PNG (interlaced) for large images.
+  progressive: z.boolean().default(true),
+  maxWidth: z.number().int().positive().default(1920),
+  maxHeight: z.number().int().positive().default(1080),
+  outputFormat: z.enum(["webp", "jpeg", "png"]).default("webp"),
+  maintainAspectRatio: z.boolean().default(true),
+  keepExif: z.boolean().default(false),
+  // Max frame rate for animated GIF output (frames capped to this value).
+  fps: z.number().int().positive().default(30),
+});
+
+const VideoOptimizeSchema = z.object({
+  quality: z.number().int().min(0).max(100).default(90),
+  maxHeight: z.number().int().positive().default(1080),
+  maxFps: z.number().int().positive().default(30),
+  format: z.enum(["mp4", "webm", "mkv"]).default("mp4"),
+  // Audio codec. Must be compatible with the chosen format.
+  // mp4/mkv: aac (default), mp3; webm: opus (default), vorbis
+  audioCodec: z.enum(["aac", "mp3", "vorbis", "opus"]).default("aac"),
+  // Video codec. Must be compatible with the chosen format.
+  // mp4/mkv: libx264 (default), libx265; webm: vp9 (default), vp8
+  videoCodec: z.enum(["libx264", "libx265", "vp8", "vp9"]).default("libx264"),
+});
+
+const MediaSchema = z.object({
+  // Enable the PUT /media endpoint (BUD-05).
+  enabled: z.boolean().default(false),
+  requireAuth: z.boolean().default(true),
+  // Maximum input file size in bytes. Default: 1GB.
+  maxSize: z.number().int().positive().default(1024 * 1024 * 1024),
+  image: ImageOptimizeSchema.optional().transform((v) =>
+    v ?? ImageOptimizeSchema.parse({})
+  ),
+  video: VideoOptimizeSchema.optional().transform((v) =>
+    v ?? VideoOptimizeSchema.parse({})
+  ),
 });
 
 const MirrorSchema = z.object({
@@ -115,6 +160,7 @@ export const ConfigSchema = z
     landing: LandingSchema.optional().transform((v) =>
       v ?? LandingSchema.parse({})
     ),
+    media: MediaSchema.optional().transform((v) => v ?? MediaSchema.parse({})),
   })
   .transform((raw) => {
     // Merge deprecated databasePath into the database section.
@@ -131,3 +177,6 @@ export const ConfigSchema = z
 
 export type Config = z.infer<typeof ConfigSchema>;
 export type StorageRule = z.infer<typeof StorageRuleSchema>;
+export type ImageOptimizeConfig = z.infer<typeof ImageOptimizeSchema>;
+export type VideoOptimizeConfig = z.infer<typeof VideoOptimizeSchema>;
+export type MediaConfig = z.infer<typeof MediaSchema>;

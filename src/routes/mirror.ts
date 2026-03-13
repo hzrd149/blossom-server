@@ -34,11 +34,10 @@ import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
 import { extension as extFromMime } from "@std/media-types";
-import { join } from "@std/path";
-import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
+import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 
@@ -80,7 +79,8 @@ function isPrivateIPv4(ip: string): boolean {
 function isPrivateIPv6(ip: string): boolean {
   // Normalise: strip brackets if present (e.g. [::1])
   const bare = ip.replace(/^\[|\]$/g, "");
-  return bare === "::1" || bare === "::" || bare.toLowerCase() === "0:0:0:0:0:0:0:1";
+  return bare === "::1" || bare === "::" ||
+    bare.toLowerCase() === "0:0:0:0:0:0:0:1";
 }
 
 /**
@@ -109,7 +109,11 @@ function mimeToExt(mime: string | null): string {
   return extFromMime(mime) ?? "";
 }
 
-function getBlobUrl(hash: string, mimeType: string | null, baseUrl: string): string {
+function getBlobUrl(
+  hash: string,
+  mimeType: string | null,
+  baseUrl: string,
+): string {
   const ext = mimeToExt(mimeType);
   return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
 }
@@ -133,7 +137,11 @@ function getBaseUrl(request: Request, publicDomain: string): string {
 // Router
 // ---------------------------------------------------------------------------
 
-export function buildMirrorRouter(db: Client, storageDir: string, config: Config): Hono {
+export function buildMirrorRouter(
+  db: Client,
+  storage: IBlobStorage,
+  config: Config,
+): Hono {
   const app = new Hono();
 
   app.put("/mirror", async (ctx) => {
@@ -163,16 +171,28 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
     try {
       const body = await ctx.req.json() as { url?: unknown };
       if (!body.url || typeof body.url !== "string") {
-        return errorResponse(ctx, 400, 'Request body must be a JSON object with a "url" string field');
+        return errorResponse(
+          ctx,
+          400,
+          'Request body must be a JSON object with a "url" string field',
+        );
       }
       mirrorUrl = new URL(body.url);
     } catch {
-      return errorResponse(ctx, 400, "Invalid request body: expected JSON { url: string }");
+      return errorResponse(
+        ctx,
+        400,
+        "Invalid request body: expected JSON { url: string }",
+      );
     }
 
     // --- 4. URL scheme validation ---
     if (mirrorUrl.protocol !== "http:" && mirrorUrl.protocol !== "https:") {
-      return errorResponse(ctx, 400, `Unsupported URL scheme: ${mirrorUrl.protocol}. Only http and https are allowed`);
+      return errorResponse(
+        ctx,
+        400,
+        `Unsupported URL scheme: ${mirrorUrl.protocol}. Only http and https are allowed`,
+      );
     }
 
     // --- 5. SSRF guard: reject literal private / loopback IP addresses ---
@@ -184,7 +204,11 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
     // --- 6. Pre-fetch pool check (before opening any TCP connection) ---
     // If all workers are busy, fail immediately without touching the network.
     if (getPool().available === 0) {
-      return errorResponse(ctx, 503, "Server busy. All upload workers are occupied. Try again shortly.");
+      return errorResponse(
+        ctx,
+        503,
+        "Server busy. All upload workers are occupied. Try again shortly.",
+      );
     }
 
     // --- 7. Outbound fetch with timeout ---
@@ -197,7 +221,9 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
     } catch (err) {
       const reason = err instanceof Error && err.name === "TimeoutError"
         ? `Origin server did not respond within ${config.mirror.fetchTimeout}ms`
-        : `Failed to fetch from origin: ${err instanceof Error ? err.message : String(err)}`;
+        : `Failed to fetch from origin: ${
+          err instanceof Error ? err.message : String(err)
+        }`;
       return errorResponse(ctx, 502, reason);
     }
 
@@ -213,8 +239,13 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
 
     // --- 9. Content-Length gate (413 before any body bytes flow to the worker) ---
     const contentLengthHeader = originResponse.headers.get("content-length");
-    const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
-    if (contentLength !== null && !isNaN(contentLength) && contentLength > config.upload.maxSize) {
+    const contentLength = contentLengthHeader
+      ? parseInt(contentLengthHeader, 10)
+      : null;
+    if (
+      contentLength !== null && !isNaN(contentLength) &&
+      contentLength > config.upload.maxSize
+    ) {
       await originResponse.body?.cancel();
       return errorResponse(
         ctx,
@@ -225,29 +256,46 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
 
     // --- 10. Content-Type allowlist ---
     // BUD-04: use Content-Type from origin; fall back to application/octet-stream.
-    const rawContentType = originResponse.headers.get("content-type") ?? "application/octet-stream";
-    const mimeType = rawContentType.split(";")[0].trim() || "application/octet-stream";
-    if (config.upload.allowedTypes.length > 0 && !isAllowedType(mimeType, config.upload.allowedTypes)) {
+    const rawContentType = originResponse.headers.get("content-type") ??
+      "application/octet-stream";
+    const mimeType = rawContentType.split(";")[0].trim() ||
+      "application/octet-stream";
+    if (
+      config.upload.allowedTypes.length > 0 &&
+      !isAllowedType(mimeType, config.upload.allowedTypes)
+    ) {
       await originResponse.body?.cancel();
       return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
     }
 
-    // --- 11. Dispatch to upload worker (zero-copy stream transfer) ---
+    // --- 11. Begin write session + dispatch to upload worker ---
+    // beginWrite() allocates a local tmp file. Zero bytes reach S3 until
+    // commitWrite() is called after hash verification.
     const body = originResponse.body;
     if (!body) {
       return errorResponse(ctx, 502, "Origin server returned an empty body");
     }
 
     const pool = getPool();
-    const tmpPath = join(storageDir, ".tmp", ulid());
+    const session = await storage.beginWrite(contentLength);
 
     // Pass null as xSha256 — the hash is unknown pre-download. The x-tag
     // verification happens post-hash (step 13) after the worker returns.
-    const jobPromise = pool.dispatch(body, tmpPath, contentLength, null);
+    const jobPromise = pool.dispatch(
+      body,
+      session.tmpPath,
+      contentLength,
+      null,
+    );
     if (!jobPromise) {
       // Race: another request claimed the last worker between step 6 and now.
       await body.cancel().catch(() => {});
-      return errorResponse(ctx, 503, "Server busy. All upload workers are occupied. Try again shortly.");
+      await storage.abortWrite(session).catch(() => {});
+      return errorResponse(
+        ctx,
+        503,
+        "Server busy. All upload workers are occupied. Try again shortly.",
+      );
     }
 
     // --- 12. Await worker result ---
@@ -256,8 +304,13 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
     try {
       ({ hash, size } = await jobPromise);
     } catch (err) {
-      // Worker already removed tmpPath on failure.
-      return errorResponse(ctx, 400, err instanceof Error ? err.message : "Mirror failed");
+      // Worker already deleted session.tmpPath on failure.
+      await storage.abortWrite(session).catch(() => {});
+      return errorResponse(
+        ctx,
+        400,
+        err instanceof Error ? err.message : "Mirror failed",
+      );
     }
 
     // --- 13. BUD-11 x-tag verification (strict, post-hash) ---
@@ -269,12 +322,20 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
     if (auth) {
       const xTags = auth.tags.filter((t) => t[0] === "x");
       if (xTags.length === 0) {
-        await Deno.remove(tmpPath).catch(() => {});
-        return errorResponse(ctx, 403, "Auth event is missing required x tag for PUT /mirror");
+        await storage.abortWrite(session).catch(() => {});
+        return errorResponse(
+          ctx,
+          403,
+          "Auth event is missing required x tag for PUT /mirror",
+        );
       }
       if (!xTags.some((t) => t[1] === hash)) {
-        await Deno.remove(tmpPath).catch(() => {});
-        return errorResponse(ctx, 403, `Auth token does not authorize mirroring blob ${hash}`);
+        await storage.abortWrite(session).catch(() => {});
+        return errorResponse(
+          ctx,
+          403,
+          `Auth token does not authorize mirroring blob ${hash}`,
+        );
       }
     }
 
@@ -282,36 +343,32 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
 
     // --- 14. Dedup guard ---
     if (await hasBlob(db, hash)) {
-      await Deno.remove(tmpPath).catch(() => {});
+      await storage.abortWrite(session).catch(() => {});
       const existing = await getBlob(db, hash);
       if (existing) {
         if (auth && !await isOwner(db, hash, auth.pubkey)) {
           await insertBlob(db, existing, auth.pubkey);
         }
         const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-        return ctx.json({
-          url: getBlobUrl(existing.sha256, existing.type, baseUrl),
-          sha256: existing.sha256,
-          size: existing.size,
-          type: existing.type ?? "application/octet-stream",
-          uploaded: existing.uploaded,
-        } satisfies BlobDescriptor);
+        return ctx.json(
+          {
+            url: getBlobUrl(existing.sha256, existing.type, baseUrl),
+            sha256: existing.sha256,
+            size: existing.size,
+            type: existing.type ?? "application/octet-stream",
+            uploaded: existing.uploaded,
+          } satisfies BlobDescriptor,
+        );
       }
     }
 
-    // --- 15. Atomic rename: tmpPath → <storageDir>/<hash>[.<ext>] ---
-    const finalName = ext ? `${hash}.${ext}` : hash;
-    const finalPath = join(storageDir, finalName);
+    // --- 15. Commit: move verified tmp file to final storage location ---
+    // For local: atomic rename. For S3: stream to bucket, delete local tmp.
     try {
-      await Deno.rename(tmpPath, finalPath);
+      await storage.commitWrite(session, hash, ext);
     } catch (err) {
-      // Race: two mirror requests for the same blob completed simultaneously.
-      const exists = await Deno.stat(finalPath).then(() => true).catch(() => false);
-      if (!exists) {
-        await Deno.remove(tmpPath).catch(() => {});
-        throw err;
-      }
-      await Deno.remove(tmpPath).catch(() => {});
+      await storage.abortWrite(session).catch(() => {});
+      throw err;
     }
 
     // --- 16. Insert metadata ---
@@ -326,13 +383,15 @@ export function buildMirrorRouter(db: Client, storageDir: string, config: Config
 
     // --- 17. Return BlobDescriptor ---
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-    return ctx.json({
-      url: getBlobUrl(hash, blobRecord.type, baseUrl),
-      sha256: hash,
-      size,
-      type: blobRecord.type ?? "application/octet-stream",
-      uploaded: now,
-    } satisfies BlobDescriptor);
+    return ctx.json(
+      {
+        url: getBlobUrl(hash, blobRecord.type, baseUrl),
+        sha256: hash,
+        size,
+        type: blobRecord.type ?? "application/octet-stream",
+        uploaded: now,
+      } satisfies BlobDescriptor,
+    );
   });
 
   return app;

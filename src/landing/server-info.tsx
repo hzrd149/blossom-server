@@ -11,7 +11,7 @@ function formatBytes(bytes: number): string {
 }
 
 export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
-  const { upload } = config;
+  const { upload, media } = config;
   const allowedTypes = upload.allowedTypes.length > 0
     ? upload.allowedTypes
     : ["All types accepted"];
@@ -20,6 +20,7 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
     <section>
       <h2 class="text-lg font-semibold text-gray-400 mb-4">Server Info</h2>
       <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-4">
+        {/* Upload section */}
         <div class="flex items-center justify-between">
           <span class="text-gray-400 text-sm">Max upload size</span>
           <span class="font-mono text-white">
@@ -50,6 +51,66 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
             ))}
           </div>
         </div>
+
+        {/* Divider */}
+        <div class="border-t border-gray-800" />
+
+        {/* Media optimization section */}
+        <div class="flex items-center justify-between">
+          <span class="text-gray-400 text-sm">Media optimization</span>
+          {media.enabled
+            ? (
+              <span class="bg-blue-900 text-blue-300 text-xs font-semibold px-2 py-1 rounded">
+                Enabled
+              </span>
+            )
+            : (
+              <span class="bg-gray-800 text-gray-500 text-xs font-semibold px-2 py-1 rounded">
+                Disabled
+              </span>
+            )}
+        </div>
+        {media.enabled && (
+          <>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400 text-sm">Media auth</span>
+              {media.requireAuth
+                ? (
+                  <span class="bg-yellow-900 text-yellow-300 text-xs font-semibold px-2 py-1 rounded">
+                    Required
+                  </span>
+                )
+                : (
+                  <span class="bg-green-900 text-green-300 text-xs font-semibold px-2 py-1 rounded">
+                    Open
+                  </span>
+                )}
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400 text-sm">Max media size</span>
+              <span class="font-mono text-white">
+                {formatBytes(media.maxSize)}
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400 text-sm">Image output</span>
+              <span class="font-mono text-gray-300 text-xs">
+                {media.image.outputFormat} · {media.image.maxWidth}×
+                {media.image.maxHeight} · q{media.image.quality}
+                {media.image.progressive ? " · progressive" : ""}
+                {` · ${media.image.fps}fps`}
+              </span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400 text-sm">Video output</span>
+              <span class="font-mono text-gray-300 text-xs">
+                {media.video.format} · {media.video.videoCodec} ·{" "}
+                {media.video.audioCodec} · {media.video.maxHeight}p ·{" "}
+                {media.video.maxFps}fps · q{media.video.quality}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

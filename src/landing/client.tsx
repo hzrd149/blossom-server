@@ -21,6 +21,7 @@ type UploadStatus =
   | "hashing"
   | "signing"
   | "uploading"
+  | "optimizing"
   | "done"
   | "error";
 
@@ -55,12 +56,25 @@ function formatBytes(bytes: number): string {
 // UploadForm component
 // ---------------------------------------------------------------------------
 
-function UploadForm({ requireAuth }: { requireAuth: boolean }) {
+/** Returns true if the file is an image or video (candidate for /media optimization). */
+function isMediaFile(file: File): boolean {
+  return file.type.startsWith("image/") || file.type.startsWith("video/");
+}
+
+function UploadForm(
+  { requireAuth, mediaEnabled, mediaRequireAuth }: {
+    requireAuth: boolean;
+    mediaEnabled: boolean;
+    mediaRequireAuth: boolean;
+  },
+) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // optimize: route to /media instead of /upload when enabled
+  const [optimize, setOptimize] = useState(false);
 
   const reset = useCallback(() => {
     setFile(null);
@@ -74,6 +88,8 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
     setStatus("idle");
     setError(null);
     setResult(null);
+    // Reset optimize if new file isn't an image/video
+    if (!isMediaFile(f)) setOptimize(false);
   }, []);
 
   const handleDrop = useCallback((e: DragEvent) => {
@@ -99,10 +115,16 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
     if (!file) return;
     setError(null);
 
+    // Decide which endpoint and auth verb to use
+    const useMedia = optimize && mediaEnabled && isMediaFile(file);
+    const endpoint = useMedia ? "/media" : "/upload";
+    const authVerb = useMedia ? "media" : "upload";
+    const needsAuth = useMedia ? mediaRequireAuth : requireAuth;
+
     try {
       let authHeader: string | undefined;
 
-      if (requireAuth) {
+      if (needsAuth) {
         // Compute SHA-256 so we can sign it in the BUD-11 auth event
         setStatus("hashing");
         const hash = await sha256Hex(file);
@@ -119,10 +141,10 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
         const expiration = Math.floor(Date.now() / 1000) + 300; // 5 min
         const authEvent = await nostr.signEvent({
           kind: 24242,
-          content: "Upload file",
+          content: useMedia ? "Optimize and upload media" : "Upload file",
           created_at: Math.floor(Date.now() / 1000),
           tags: [
-            ["t", "upload"],
+            ["t", authVerb],
             ["x", hash],
             ["expiration", String(expiration)],
           ],
@@ -130,8 +152,8 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
         authHeader = "Nostr " + btoa(JSON.stringify(authEvent));
       }
 
-      setStatus("uploading");
-      const res = await fetch("/upload", {
+      setStatus(useMedia ? "optimizing" : "uploading");
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
@@ -152,7 +174,7 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
     }
-  }, [file, requireAuth]);
+  }, [file, requireAuth, optimize, mediaEnabled, mediaRequireAuth]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -181,6 +203,7 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
               onClick={(e) => (e.target as HTMLInputElement).select()}
             />
             <button
+              type="button"
               class="shrink-0 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs px-3 py-2 rounded border border-gray-700"
               onClick={() => navigator.clipboard.writeText(result.url)}
             >
@@ -189,6 +212,7 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
           </div>
         </div>
         <button
+          type="button"
           class="text-sm text-gray-400 underline hover:text-gray-200"
           onClick={reset}
         >
@@ -199,16 +223,20 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
   }
 
   const isWorking = status === "hashing" || status === "signing" ||
-    status === "uploading";
+    status === "uploading" || status === "optimizing";
 
   const statusLabel: Record<UploadStatus, string> = {
     idle: "",
     hashing: "Computing hash...",
     signing: "Waiting for Nostr signature...",
     uploading: "Uploading...",
+    optimizing: "Optimizing & uploading...",
     done: "",
     error: "",
   };
+
+  // Show the optimize checkbox only for image/video files when media is enabled
+  const showOptimize = mediaEnabled && file !== null && isMediaFile(file);
 
   return (
     <div class="space-y-4">
@@ -251,6 +279,24 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
           )}
       </label>
 
+      {/* Optimize media checkbox — only for image/video when media endpoint enabled */}
+      {showOptimize && (
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            class="w-4 h-4 rounded accent-blue-500"
+            checked={optimize}
+            onChange={(e) =>
+              setOptimize((e.target as HTMLInputElement).checked)}
+            disabled={isWorking}
+          />
+          <span class="text-sm text-gray-300">
+            Optimize media
+            <span class="ml-1 text-gray-500 text-xs">(transcode via /media)</span>
+          </span>
+        </label>
+      )}
+
       {/* Status / error */}
       {isWorking && (
         <p class="text-sm text-blue-400 text-center">{statusLabel[status]}</p>
@@ -263,6 +309,7 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
 
       {/* Upload button */}
       <button
+        type="button"
         class={`w-full py-3 rounded-xl font-semibold transition-colors ${
           file && !isWorking
             ? "bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
@@ -284,5 +331,14 @@ function UploadForm({ requireAuth }: { requireAuth: boolean }) {
 const root = document.getElementById("upload-root");
 if (root) {
   const requireAuth = root.dataset.requireAuth === "true";
-  render(<UploadForm requireAuth={requireAuth} />, root);
+  const mediaEnabled = root.dataset.mediaEnabled === "true";
+  const mediaRequireAuth = root.dataset.mediaRequireAuth === "true";
+  render(
+    <UploadForm
+      requireAuth={requireAuth}
+      mediaEnabled={mediaEnabled}
+      mediaRequireAuth={mediaRequireAuth}
+    />,
+    root,
+  );
 }

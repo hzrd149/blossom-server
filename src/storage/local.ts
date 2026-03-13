@@ -70,8 +70,7 @@ export class LocalStorage implements IBlobStorage {
   }
 
   async beginWrite(sizeHint: number | null): Promise<WriteSession> {
-    const id = ulid();
-    const path = this.tmpPath(id);
+    const path = this.tmpPath(ulid());
 
     const file = await Deno.open(path, {
       write: true,
@@ -102,7 +101,7 @@ export class LocalStorage implements IBlobStorage {
           }, 100);
         });
 
-    return { id, writable, done };
+    return { tmpPath: path, writable, done };
   }
 
   async commitWrite(
@@ -110,22 +109,37 @@ export class LocalStorage implements IBlobStorage {
     hash: string,
     ext: string,
   ): Promise<void> {
-    const tmpPath = this.tmpPath(session.id);
     const finalPath = this.blobPath(hash, ext);
 
     // If a blob with this hash already exists, discard the temp file (dedup)
     if (await this.has(hash, ext)) {
-      await Deno.remove(tmpPath).catch(() => {});
+      await Deno.remove(session.tmpPath).catch(() => {});
       return;
     }
 
     // Atomic rename — same filesystem guaranteed by tmpDir being inside dir
-    await Deno.rename(tmpPath, finalPath);
+    await Deno.rename(session.tmpPath, finalPath);
   }
 
   async abortWrite(session: WriteSession): Promise<void> {
-    const tmpPath = this.tmpPath(session.id);
-    await Deno.remove(tmpPath).catch(() => {});
+    await Deno.remove(session.tmpPath).catch(() => {});
+  }
+
+  /**
+   * Commit an already-written local file as a blob.
+   * For local storage: atomically rename srcPath to the final blob path.
+   * Equivalent to commitWrite but for files produced outside the
+   * beginWrite/commitWrite cycle (e.g. media optimization output).
+   */
+  async commitFile(srcPath: string, hash: string, ext: string): Promise<void> {
+    const finalPath = this.blobPath(hash, ext);
+
+    if (await this.has(hash, ext)) {
+      await Deno.remove(srcPath).catch(() => {});
+      return;
+    }
+
+    await Deno.rename(srcPath, finalPath);
   }
 
   async remove(hash: string, ext: string): Promise<boolean> {
