@@ -44,6 +44,14 @@ const UploadSchema = z.object({
   // Number of upload worker threads. 0 = navigator.hardwareConcurrency.
   // No queue: pool full → 503 immediately.
   workers: z.number().int().min(0).default(0),
+  // Maximum number of concurrent upload jobs a single worker will accept.
+  // Workers handle jobs concurrently (event loop is free during I/O), so
+  // this prevents a single slow upload from monopolising a worker slot.
+  maxJobsPerWorker: z.number().int().min(1).default(4),
+  // How often (in ms) each worker reports its aggregate throughput to the pool.
+  // The pool uses this to route new jobs to the least-loaded worker.
+  // Lower values = more responsive routing; higher values = less message overhead.
+  throughputWindowMs: z.number().int().min(100).default(1_000),
   // Allowed MIME types. Empty array = all types allowed.
   allowedTypes: z.array(z.string()).default([]),
 });

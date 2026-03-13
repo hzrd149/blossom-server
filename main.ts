@@ -50,7 +50,7 @@ if (config.storage.backend === "local") {
 
 // Init upload worker pool — dbConfig determines whether workers use MessageChannel
 // (local SQLite) or open their own direct connections (remote libSQL / Turso).
-const pool = initPool(config.upload.workers, db, dbConfig);
+const pool = initPool(config.upload.workers, config.upload.maxJobsPerWorker, config.upload.throughputWindowMs, db, dbConfig);
 console.log(`  Workers:  ${pool.size} upload workers`);
 
 // Init landing page worker (optional — off by default)

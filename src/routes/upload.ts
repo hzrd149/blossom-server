@@ -32,6 +32,7 @@ import { join } from "@std/path";
 import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth, requireXTag } from "../middleware/auth.ts";
+import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
@@ -141,32 +142,56 @@ export function buildUploadRouter(
   // ---------------------------------------------------------------------------
 
   app.put("/upload", async (ctx) => {
+    const reqId = ulid();
+    const debugPrefix = `[upload:${reqId}]`;
+
     if (!config.upload.enabled) {
+      debug(debugPrefix, "rejected: uploads disabled");
       return errorResponse(ctx, 403, "Uploads are disabled on this server");
     }
 
     // --- 1. Auth ---
     let auth: ReturnType<typeof requireAuth> | undefined;
     if (config.upload.requireAuth) {
-      auth = requireAuth(ctx, "upload");
+      try {
+        auth = requireAuth(ctx, "upload");
+      } catch (err) {
+        const msg = err instanceof HTTPException ? err.message : String(err);
+        debug(debugPrefix, `rejected: auth failed — ${msg}`);
+        if (err instanceof HTTPException) {
+          return errorResponse(ctx, err.status as 401 | 403, err.message);
+        }
+        throw err;
+      }
     }
+
+    debug(
+      debugPrefix,
+      `PUT /upload — pubkey=${auth?.pubkey?.slice(0, 8) ?? "anon"}`,
+    );
 
     // --- 2. Content-Length required (411 if absent) ---
     const contentLengthHeader = ctx.req.header("content-length");
     if (!contentLengthHeader) {
       await ctx.req.raw.body?.cancel();
+      debug(debugPrefix, "rejected: missing Content-Length");
       return errorResponse(ctx, 411, "Content-Length header required");
     }
 
     const contentLength = parseInt(contentLengthHeader, 10);
     if (isNaN(contentLength) || contentLength < 0) {
       await ctx.req.raw.body?.cancel();
+      debug(debugPrefix, `rejected: invalid Content-Length "${contentLengthHeader}"`);
       return errorResponse(ctx, 400, "Invalid Content-Length header");
     }
 
     // --- 3. Size check (413 before reading body) ---
     if (contentLength > config.upload.maxSize) {
       await ctx.req.raw.body?.cancel();
+      debug(
+        debugPrefix,
+        `rejected: file too large — ${contentLength} > ${config.upload.maxSize} bytes`,
+      );
       return errorResponse(
         ctx,
         413,
@@ -183,6 +208,7 @@ export function buildUploadRouter(
       !isAllowedType(mimeType, config.upload.allowedTypes)
     ) {
       await ctx.req.raw.body?.cancel();
+      debug(debugPrefix, `rejected: unsupported media type — ${mimeType}`);
       return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
     }
 
@@ -190,19 +216,20 @@ export function buildUploadRouter(
     const xSha256 = ctx.req.header("x-sha-256")?.toLowerCase() ?? null;
     if (xSha256 && !/^[0-9a-f]{64}$/.test(xSha256)) {
       await ctx.req.raw.body?.cancel();
+      debug(debugPrefix, `rejected: invalid X-SHA-256 format — "${xSha256}"`);
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
     }
 
-    // BUD-11: x tags are required for upload. When auth is present, verify the
-    // token's x tags authorize this specific blob hash. If no x tags are present
-    // on the token, any blob is permitted (open upload token). If x tags ARE
-    // present but X-SHA-256 was not provided, the hash is unknown and the check
-    // will fail — clients must supply X-SHA-256 when using scoped tokens.
-    if (auth) {
+    // BUD-11: if the client provided X-SHA-256 and auth has x tags, we can
+    // validate upfront. If X-SHA-256 is absent, defer the x-tag check until
+    // after the worker resolves the actual hash (step 9).
+    if (auth && xSha256) {
       try {
-        requireXTag(auth, xSha256 ?? "");
+        requireXTag(auth, xSha256);
       } catch (err) {
         await ctx.req.raw.body?.cancel();
+        const msg = err instanceof HTTPException ? err.message : String(err);
+        debug(debugPrefix, `rejected: x-tag check failed — ${msg}`);
         if (err instanceof HTTPException) {
           return errorResponse(ctx, err.status as 403, err.message);
         }
@@ -218,6 +245,7 @@ export function buildUploadRouter(
       await ctx.req.raw.body?.cancel();
       const existing = await getBlob(db, xSha256);
       if (existing) {
+        debug(debugPrefix, `dedup hit — returning existing blob ${xSha256.slice(0, 8)}`);
         // Register this pubkey as an owner if they aren't already
         if (auth && !await isOwner(db, xSha256, auth.pubkey)) {
           await insertBlob(db, existing, auth.pubkey);
@@ -238,12 +266,14 @@ export function buildUploadRouter(
     // --- 7. Acquire worker (503 if pool full — no queue) ---
     const body = ctx.req.raw.body;
     if (!body) {
+      debug(debugPrefix, "rejected: empty request body");
       return errorResponse(ctx, 400, "Request body is empty");
     }
 
     const pool = getPool();
     if (pool.available === 0) {
       await body.cancel();
+      debug(debugPrefix, "rejected: all upload workers busy");
       return errorResponse(
         ctx,
         503,
@@ -256,11 +286,17 @@ export function buildUploadRouter(
     // (same filesystem guaranteed).
     const tmpPath = join(storageDir, ".tmp", ulid());
 
+    debug(
+      debugPrefix,
+      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${xSha256?.slice(0, 8) ?? "unknown"}`,
+    );
+
     const jobPromise = pool.dispatch(body, tmpPath, contentLength, xSha256);
     if (!jobPromise) {
       // Race condition: another request claimed the last worker between
       // pool.available check and dispatch(). Rare but safe to handle.
       await body.cancel().catch(() => {});
+      debug(debugPrefix, "rejected: worker race — all workers claimed before dispatch");
       return errorResponse(
         ctx,
         503,
@@ -273,13 +309,28 @@ export function buildUploadRouter(
     let size: number;
     try {
       ({ hash, size } = await jobPromise);
+      debug(debugPrefix, `worker complete — hash=${hash.slice(0, 8)} size=${size}`);
     } catch (err) {
       // Worker already cleaned up tmpPath
-      return errorResponse(
-        ctx,
-        400,
-        err instanceof Error ? err.message : "Upload failed",
-      );
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      debug(debugPrefix, `worker error — ${msg}`);
+      return errorResponse(ctx, 400, msg);
+    }
+
+    // --- 9b. Deferred x-tag check (when X-SHA-256 was not sent upfront) ---
+    // Now that we have the real hash, validate the scoped token can authorize it.
+    if (auth && !xSha256) {
+      try {
+        requireXTag(auth, hash);
+      } catch (err) {
+        await Deno.remove(tmpPath).catch(() => {});
+        const msg = err instanceof HTTPException ? err.message : String(err);
+        debug(debugPrefix, `rejected: deferred x-tag check failed — ${msg}`);
+        if (err instanceof HTTPException) {
+          return errorResponse(ctx, err.status as 403, err.message);
+        }
+        throw err;
+      }
     }
 
     // --- 10. Atomic commit: rename temp → <hash>.<ext> ---
@@ -314,6 +365,7 @@ export function buildUploadRouter(
     await insertBlob(db, blobRecord, auth?.pubkey ?? "anonymous");
 
     // --- 12. Return BlobDescriptor ---
+    debug(debugPrefix, `upload complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`);
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     return ctx.json(
       {

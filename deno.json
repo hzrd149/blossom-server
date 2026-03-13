@@ -4,9 +4,6 @@
     "jsxImportSource": "hono/jsx"
   },
   "exclude": [
-    // k6 stress scripts use k6's built-in module system (not npm/jsr).
-    // Deno's LSP does not know about the k6 runtime — exclude to suppress
-    // false-positive import errors. These files run inside grafana/k6 only.
     "tests/stress/"
   ],
   "tasks": {
@@ -27,7 +24,9 @@
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
     "nostr-tools": "npm:nostr-tools@^2.23.3",
+    "sharp": "npm:sharp@^0.34.5",
     "zod": "npm:zod@^4.3.6",
+    "hono/logger": "jsr:@hono/hono@^4.12.7/logger",
     "hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
     "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
     "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime"

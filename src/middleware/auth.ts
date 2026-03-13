@@ -32,7 +32,15 @@ export function parseAuthEvent(raw: string, serverDomain: string | null): NostrE
 
   let auth: NostrEvent;
   try {
-    auth = JSON.parse(new TextDecoder().decode(decodeBase64Url(raw))) as NostrEvent;
+    // BUD-11 specifies Base64url; fall back to standard Base64 (atob) for
+    // clients that encode with the standard alphabet (e.g. older nak versions).
+    let decoded: string;
+    try {
+      decoded = new TextDecoder().decode(decodeBase64Url(raw));
+    } catch {
+      decoded = atob(raw);
+    }
+    auth = JSON.parse(decoded) as NostrEvent;
   } catch {
     throw new HTTPException(400, {
       message: "Invalid Authorization header encoding",

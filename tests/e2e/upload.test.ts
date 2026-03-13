@@ -87,7 +87,8 @@ Deno.test({
     await storage.setup();
 
     // Initialize the pool singleton once — shared across all tests in this file
-    const pool = initPool(1, db, dbConfig);
+    // Args: workers, maxJobsPerWorker, throughputWindowMs, db, dbConfig
+    const pool = initPool(1, 4, 500, db, dbConfig);
 
     const configNoAuth = ConfigSchema.parse({
       publicDomain: "http://localhost",

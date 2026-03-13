@@ -4,6 +4,7 @@
  */
 
 import { Hono } from "@hono/hono";
+import { logger } from "hono/logger";
 import type { Client } from "@libsql/client";
 import type { IBlobStorage } from "./storage/interface.ts";
 import type { Config } from "./config/schema.ts";
@@ -29,6 +30,9 @@ export function buildApp(
 
   // Global error handler
   app.onError(onError);
+
+  // Request/response logging
+  app.use("*", logger());
 
   // BUD-01: CORS headers on all responses + OPTIONS preflight
   app.use("*", corsMiddleware);

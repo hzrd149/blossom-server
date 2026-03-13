@@ -2,12 +2,14 @@
 /**
  * Upload Worker — runs in a dedicated Deno Worker (separate V8 isolate).
  *
- * Owns the full upload I/O pipeline in a single pass:
- *   stream → [size counter | SHA-256 accumulator] → file.writable
+ * Owns the full upload I/O pipeline using two concurrent branches:
+ *   stream.tee() → s1 → stdCrypto.subtle.digest("SHA-256", s1)  [incremental WASM]
+ *               → s2 → countingTransform → file.writable         [disk write]
  *
- * The hash is computed incrementally using a TransformStream that accumulates
- * chunks, then calls @std/crypto.subtle.digest once all bytes have been
- * written to disk. No tee(), no double-buffering — one read, one write.
+ * Both branches run concurrently via Promise.all(). The hash is computed
+ * incrementally by the @std/crypto WASM DigestContext — O(1) memory for the
+ * hash state (~104 bytes for SHA-256) regardless of blob size. No chunk
+ * accumulation, no post-write memcpy.
  *
  * DB connection is set up at init depending on the mode sent by the pool:
  *
@@ -25,12 +27,19 @@
  * ever calls methods on IDbHandle and never inspects which implementation
  * is underneath.
  *
+ * Throughput reporting:
+ *   The worker accumulates bytes written across ALL concurrent jobs and posts
+ *   a { type: "throughput", bytesPerSec } message to the pool once per
+ *   throughputWindowMs. The pool uses this to route new jobs to the worker
+ *   currently handling the least I/O load.
+ *
  * Message protocol:
- *   IN  (once at init, local):  { type: "init", dbMode: "local", dbPort: MessagePort }
- *   IN  (once at init, remote): { type: "init", dbMode: "remote", dbUrl: string, dbAuthToken?: string }
+ *   IN  (once at init, local):  { type: "init", dbMode: "local", dbPort: MessagePort, throughputWindowMs: number }
+ *   IN  (once at init, remote): { type: "init", dbMode: "remote", dbUrl: string, dbAuthToken?: string, throughputWindowMs: number }
  *   IN  (per upload):           { type: "job", id, stream, tmpPath, sizeHint, xSha256 }
  *   OUT (per upload):           { id, hash, size }   on success
  *                               { id, error }         on failure
+ *   OUT (every throughputWindowMs): { type: "throughput", bytesPerSec: number }
  */
 
 import { crypto as stdCrypto } from "@std/crypto";
@@ -44,7 +53,12 @@ import type { IDbHandle } from "../db/handle.ts";
 // Worker state (persists across jobs)
 // ---------------------------------------------------------------------------
 
+// deno-lint-ignore no-unused-vars -- assigned at init for future job-side DB access
 let db: IDbHandle | null = null;
+
+// Aggregate byte counter across all concurrent jobs on this worker.
+// Reset every throughputWindowMs by the heartbeat interval.
+let _bytesThisWindow = 0;
 
 // ---------------------------------------------------------------------------
 // Message types
@@ -54,6 +68,7 @@ interface InitMessageLocal {
   type: "init";
   dbMode: "local";
   dbPort: MessagePort;
+  throughputWindowMs: number;
 }
 
 interface InitMessageRemote {
@@ -61,6 +76,7 @@ interface InitMessageRemote {
   dbMode: "remote";
   dbUrl: string;
   dbAuthToken?: string;
+  throughputWindowMs: number;
 }
 
 type InitMessage = InitMessageLocal | InitMessageRemote;
@@ -85,6 +101,11 @@ interface JobError {
   error: string;
 }
 
+interface ThroughputReport {
+  type: "throughput";
+  bytesPerSec: number;
+}
+
 // ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
@@ -103,6 +124,16 @@ self.onmessage = async (event: MessageEvent<InitMessage | JobMessage>) => {
       });
       db = new DirectDbHandle(client);
     }
+
+    // Start the throughput heartbeat. Fires once per window regardless of how
+    // many jobs are active — aggregate load, not per-job reporting.
+    const windowMs = msg.throughputWindowMs;
+    setInterval(() => {
+      const bytesPerSec = Math.round(_bytesThisWindow * (1_000 / windowMs));
+      _bytesThisWindow = 0;
+      self.postMessage({ type: "throughput", bytesPerSec } satisfies ThroughputReport);
+    }, windowMs);
+
     return;
   }
   if (msg.type === "job") {
@@ -111,7 +142,7 @@ self.onmessage = async (event: MessageEvent<InitMessage | JobMessage>) => {
 };
 
 // ---------------------------------------------------------------------------
-// Upload pipeline — single-pass: count + accumulate + write
+// Upload pipeline — concurrent hash + write via tee()
 // ---------------------------------------------------------------------------
 
 async function handleJob(msg: JobMessage): Promise<void> {
@@ -126,38 +157,36 @@ async function handleJob(msg: JobMessage): Promise<void> {
       truncate: true,
     });
 
-    // Accumulate all chunks for hashing. We cannot use @std/crypto with a
-    // ReadableStream that is also being piped elsewhere (tee causes deadlock
-    // due to WASM digest consuming its branch without yielding). Instead we
-    // collect chunks in a side buffer during the single write pass and hash
-    // the completed buffer at the end. Memory cost: one copy of the blob,
-    // bounded by maxUploadSize (configured on the route, default 100MB).
-    const chunks: Uint8Array[] = [];
-    let totalSize = 0;
+    // Split the stream into two independent branches:
+    //   s1 → digest()    — consumed by the @std/crypto WASM DigestContext
+    //   s2 → pipeTo()    — written to the temp file on disk
+    //
+    // digest("SHA-256", s1) uses the AsyncIterable branch of @std/crypto:
+    //   for await (const chunk of s1) { context.update(chunk) }
+    // Hash state is constant ~104 bytes; no chunk accumulation occurs.
+    //
+    // The size counter runs as a TransformStream on s2 so it never touches s1.
+    // Both branches are driven concurrently by Promise.all(). The event loop
+    // interleaves them cooperatively at every chunk boundary. Under disk
+    // backpressure, the tee internal queue rate-limits s1 to match disk speed —
+    // correct behaviour, not a deadlock.
+    const [s1, s2] = stream.tee();
 
-    const collectingTransform = new TransformStream<Uint8Array, Uint8Array>({
+    let totalSize = 0;
+    const countingTransform = new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        // Clone the chunk before enqueueing — pipeTo takes ownership
-        const copy = chunk.slice();
-        chunks.push(copy);
         totalSize += chunk.byteLength;
+        _bytesThisWindow += chunk.byteLength;
         controller.enqueue(chunk);
       },
     });
 
-    // Single pass: stream → collectingTransform → file
-    await stream.pipeThrough(collectingTransform).pipeTo(file.writable);
+    const [hashBuffer] = await Promise.all([
+      stdCrypto.subtle.digest("SHA-256", s1 as ReadableStream<Uint8Array<ArrayBuffer>>),
+      s2.pipeThrough(countingTransform).pipeTo(file.writable),
+    ]);
     file = null; // writable closed by pipeTo
 
-    // Hash the accumulated buffer (CPU work, off main thread — that's the point)
-    const combined = new Uint8Array(totalSize);
-    let offset = 0;
-    for (const chunk of chunks) {
-      combined.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-
-    const hashBuffer = await stdCrypto.subtle.digest("SHA-256", combined);
     const hash = encodeHex(new Uint8Array(hashBuffer));
 
     // Verify against declared hash if provided

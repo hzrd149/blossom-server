@@ -78,9 +78,23 @@ upload:
 
   # Number of upload worker threads.
   # 0 = auto (navigator.hardwareConcurrency — one per CPU core).
-  # When all workers are busy, new uploads receive 503 Service Unavailable.
+  # Each worker handles multiple concurrent uploads (see maxJobsPerWorker).
+  # When all workers are at capacity, new uploads receive 503 Service Unavailable.
   # There is no queue: rejection is fast (~6ms) and body bytes are never read.
   workers: 0
+
+  # Maximum number of concurrent upload jobs a single worker will accept.
+  # Workers interleave jobs on their event loop during I/O, so a single slow
+  # upload does not monopolise a worker slot. Raise this if you expect many
+  # simultaneous slow or small uploads; lower it if uploads are large and
+  # CPU-bound (hashing dominates).
+  maxJobsPerWorker: 4
+
+  # How often (in milliseconds) each worker reports its aggregate throughput
+  # to the pool. The pool uses this to route new uploads to the worker
+  # currently handling the least I/O load (lowest bytes/sec).
+  # Lower values = more responsive routing; higher values = less overhead.
+  throughputWindowMs: 1000
 
   # Allowed MIME types. Empty list = all types accepted.
   # Example: ["image/jpeg", "image/png", "image/webp", "video/mp4"]
