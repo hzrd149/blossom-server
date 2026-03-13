@@ -1,5 +1,10 @@
 import React from "react";
-import { Admin, Resource, defaultLightTheme, defaultDarkTheme } from "react-admin";
+import {
+  Admin,
+  defaultDarkTheme,
+  defaultLightTheme,
+  Resource,
+} from "react-admin";
 import { Code, FolderOpen, People } from "@mui/icons-material";
 import { dataProvider } from "./dataProvider";
 import { authProvider } from "./authProvider";

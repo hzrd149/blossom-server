@@ -1,6 +1,19 @@
 import * as React from "react";
-import { useMediaQuery, Theme, Avatar, Stack, Box, Typography } from "@mui/material";
-import { Datagrid, List, SimpleList, TextField, useRecordContext } from "react-admin";
+import {
+  Avatar,
+  Box,
+  Stack,
+  Theme,
+  Typography,
+  useMediaQuery,
+} from "@mui/material";
+import {
+  Datagrid,
+  List,
+  SimpleList,
+  TextField,
+  useRecordContext,
+} from "react-admin";
 
 function NumberOfBlobs() {
   const record = useRecordContext();
@@ -25,15 +38,15 @@ function UserProfile() {
 export default function UserList() {
   return (
     <List sort={{ field: "pubkey", order: "ASC" }}>
-      {useMediaQuery((theme: Theme) => theme.breakpoints.down("md")) ? (
-        <SimpleList primaryText={(record) => record.pubkey} />
-      ) : (
-        <Datagrid optimized bulkActionButtons={<></>}>
-          <UserProfile />
-          <TextField source="pubkey" />
-          <NumberOfBlobs />
-        </Datagrid>
-      )}
+      {useMediaQuery((theme: Theme) => theme.breakpoints.down("md"))
+        ? <SimpleList primaryText={(record) => record.pubkey} />
+        : (
+          <Datagrid optimized bulkActionButtons={<></>}>
+            <UserProfile />
+            <TextField source="pubkey" />
+            <NumberOfBlobs />
+          </Datagrid>
+        )}
     </List>
   );
 }

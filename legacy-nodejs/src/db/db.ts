@@ -16,6 +16,8 @@ db.prepare(
 	)`,
 ).run();
 
-db.prepare("CREATE INDEX IF NOT EXISTS accessed_timestamp ON accessed (timestamp)").run();
+db.prepare(
+  "CREATE INDEX IF NOT EXISTS accessed_timestamp ON accessed (timestamp)",
+).run();
 
 export default db;

@@ -1,8 +1,19 @@
 {
   "tasks": {
-    "dev": "deno run --watch main.ts"
+    "dev": "deno run --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts",
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1"
+    "@hono/hono": "jsr:@hono/hono@^4.12.7",
+    "@libsql/client": "npm:@libsql/client@^0.17.0",
+    "@std/assert": "jsr:@std/assert@1",
+    "@std/crypto": "jsr:@std/crypto@^1.0.5",
+    "@std/encoding": "jsr:@std/encoding@^1.0.10",
+    "@std/log": "jsr:@std/log@^0.224.14",
+    "@std/path": "jsr:@std/path@^1.1.4",
+    "@std/ulid": "jsr:@std/ulid@^1.0.0",
+    "@std/yaml": "jsr:@std/yaml@^1.0.12",
+    "nostr-tools": "npm:nostr-tools@^2.23.3",
+    "zod": "npm:zod@^4.3.6"
   }
 }

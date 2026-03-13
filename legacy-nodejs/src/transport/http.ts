@@ -6,13 +6,17 @@ const { http, https } = followRedirects;
 import { HTTPPointer } from "../types.js";
 import { config } from "../config.js";
 
-export async function readHTTPPointer(pointer: HTTPPointer): Promise<IncomingMessage> {
+export async function readHTTPPointer(
+  pointer: HTTPPointer,
+): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
     const url = new URL(pointer.url);
     let agent: Agent | undefined = undefined;
 
     if (url.hostname.endsWith(".onion")) {
-      if (!config.tor.enabled) throw new Error("Cant load .onion address without tor");
+      if (!config.tor.enabled) {
+        throw new Error("Cant load .onion address without tor");
+      }
 
       agent = new SocksProxyAgent(config.tor.proxy);
     }

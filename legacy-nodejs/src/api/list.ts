@@ -12,10 +12,17 @@ router.get<CommonState>("/list/:pubkey", async (ctx) => {
   const until = query.until ? parseInt(query.until as string) : undefined;
 
   if (config.list.requireAuth) {
-    if (!ctx.state.auth) throw new HttpErrors.Unauthorized("Missing Auth event");
-    if (ctx.state.authType !== "list") throw new HttpErrors.Unauthorized("Incorrect Auth type");
-    if (config.list.allowListOthers === false && ctx.state.auth.pubkey !== pubkey)
+    if (!ctx.state.auth) {
+      throw new HttpErrors.Unauthorized("Missing Auth event");
+    }
+    if (ctx.state.authType !== "list") {
+      throw new HttpErrors.Unauthorized("Incorrect Auth type");
+    }
+    if (
+      config.list.allowListOthers === false && ctx.state.auth.pubkey !== pubkey
+    ) {
       throw new HttpErrors.Unauthorized("Cant list other pubkeys blobs");
+    }
   }
 
   const blobs = await blobDB.getOwnerBlobs(pubkey, { since, until });

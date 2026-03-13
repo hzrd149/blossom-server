@@ -26,23 +26,31 @@ export class BlossomApp extends LitElement {
     let content = "";
     switch (hash) {
       case "#list":
-        content = html`<list-blobs class="z-10 sm:max-w-4xl w-full"></list-blobs>`;
+        content = html`
+          <list-blobs class="z-10 sm:max-w-4xl w-full"></list-blobs>
+        `;
         break;
       case "#mirror":
-        content = html`<mirror-blobs class="z-10 sm:max-w-4xl w-full"></mirror-blobs>`;
+        content = html`
+          <mirror-blobs class="z-10 sm:max-w-4xl w-full"></mirror-blobs>
+        `;
         break;
       case "#upload":
       default:
-        content = html`<upload-form class="z-10 sm:max-w-lg w-full"></upload-form>`;
+        content = html`
+          <upload-form class="z-10 sm:max-w-lg w-full"></upload-form>
+        `;
         break;
     }
 
-    return html` <div
-      class="relative min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 bg-gray-500 bg-no-repeat bg-cover relative items-center"
-    >
-      <div class="absolute bg-black opacity-60 inset-0 z-0"></div>
-      ${content}
-    </div>`;
+    return html`
+      <div
+        class="relative min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 bg-gray-500 bg-no-repeat bg-cover relative items-center"
+      >
+        <div class="absolute bg-black opacity-60 inset-0 z-0"></div>
+        ${content}
+      </div>
+    `;
   }
 }
 

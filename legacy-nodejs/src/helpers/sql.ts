@@ -10,7 +10,13 @@ export function buildConditionsFromFilter(
   if (filter) {
     for (const [key, value] of Object.entries(filter)) {
       if (key === "q") {
-        conditions.push(`( ${searchFields.map((field) => `${safeColumn(field)} LIKE ?`).join(" OR ")} )`);
+        conditions.push(
+          `( ${
+            searchFields.map((field) => `${safeColumn(field)} LIKE ?`).join(
+              " OR ",
+            )
+          } )`,
+        );
         params.push(...searchFields.map(() => `%${value}%`));
       } else if (Array.isArray(value)) {
         conditions.push(`${safeColumn(key)} IN (${mapParams(value)})`);
@@ -22,10 +28,17 @@ export function buildConditionsFromFilter(
     }
   }
 
-  return { conditions, params, sql: conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "" };
+  return {
+    conditions,
+    params,
+    sql: conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "",
+  };
 }
 
-export function buildOrderByFromSort(sort: [string, string] | undefined, safeColumn: (name: string) => string) {
+export function buildOrderByFromSort(
+  sort: [string, string] | undefined,
+  safeColumn: (name: string) => string,
+) {
   if (sort) {
     if (sort[1] === "DESC") {
       return ` ORDER BY ${safeColumn(sort[0])} DESC`;

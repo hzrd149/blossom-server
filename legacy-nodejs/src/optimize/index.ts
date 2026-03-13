@@ -12,7 +12,8 @@ const log = logger.extend("optimize");
 
 export async function optimizeMedia(
   inputPath: string,
-  options: { video?: Partial<VideoOptions>; image?: Partial<ImageOptions> } = {},
+  options: { video?: Partial<VideoOptions>; image?: Partial<ImageOptions> } =
+    {},
 ): Promise<string> {
   let outputPath: string | undefined = undefined;
   try {
@@ -48,7 +49,9 @@ export async function optimizeMedia(
 
     const delta = Date.now() - start;
     log(
-      `Finished ${type} ${id} reduced ${inSize} -> ${outSize} ${Math.round((1 - outSize / inSize) * 100)}% ${delta}ms`,
+      `Finished ${type} ${id} reduced ${inSize} -> ${outSize} ${
+        Math.round((1 - outSize / inSize) * 100)
+      }% ${delta}ms`,
     );
 
     return outputPath!;
@@ -58,7 +61,8 @@ export async function optimizeMedia(
       if (outputPath) await pfs.rm(outputPath);
     } catch (error) {}
 
-    if (error instanceof Error) throw new Error(`Optimization failed: ${error.message}`);
-    else throw error;
+    if (error instanceof Error) {
+      throw new Error(`Optimization failed: ${error.message}`);
+    } else throw error;
   }
 }

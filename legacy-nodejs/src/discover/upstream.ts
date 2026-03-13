@@ -26,7 +26,10 @@ function checkCDN(cdn: string, search: BlobSearch): Promise<HTTPPointer> {
     const url = new URL("/" + search.hash, cdn);
     const backend = url.protocol === "https:" ? https : http;
 
-    const request = backend.request(url.toString(), { method: "HEAD", timeout: 5 * 1000 }, () => {});
+    const request = backend.request(url.toString(), {
+      method: "HEAD",
+      timeout: 5 * 1000,
+    }, () => {});
 
     request.on("response", (res) => {
       res.destroy();

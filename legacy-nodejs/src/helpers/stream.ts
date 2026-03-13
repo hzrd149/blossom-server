@@ -8,7 +8,11 @@ export class SplitStream extends Duplex {
     this.streams = streams;
   }
 
-  _write(chunk: any, encoding: BufferEncoding, callback: (error?: Error | null | undefined) => void): void {
+  _write(
+    chunk: any,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null | undefined) => void,
+  ): void {
     let failed = false;
     for (const stream of this.streams) {
       const res = stream.write(chunk);

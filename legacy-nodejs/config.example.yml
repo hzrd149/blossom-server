@@ -1,5 +1,5 @@
 # Blossom Server Configuration
-# 
+#
 # Environment Variable Support:
 # You can use environment variables in this config file using the syntax: "${VAR_NAME}"
 # For example: password: "${BLOSSOM_ADMIN_PASSWORD}"
@@ -57,7 +57,7 @@ storage:
   #   region: us-east-1
   #   If this is set the server will redirect clients when loading blobs
   #   publicURL: https://s3.region.example.com/
-  #   
+  #
   #   You can also use environment variables for sensitive values:
   #   accessKey: "${S3_ACCESS_KEY}"
   #   secretKey: "${S3_SECRET_KEY}"

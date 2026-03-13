@@ -19,7 +19,7 @@ router.get("/rules", (ctx) => {
           if (Array.isArray(value)) return value.includes(rule[key]);
           // @ts-expect-error
           return rule[key] === value;
-        }),
+        })
       );
     }
   }
@@ -29,7 +29,9 @@ router.get("/rules", (ctx) => {
     switch (key) {
       case "expiration":
         const now = dayjs().unix();
-        rules.sort((a, b) => getExpirationTime(b, now) - getExpirationTime(a, now));
+        rules.sort((a, b) =>
+          getExpirationTime(b, now) - getExpirationTime(a, now)
+        );
         break;
     }
 
@@ -39,7 +41,10 @@ router.get("/rules", (ctx) => {
   if (range) rules = rules.slice(range[0], range[1]);
 
   setContentRange(ctx, range, rules);
-  ctx.body = rules.map((rule) => ({ ...rule, id: config.storage.rules.indexOf(rule) }));
+  ctx.body = rules.map((rule) => ({
+    ...rule,
+    id: config.storage.rules.indexOf(rule),
+  }));
 });
 
 // getOne

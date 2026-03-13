@@ -1,0 +1,321 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@hono/hono@^4.12.7": "4.12.7",
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/crypto@*": "1.0.5",
+    "jsr:@std/crypto@1": "1.0.5",
+    "jsr:@std/crypto@^1.0.5": "1.0.5",
+    "jsr:@std/encoding@*": "1.0.10",
+    "jsr:@std/encoding@^1.0.10": "1.0.10",
+    "jsr:@std/fmt@^1.0.5": "1.0.9",
+    "jsr:@std/fs@^1.0.11": "1.0.22",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "jsr:@std/io@~0.225.2": "0.225.3",
+    "jsr:@std/log@~0.224.14": "0.224.14",
+    "jsr:@std/path@^1.1.4": "1.1.4",
+    "jsr:@std/ulid@1": "1.0.0",
+    "jsr:@std/yaml@^1.0.12": "1.0.12",
+    "npm:@libsql/client@0.17": "0.17.0",
+    "npm:nostr-tools@^2.23.3": "2.23.3",
+    "npm:zod@*": "4.3.6",
+    "npm:zod@^4.3.6": "4.3.6"
+  },
+  "jsr": {
+    "@hono/hono@4.12.7": {
+      "integrity": "d418c260eda1b1ad48bc0193b29ed1804c4fbee27cc92954c415f58743fd65e9"
+    },
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/crypto@1.0.5": {
+      "integrity": "0dcfbb319fe0bba1bd3af904ceb4f948cde1b92979ec1614528380ed308a3b40"
+    },
+    "@std/encoding@1.0.10": {
+      "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
+    },
+    "@std/fmt@1.0.9": {
+      "integrity": "2487343e8899fb2be5d0e3d35013e54477ada198854e52dd05ed0422eddcabe0"
+    },
+    "@std/fs@1.0.22": {
+      "integrity": "de0f277a58a867147a8a01bc1b181d0dfa80bfddba8c9cf2bacd6747bcec9308"
+    },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    },
+    "@std/io@0.225.3": {
+      "integrity": "27b07b591384d12d7b568f39e61dff966b8230559122df1e9fd11cc068f7ddd1"
+    },
+    "@std/log@0.224.14": {
+      "integrity": "257f7adceee3b53bb2bc86c7242e7d1bc59729e57d4981c4a7e5b876c808f05e",
+      "dependencies": [
+        "jsr:@std/fmt",
+        "jsr:@std/fs",
+        "jsr:@std/io"
+      ]
+    },
+    "@std/path@1.1.4": {
+      "integrity": "1d2d43f39efb1b42f0b1882a25486647cb851481862dc7313390b2bb044314b5",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/ulid@1.0.0": {
+      "integrity": "d41c3d27a907714413649fee864b7cde8d42ee68437d22b79d5de4f81d808780"
+    },
+    "@std/yaml@1.0.12": {
+      "integrity": "7deabca4545bcedd07c5f69ea53acea71b8b4c67562f224e17b90d75944cb20c"
+    }
+  },
+  "npm": {
+    "@libsql/client@0.17.0": {
+      "integrity": "sha512-TLjSU9Otdpq0SpKHl1tD1Nc9MKhrsZbCFGot3EbCxRa8m1E5R1mMwoOjKMMM31IyF7fr+hPNHLpYfwbMKNusmg==",
+      "dependencies": [
+        "@libsql/core",
+        "@libsql/hrana-client",
+        "js-base64",
+        "libsql",
+        "promise-limit"
+      ]
+    },
+    "@libsql/core@0.17.0": {
+      "integrity": "sha512-hnZRnJHiS+nrhHKLGYPoJbc78FE903MSDrFJTbftxo+e52X+E0Y0fHOCVYsKWcg6XgB7BbJYUrz/xEkVTSaipw==",
+      "dependencies": [
+        "js-base64"
+      ]
+    },
+    "@libsql/darwin-arm64@0.5.22": {
+      "integrity": "sha512-4B8ZlX3nIDPndfct7GNe0nI3Yw6ibocEicWdC4fvQbSs/jdq/RC2oCsoJxJ4NzXkvktX70C1J4FcmmoBy069UA==",
+      "os": ["darwin"],
+      "cpu": ["arm64"]
+    },
+    "@libsql/darwin-x64@0.5.22": {
+      "integrity": "sha512-ny2HYWt6lFSIdNFzUFIJ04uiW6finXfMNJ7wypkAD8Pqdm6nAByO+Fdqu8t7sD0sqJGeUCiOg480icjyQ2/8VA==",
+      "os": ["darwin"],
+      "cpu": ["x64"]
+    },
+    "@libsql/hrana-client@0.9.0": {
+      "integrity": "sha512-pxQ1986AuWfPX4oXzBvLwBnfgKDE5OMhAdR/5cZmRaB4Ygz5MecQybvwZupnRz341r2CtFmbk/BhSu7k2Lm+Jw==",
+      "dependencies": [
+        "@libsql/isomorphic-ws",
+        "cross-fetch",
+        "js-base64",
+        "node-fetch@3.3.2"
+      ]
+    },
+    "@libsql/isomorphic-ws@0.1.5": {
+      "integrity": "sha512-DtLWIH29onUYR00i0GlQ3UdcTRC6EP4u9w/h9LxpUZJWRMARk6dQwZ6Jkd+QdwVpuAOrdxt18v0K2uIYR3fwFg==",
+      "dependencies": [
+        "@types/ws",
+        "ws"
+      ]
+    },
+    "@libsql/linux-arm-gnueabihf@0.5.22": {
+      "integrity": "sha512-3Uo3SoDPJe/zBnyZKosziRGtszXaEtv57raWrZIahtQDsjxBVjuzYQinCm9LRCJCUT5t2r5Z5nLDPJi2CwZVoA==",
+      "os": ["linux"],
+      "cpu": ["arm"]
+    },
+    "@libsql/linux-arm-musleabihf@0.5.22": {
+      "integrity": "sha512-LCsXh07jvSojTNJptT9CowOzwITznD+YFGGW+1XxUr7fS+7/ydUrpDfsMX7UqTqjm7xG17eq86VkWJgHJfvpNg==",
+      "os": ["linux"],
+      "cpu": ["arm"]
+    },
+    "@libsql/linux-arm64-gnu@0.5.22": {
+      "integrity": "sha512-KSdnOMy88c9mpOFKUEzPskSaF3VLflfSUCBwas/pn1/sV3pEhtMF6H8VUCd2rsedwoukeeCSEONqX7LLnQwRMA==",
+      "os": ["linux"],
+      "cpu": ["arm64"]
+    },
+    "@libsql/linux-arm64-musl@0.5.22": {
+      "integrity": "sha512-mCHSMAsDTLK5YH//lcV3eFEgiR23Ym0U9oEvgZA0667gqRZg/2px+7LshDvErEKv2XZ8ixzw3p1IrBzLQHGSsw==",
+      "os": ["linux"],
+      "cpu": ["arm64"]
+    },
+    "@libsql/linux-x64-gnu@0.5.22": {
+      "integrity": "sha512-kNBHaIkSg78Y4BqAdgjcR2mBilZXs4HYkAmi58J+4GRwDQZh5fIUWbnQvB9f95DkWUIGVeenqLRFY2pcTmlsew==",
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "@libsql/linux-x64-musl@0.5.22": {
+      "integrity": "sha512-UZ4Xdxm4pu3pQXjvfJiyCzZop/9j/eA2JjmhMaAhe3EVLH2g11Fy4fwyUp9sT1QJYR1kpc2JLuybPM0kuXv/Tg==",
+      "os": ["linux"],
+      "cpu": ["x64"]
+    },
+    "@libsql/win32-x64-msvc@0.5.22": {
+      "integrity": "sha512-Fj0j8RnBpo43tVZUVoNK6BV/9AtDUM5S7DF3LB4qTYg1LMSZqi3yeCneUTLJD6XomQJlZzbI4mst89yspVSAnA==",
+      "os": ["win32"],
+      "cpu": ["x64"]
+    },
+    "@neon-rs/load@0.0.4": {
+      "integrity": "sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw=="
+    },
+    "@noble/ciphers@2.1.1": {
+      "integrity": "sha512-bysYuiVfhxNJuldNXlFEitTVdNnYUc+XNJZd7Qm2a5j1vZHgY+fazadNFWFaMK/2vye0JVlxV3gHmC0WDfAOQw=="
+    },
+    "@noble/curves@2.0.1": {
+      "integrity": "sha512-vs1Az2OOTBiP4q0pwjW5aF0xp9n4MxVrmkFBxc6EKZc6ddYx5gaZiAsZoq0uRRXWbi3AT/sBqn05eRPtn1JCPw==",
+      "dependencies": [
+        "@noble/hashes"
+      ]
+    },
+    "@noble/hashes@2.0.1": {
+      "integrity": "sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw=="
+    },
+    "@scure/base@2.0.0": {
+      "integrity": "sha512-3E1kpuZginKkek01ovG8krQ0Z44E3DHPjc5S2rjJw9lZn3KSQOs8S7wqikF/AH7iRanHypj85uGyxk0XAyC37w=="
+    },
+    "@scure/bip32@2.0.1": {
+      "integrity": "sha512-4Md1NI5BzoVP+bhyJaY3K6yMesEFzNS1sE/cP+9nuvE7p/b0kx9XbpDHHFl8dHtufcbdHRUUQdRqLIPHN/s7yA==",
+      "dependencies": [
+        "@noble/curves",
+        "@noble/hashes",
+        "@scure/base"
+      ]
+    },
+    "@scure/bip39@2.0.1": {
+      "integrity": "sha512-PsxdFj/d2AcJcZDX1FXN3dDgitDDTmwf78rKZq1a6c1P1Nan1X/Sxc7667zU3U+AN60g7SxxP0YCVw2H/hBycg==",
+      "dependencies": [
+        "@noble/hashes",
+        "@scure/base"
+      ]
+    },
+    "@types/node@25.3.5": {
+      "integrity": "sha512-oX8xrhvpiyRCQkG1MFchB09f+cXftgIXb3a7UUa4Y3wpmZPw5tyZGTLWhlESOLq1Rq6oDlc8npVU2/9xiCuXMA==",
+      "dependencies": [
+        "undici-types"
+      ]
+    },
+    "@types/ws@8.5.12": {
+      "integrity": "sha512-3tPRkv1EtkDpzlgyKyI8pGsGZAGPEaXeu0DOj5DI25Ja91bdAYddYHbADRYVrZMRbfW+1l5YwXVDKohDJNQxkQ==",
+      "dependencies": [
+        "@types/node"
+      ]
+    },
+    "cross-fetch@4.1.0": {
+      "integrity": "sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==",
+      "dependencies": [
+        "node-fetch@2.7.0"
+      ]
+    },
+    "data-uri-to-buffer@4.0.1": {
+      "integrity": "sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A=="
+    },
+    "detect-libc@2.0.2": {
+      "integrity": "sha512-UX6sGumvvqSaXgdKGUsgZWqcUyIXZ/vZTrlRT/iobiKhGL0zL4d3osHj3uqllWJK+i+sixDS/3COVEOFbupFyw=="
+    },
+    "fetch-blob@3.2.0": {
+      "integrity": "sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==",
+      "dependencies": [
+        "node-domexception",
+        "web-streams-polyfill"
+      ]
+    },
+    "formdata-polyfill@4.0.10": {
+      "integrity": "sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==",
+      "dependencies": [
+        "fetch-blob"
+      ]
+    },
+    "js-base64@3.7.8": {
+      "integrity": "sha512-hNngCeKxIUQiEUN3GPJOkz4wF/YvdUdbNL9hsBcMQTkKzboD7T/q3OYOuuPZLUE6dBxSGpwhk5mwuDud7JVAow=="
+    },
+    "libsql@0.5.22": {
+      "integrity": "sha512-NscWthMQt7fpU8lqd7LXMvT9pi+KhhmTHAJWUB/Lj6MWa0MKFv0F2V4C6WKKpjCVZl0VwcDz4nOI3CyaT1DDiA==",
+      "dependencies": [
+        "@neon-rs/load",
+        "detect-libc"
+      ],
+      "optionalDependencies": [
+        "@libsql/darwin-arm64",
+        "@libsql/darwin-x64",
+        "@libsql/linux-arm-gnueabihf",
+        "@libsql/linux-arm-musleabihf",
+        "@libsql/linux-arm64-gnu",
+        "@libsql/linux-arm64-musl",
+        "@libsql/linux-x64-gnu",
+        "@libsql/linux-x64-musl",
+        "@libsql/win32-x64-msvc"
+      ],
+      "os": ["darwin", "linux", "win32"],
+      "cpu": ["x64", "arm64", "wasm32", "arm"]
+    },
+    "node-domexception@1.0.0": {
+      "integrity": "sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==",
+      "deprecated": true
+    },
+    "node-fetch@2.7.0": {
+      "integrity": "sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==",
+      "dependencies": [
+        "whatwg-url"
+      ]
+    },
+    "node-fetch@3.3.2": {
+      "integrity": "sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==",
+      "dependencies": [
+        "data-uri-to-buffer",
+        "fetch-blob",
+        "formdata-polyfill"
+      ]
+    },
+    "nostr-tools@2.23.3": {
+      "integrity": "sha512-AALyt9k8xPdF4UV2mlLJ2mgCn4kpTB0DZ8t2r6wjdUh6anfx2cTVBsHUlo9U0EY/cKC5wcNyiMAmRJV5OVEalA==",
+      "dependencies": [
+        "@noble/ciphers",
+        "@noble/curves",
+        "@noble/hashes",
+        "@scure/base",
+        "@scure/bip32",
+        "@scure/bip39",
+        "nostr-wasm"
+      ]
+    },
+    "nostr-wasm@0.1.0": {
+      "integrity": "sha512-78BTryCLcLYv96ONU8Ws3Q1JzjlAt+43pWQhIl86xZmWeegYCNLPml7yQ+gG3vR6V5h4XGj+TxO+SS5dsThQIA=="
+    },
+    "promise-limit@2.7.0": {
+      "integrity": "sha512-7nJ6v5lnJsXwGprnGXga4wx6d1POjvi5Qmf1ivTRxTjH4Z/9Czja/UCMLVmB9N93GeWOU93XaFaEt6jbuoagNw=="
+    },
+    "tr46@0.0.3": {
+      "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw=="
+    },
+    "undici-types@7.18.2": {
+      "integrity": "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="
+    },
+    "web-streams-polyfill@3.3.3": {
+      "integrity": "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="
+    },
+    "webidl-conversions@3.0.1": {
+      "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="
+    },
+    "whatwg-url@5.0.0": {
+      "integrity": "sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==",
+      "dependencies": [
+        "tr46",
+        "webidl-conversions"
+      ]
+    },
+    "ws@8.19.0": {
+      "integrity": "sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg=="
+    },
+    "zod@4.3.6": {
+      "integrity": "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@hono/hono@^4.12.7",
+      "jsr:@std/assert@1",
+      "jsr:@std/crypto@^1.0.5",
+      "jsr:@std/encoding@^1.0.10",
+      "jsr:@std/log@~0.224.14",
+      "jsr:@std/path@^1.1.4",
+      "jsr:@std/ulid@1",
+      "jsr:@std/yaml@^1.0.12",
+      "npm:@libsql/client@0.17",
+      "npm:nostr-tools@^2.23.3",
+      "npm:zod@^4.3.6"
+    ]
+  }
+}

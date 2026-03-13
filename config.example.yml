@@ -1,0 +1,87 @@
+# Blossom Server Configuration
+#
+# Environment Variable Support:
+#   Use "${VAR_NAME}" anywhere in this file to substitute an env var at startup.
+#   Example: accessKey: "${S3_ACCESS_KEY}"
+#   If the env var is not set, the literal string "${VAR_NAME}" is kept.
+
+# Override the domain used in the "url" field of blob descriptors.
+# Defaults to the Host header of the incoming HTTP request.
+publicDomain: ""
+
+# Path to the LibSQL (SQLite-compatible) database file.
+databasePath: data/sqlite.db
+
+# HTTP port to listen on.
+port: 3000
+
+storage:
+  # Storage backend: "local" or "s3"
+  backend: local
+
+  local:
+    dir: ./data/blobs
+
+  # S3-compatible object storage
+  # s3:
+  #   endpoint: https://s3.amazonaws.com
+  #   bucket: my-blossom-bucket
+  #   accessKey: "${S3_ACCESS_KEY}"
+  #   secretKey: "${S3_SECRET_KEY}"
+  #   region: us-east-1
+  #   # If set, GET /:sha256 redirects to this URL prefix instead of proxying.
+  #   # The blob's sha256 + extension is appended automatically.
+  #   publicURL: https://my-bucket.s3.amazonaws.com/
+
+  # Remove blobs with no owners immediately (rather than waiting for expiry rules).
+  removeWhenNoOwners: false
+
+  # Expiry rules — checked in order; first match wins for the blob's type.
+  # Blobs whose last-access timestamp exceeds the expiration are pruned.
+  # "type" supports glob wildcards: "image/*", "*"
+  # "expiration" is a human-readable duration: "7 days", "1 month", "24 hours"
+  # "pubkeys" (optional) restricts the rule to specific uploader pubkeys.
+  rules:
+    - type: "image/*"
+      expiration: 1 month
+    - type: "video/*"
+      expiration: 1 week
+    - type: "*"
+      expiration: 1 week
+
+upload:
+  # Enable the PUT /upload endpoint (BUD-02).
+  enabled: true
+
+  # Require a valid BUD-11 Nostr auth token for uploads.
+  requireAuth: true
+
+  # Maximum blob size in bytes. Enforced from the Content-Length header
+  # BEFORE any body bytes are read. Requests without Content-Length
+  # receive 411 Length Required.
+  maxSize: 104857600 # 100 MB
+
+  # Number of hash worker threads for SHA-256 computation.
+  # 0 = auto (navigator.hardwareConcurrency — one per CPU core).
+  # When all workers are busy, new uploads receive 503 Service Unavailable.
+  # There is no queue: rejection is fast (~6ms) and body bytes are never read.
+  hashWorkers: 0
+
+  # Allowed MIME types. Empty list = all types accepted.
+  # Example: ["image/jpeg", "image/png", "image/webp", "video/mp4"]
+  allowedTypes: []
+
+list:
+  # Enable the GET /list/:pubkey endpoint (BUD-02).
+  # This endpoint is optional and unrecommended per the BUD-02 spec.
+  enabled: false
+
+  # Require a valid BUD-11 auth token to list blobs.
+  requireAuth: false
+
+  # Allow listing blobs uploaded by other pubkeys.
+  allowListOthers: true
+
+delete:
+  # Require a valid BUD-11 auth token to delete blobs.
+  requireAuth: true

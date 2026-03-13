@@ -19,7 +19,9 @@ export function readBlobAsArrayBuffer(file) {
 
 export async function getFileSha256(file) {
   const { bytesToHex } = await import("./lib/@noble/hashes/utils.js");
-  const buffer = file instanceof File ? await file.arrayBuffer() : await readBlobAsArrayBuffer(file);
+  const buffer = file instanceof File
+    ? await file.arrayBuffer()
+    : await readBlobAsArrayBuffer(file);
   let hash;
   if (crypto.subtle) {
     const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);

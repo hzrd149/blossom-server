@@ -10,7 +10,12 @@ import { ImageOptions } from "./optimize/image.js";
 
 const log = logger.extend("config");
 
-export type Rule = { id: string; type: string; pubkeys?: string[]; expiration: string };
+export type Rule = {
+  id: string;
+  type: string;
+  pubkeys?: string[];
+  expiration: string;
+};
 export type Config = {
   publicDomain: string;
   databasePath: string;
@@ -72,7 +77,7 @@ export type Config = {
  * If the environment variable is not set, the original string is kept.
  */
 function interpolateEnvVars(obj: any): any {
-  if (typeof obj === 'string') {
+  if (typeof obj === "string") {
     // Match ${VAR_NAME} pattern
     return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
       const envValue = process.env[varName];
@@ -80,7 +85,7 @@ function interpolateEnvVars(obj: any): any {
     });
   } else if (Array.isArray(obj)) {
     return obj.map(interpolateEnvVars);
-  } else if (obj !== null && typeof obj === 'object') {
+  } else if (obj !== null && typeof obj === "object") {
     const result: any = {};
     for (const [key, value] of Object.entries(obj)) {
       result[key] = interpolateEnvVars(value);
@@ -120,7 +125,9 @@ const defaultConfig: Config = {
 };
 
 const searchPlaces = ["config.yaml", "config.yml", "config.json"];
-if (process.env.BLOSSOM_CONFIG) searchPlaces.unshift(process.env.BLOSSOM_CONFIG);
+if (process.env.BLOSSOM_CONFIG) {
+  searchPlaces.unshift(process.env.BLOSSOM_CONFIG);
+}
 
 const result = await lilconfig("blossom", {
   searchPlaces,
@@ -138,13 +145,19 @@ const config = mergeDeep(defaultConfig, result?.config ?? {}) as Config;
 function saveConfig() {
   if (result) {
     if (result.filepath.includes(".json")) {
-      fs.writeFileSync(result.filepath, JSON.stringify(config), { encoding: "utf-8" });
+      fs.writeFileSync(result.filepath, JSON.stringify(config), {
+        encoding: "utf-8",
+      });
     } else {
-      fs.writeFileSync(result.filepath, yaml.stringify(config), { encoding: "utf-8" });
+      fs.writeFileSync(result.filepath, yaml.stringify(config), {
+        encoding: "utf-8",
+      });
     }
     log("Saved config file", result.filepath);
   } else {
-    fs.writeFileSync("config.yml", yaml.stringify(config), { encoding: "utf-8" });
+    fs.writeFileSync("config.yml", yaml.stringify(config), {
+      encoding: "utf-8",
+    });
     log("Saved config file config.yml");
   }
 }
