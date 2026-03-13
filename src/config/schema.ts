@@ -45,7 +45,7 @@ const UploadSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(100 * 1024 * 1024), // 100MB
+    .default(2 * 1024 * 1024 * 1024), // 2GB
   // Number of upload worker threads. 0 = navigator.hardwareConcurrency.
   // No queue: pool full → 503 immediately.
   workers: z.number().int().min(0).default(0),

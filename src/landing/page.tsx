@@ -35,6 +35,8 @@ export const LandingPage: FC<{ db: DbProxy; config: Config }> = async (
         uploadEnabled={config.upload.enabled}
         mediaEnabled={config.media.enabled}
         mediaRequireAuth={config.media.requireAuth}
+        mirrorEnabled={config.mirror.enabled}
+        mirrorRequireAuth={config.mirror.requireAuth}
       />
     </Layout>
   );

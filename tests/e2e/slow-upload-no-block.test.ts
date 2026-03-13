@@ -69,7 +69,10 @@ const FAST_UPLOAD_MAX_MS = 2_000;
 // ---------------------------------------------------------------------------
 
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  const buf = await stdCrypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
+  const buf = await stdCrypto.subtle.digest(
+    "SHA-256",
+    data.buffer as ArrayBuffer,
+  );
   return encodeHex(new Uint8Array(buf));
 }
 
@@ -78,7 +81,11 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
  * sleeping `intervalMs` between each chunk enqueue. The stream takes at least
  * count × intervalMs milliseconds to fully consume.
  */
-function makeSlowStream(chunk: Uint8Array, count: number, intervalMs: number): ReadableStream<Uint8Array> {
+function makeSlowStream(
+  chunk: Uint8Array,
+  count: number,
+  intervalMs: number,
+): ReadableStream<Uint8Array> {
   let emitted = 0;
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -103,7 +110,8 @@ let tmpDir: string;
 let pool: ReturnType<typeof initPool>;
 
 Deno.test({
-  name: `stress setup: initialize server with 1 worker, maxJobsPerWorker=${MAX_JOBS_PER_WORKER}`,
+  name:
+    `stress setup: initialize server with 1 worker, maxJobsPerWorker=${MAX_JOBS_PER_WORKER}`,
   async fn() {
     tmpDir = await Deno.makeTempDir({ prefix: "blossom_stress_slow_" });
     const dbPath = join(tmpDir, "test.db");
@@ -138,7 +146,8 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "stress: fast uploads complete while a slow upload is in-flight on the same worker",
+  name:
+    "stress: fast uploads complete while a slow upload is in-flight on the same worker",
   async fn() {
     // --- Build the slow upload body ---
     const slowChunk = new Uint8Array(64).fill(0xab);
@@ -151,7 +160,11 @@ Deno.test({
     const expectedSlowHash = await sha256Hex(slowBodyFull);
 
     // --- Start the slow upload (do NOT await — let it run in background) ---
-    const slowStream = makeSlowStream(slowChunk, SLOW_CHUNK_COUNT, SLOW_CHUNK_INTERVAL_MS);
+    const slowStream = makeSlowStream(
+      slowChunk,
+      SLOW_CHUNK_COUNT,
+      SLOW_CHUNK_INTERVAL_MS,
+    );
     const slowUploadPromise = app.fetch(
       new Request("http://localhost/upload", {
         method: "PUT",
@@ -188,8 +201,7 @@ Deno.test({
             },
             body: fastBody.slice(),
           }),
-        )
-      ),
+        )),
     );
 
     const fastElapsedMs = performance.now() - fastStart;
@@ -200,7 +212,9 @@ Deno.test({
       assertEquals(
         res.status,
         200,
-        `Fast upload #${i + 1} returned ${res.status} — expected 200 (not blocked by slow upload)`,
+        `Fast upload #${
+          i + 1
+        } returned ${res.status} — expected 200 (not blocked by slow upload)`,
       );
       const json = await res.json();
       assertEquals(
@@ -213,7 +227,9 @@ Deno.test({
     assertEquals(
       fastElapsedMs < FAST_UPLOAD_MAX_MS,
       true,
-      `Fast uploads took ${fastElapsedMs.toFixed(0)} ms — expected < ${FAST_UPLOAD_MAX_MS} ms. ` +
+      `Fast uploads took ${
+        fastElapsedMs.toFixed(0)
+      } ms — expected < ${FAST_UPLOAD_MAX_MS} ms. ` +
         `If this fails, the slow upload may be serialising the worker.`,
     );
 
@@ -240,7 +256,8 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "stress: 503 when all job slots are saturated (maxJobsPerWorker exceeded)",
+  name:
+    "stress: 503 when all job slots are saturated (maxJobsPerWorker exceeded)",
   async fn() {
     // Fill all MAX_JOBS_PER_WORKER slots simultaneously, then verify the next
     // request returns 503 (pool saturated — no-queue policy).
@@ -255,7 +272,11 @@ Deno.test({
 
     // Start slotCount slow uploads — do NOT await
     const slowPromises = Array.from({ length: slotCount }, () => {
-      const stream = makeSlowStream(slot, SLOW_CHUNK_COUNT, SLOW_CHUNK_INTERVAL_MS);
+      const stream = makeSlowStream(
+        slot,
+        SLOW_CHUNK_COUNT,
+        SLOW_CHUNK_INTERVAL_MS,
+      );
       return app.fetch(
         new Request("http://localhost/upload", {
           method: "PUT",

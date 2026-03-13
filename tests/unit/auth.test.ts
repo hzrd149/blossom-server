@@ -8,9 +8,17 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { HTTPException } from "@hono/hono/http-exception";
-import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+} from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
-import { parseAuthEvent, requireAuth, requireXTag } from "../../src/middleware/auth.ts";
+import {
+  parseAuthEvent,
+  requireAuth,
+  requireXTag,
+} from "../../src/middleware/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,12 +28,14 @@ const sk = generateSecretKey();
 const _pk = getPublicKey(sk);
 
 /** Build a valid BUD-11 kind 24242 auth event. Accepts tag overrides. */
-function makeEvent(overrides: Partial<{
-  kind: number;
-  created_at: number;
-  tags: string[][];
-  content: string;
-}>): NostrEvent {
+function makeEvent(
+  overrides: Partial<{
+    kind: number;
+    created_at: number;
+    tags: string[][];
+    content: string;
+  }>,
+): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
   return finalizeEvent(
     {
@@ -240,7 +250,12 @@ Deno.test("requireAuth: throws 401 when no auth", () => {
 });
 
 Deno.test("requireAuth: throws 403 when t tag type does not match", () => {
-  const event = makeEvent({ tags: [["t", "delete"], ["expiration", String(Math.floor(Date.now() / 1000) + 600)]] });
+  const event = makeEvent({
+    tags: [["t", "delete"], [
+      "expiration",
+      String(Math.floor(Date.now() / 1000) + 600),
+    ]],
+  });
   const ctx = makeCtx(event, "delete");
   try {
     requireAuth(ctx, "upload");

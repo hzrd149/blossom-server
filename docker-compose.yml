@@ -15,7 +15,10 @@ services:
     healthcheck:
       # Lightweight TCP probe — avoids needing curl/wget in the alpine image.
       # Deno's HTTP server is ready when it accepts connections on port 3000.
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      test: [
+        "CMD-SHELL",
+        "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1",
+      ]
       interval: 5s
       timeout: 3s
       retries: 10

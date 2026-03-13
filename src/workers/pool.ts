@@ -88,7 +88,13 @@ export class UploadWorkerPool {
   private jobCounter = 0;
   private readonly maxJobsPerWorker: number;
 
-  constructor(size: number, maxJobsPerWorker: number, throughputWindowMs: number, db: Client, dbConfig: DbConfig) {
+  constructor(
+    size: number,
+    maxJobsPerWorker: number,
+    throughputWindowMs: number,
+    db: Client,
+    dbConfig: DbConfig,
+  ) {
     this.maxJobsPerWorker = maxJobsPerWorker;
     const remote = dbConfig.url !== undefined;
 
@@ -168,7 +174,8 @@ export class UploadWorkerPool {
 
   /** Number of workers that have capacity for at least one more job. */
   get available(): number {
-    return this.workers.filter((w) => w.jobCount < this.maxJobsPerWorker).length;
+    return this.workers.filter((w) => w.jobCount < this.maxJobsPerWorker)
+      .length;
   }
 
   /**
@@ -245,8 +252,16 @@ export function initPool(
   dbConfig: DbConfig,
 ): UploadWorkerPool {
   const size = workers > 0 ? workers : navigator.hardwareConcurrency;
-  _pool = new UploadWorkerPool(size, maxJobsPerWorker, throughputWindowMs, db, dbConfig);
-  console.log(`Upload worker pool initialized with ${size} workers (max ${maxJobsPerWorker} jobs/worker).`);
+  _pool = new UploadWorkerPool(
+    size,
+    maxJobsPerWorker,
+    throughputWindowMs,
+    db,
+    dbConfig,
+  );
+  console.log(
+    `Upload worker pool initialized with ${size} workers (max ${maxJobsPerWorker} jobs/worker).`,
+  );
   return _pool;
 }
 

@@ -42,10 +42,16 @@ export async function optimizeImage(
       pipeline = pipeline.webp({ quality: opts.quality });
       break;
     case "jpeg":
-      pipeline = pipeline.jpeg({ quality: opts.quality, progressive: opts.progressive });
+      pipeline = pipeline.jpeg({
+        quality: opts.quality,
+        progressive: opts.progressive,
+      });
       break;
     case "png":
-      pipeline = pipeline.png({ quality: opts.quality, progressive: opts.progressive });
+      pipeline = pipeline.png({
+        quality: opts.quality,
+        progressive: opts.progressive,
+      });
       break;
   }
 
@@ -87,9 +93,15 @@ export async function optimizeGif(
     const delay = Math.round(1000 / opts.fps);
     pipeline = pipeline.webp({ quality: opts.quality, delay });
   } else if (opts.outputFormat === "jpeg") {
-    pipeline = pipeline.jpeg({ quality: opts.quality, progressive: opts.progressive });
+    pipeline = pipeline.jpeg({
+      quality: opts.quality,
+      progressive: opts.progressive,
+    });
   } else {
-    pipeline = pipeline.png({ quality: opts.quality, progressive: opts.progressive });
+    pipeline = pipeline.png({
+      quality: opts.quality,
+      progressive: opts.progressive,
+    });
   }
 
   await pipeline.toFile(outputPath);

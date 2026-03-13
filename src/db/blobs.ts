@@ -155,7 +155,8 @@ export async function getMediaDerivative(
   originalSha256: string,
 ): Promise<string | null> {
   const rs = await db.execute({
-    sql: "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
+    sql:
+      "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
     args: [originalSha256],
   });
   const row = rs.rows[0];
@@ -170,7 +171,8 @@ export async function insertMediaDerivative(
   optimizedSha256: string,
 ): Promise<void> {
   await db.execute({
-    sql: "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
+    sql:
+      "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
     args: [originalSha256, optimizedSha256],
   });
 }

@@ -17,7 +17,7 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
     : ["All types accepted"];
 
   return (
-    <section>
+    <section id="server-info">
       <h2 class="text-lg font-semibold text-gray-400 mb-4">Server Info</h2>
       <div class="bg-gray-900 rounded-xl p-6 border border-gray-800 space-y-4">
         {/* Upload section */}

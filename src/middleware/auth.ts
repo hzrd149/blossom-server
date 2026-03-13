@@ -27,7 +27,10 @@ declare module "@hono/hono" {
  * of + and /). Uses @std/encoding/base64url which handles both padded and
  * unpadded Base64url correctly.
  */
-export function parseAuthEvent(raw: string, serverDomain: string | null): NostrEvent {
+export function parseAuthEvent(
+  raw: string,
+  serverDomain: string | null,
+): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
 
   let auth: NostrEvent;

@@ -74,7 +74,7 @@ upload:
   # Maximum blob size in bytes. Enforced from the Content-Length header
   # BEFORE any body bytes are read. Requests without Content-Length
   # receive 411 Length Required.
-  maxSize: 104857600 # 100 MB
+  maxSize: 2147483648 # 2 GB
 
   # Number of upload worker threads.
   # 0 = auto (navigator.hardwareConcurrency — one per CPU core).

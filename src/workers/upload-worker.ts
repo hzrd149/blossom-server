@@ -131,7 +131,9 @@ self.onmessage = async (event: MessageEvent<InitMessage | JobMessage>) => {
     setInterval(() => {
       const bytesPerSec = Math.round(_bytesThisWindow * (1_000 / windowMs));
       _bytesThisWindow = 0;
-      self.postMessage({ type: "throughput", bytesPerSec } satisfies ThroughputReport);
+      self.postMessage(
+        { type: "throughput", bytesPerSec } satisfies ThroughputReport,
+      );
     }, windowMs);
 
     return;
@@ -182,7 +184,10 @@ async function handleJob(msg: JobMessage): Promise<void> {
     });
 
     const [hashBuffer] = await Promise.all([
-      stdCrypto.subtle.digest("SHA-256", s1 as ReadableStream<Uint8Array<ArrayBuffer>>),
+      stdCrypto.subtle.digest(
+        "SHA-256",
+        s1 as ReadableStream<Uint8Array<ArrayBuffer>>,
+      ),
       s2.pipeThrough(countingTransform).pipeTo(file.writable),
     ]);
     file = null; // writable closed by pipeTo
