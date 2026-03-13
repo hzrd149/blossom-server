@@ -316,10 +316,148 @@ tests/
 ## Running tests
 
 ```bash
-deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/
+deno task test
 ```
 
-Add to `deno.json`:
-```json
-"test": "deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/"
+Which expands to:
+```bash
+deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/
+```
+
+`tests/stress/` is excluded from `deno task test` — those scripts run inside the k6 Docker
+container, not the Deno runtime.
+
+---
+
+## Stress tests
+
+Stress tests live in `tests/stress/` and run via [k6](https://k6.io) inside a Docker container.
+They target a resource-limited server instance to find throughput ceilings, confirm the no-queue
+503 policy, and detect event-loop stalls.
+
+### Prerequisites
+
+- Docker with Compose v2 (`docker compose version`)
+- No other process bound to port 3000 on the host
+
+### Config
+
+`config.stress.yml` is the server config used during stress runs. Key differences from production:
+
+| Key | Stress value | Reason |
+|---|---|---|
+| `upload.requireAuth` | `false` | k6 scripts don't generate Nostr signed events |
+| `upload.workers` | `2` | Pinned pool size — makes 503 behaviour deterministic |
+| `upload.maxSize` | `10485760` (10 MB) | Smaller ceiling; workers saturate faster |
+| `list.enabled` | `true` | Expose list endpoint for future list-stress scenarios |
+
+Never use `config.stress.yml` in production — it disables auth on all endpoints.
+
+### Running
+
+All commands use a Compose overlay. The `blossom` service gets 2 CPU cores and 512 MB RAM via
+`docker-compose.stress.yml` resource limits.
+
+```bash
+# Default scenario — concurrent upload ramp (upload-concurrent.js):
+docker compose -f docker-compose.yml -f docker-compose.stress.yml up --build --abort-on-container-exit
+
+# Run a specific scenario:
+docker compose -f docker-compose.yml -f docker-compose.stress.yml run --rm k6 run /scripts/upload-flood.js
+docker compose -f docker-compose.yml -f docker-compose.stress.yml run --rm k6 run /scripts/upload-large.js
+
+# Tear down and wipe the stress data volume when done:
+docker compose -f docker-compose.yml -f docker-compose.stress.yml down -v
+```
+
+k6 exits 0 when all thresholds pass, non-zero when any threshold fails — CI-friendly.
+
+The k6 service depends on the `blossom` healthcheck (`wget` probe on port 3000, 15 s start
+period, 5 s interval). k6 does not fire until the server is confirmed healthy.
+
+### Scenarios
+
+#### `upload-concurrent.js` — Concurrent upload ramp
+
+Ramps from 1 to 50 virtual users (VUs) over 30 s, holds at 50 for 30 s, then ramps down. Each
+VU continuously sends `PUT /upload` with a 1 MB body.
+
+**What it probes:** worker pool exhaustion, SQLite write contention through the DbBridge
+MessageChannel proxy, event-loop throughput under concurrent async I/O, memory growth under
+sustained concurrent write load.
+
+**Expected behaviour:** once more than 2 uploads are in-flight simultaneously, additional requests
+receive `503` immediately (~6 ms). The 503 rate should be high but stable — not climbing over time.
+The server must not crash.
+
+**Thresholds:**
+- `http_req_failed < 80%` — at least 20% of requests must succeed (pool not permanently stuck)
+- `http_req_duration{p95, expected_response:true} < 5000 ms` — tail latency bounded
+
+---
+
+#### `upload-flood.js` — Tiny-body throughput flood
+
+100 VUs, constant load, 20 s, each uploading a 1-byte body as fast as possible (no sleep).
+
+**What it probes:** Deno HTTP server `accept()` throughput, Hono middleware pipeline speed, worker
+dispatch path. Because 1-byte uploads finish in under 1 ms, workers cycle very fast and many
+requests may succeed. If p99 latency trends upward over the 20 s window the event loop is stalling.
+
+**Expected behaviour:** very high RPS; latency should be flat over time, not climbing.
+
+**Thresholds:**
+- `http_req_duration{p99, expected_response:true} < 500 ms`
+- `http_req_failed < 95%`
+
+---
+
+#### `upload-large.js` — Large-body sustained pressure
+
+5 VUs, constant load, 60 s, each uploading an 8 MB body back-to-back.
+
+**What it probes:** disk I/O throughput on the Docker volume, sustained worker occupation (8 MB
+bodies hold a worker far longer than 1 MB bodies), memory behaviour under concurrent large streaming
+writes, DbBridge correctness at slower write cadence.
+
+**Expected behaviour:** at most 2 uploads in-flight at once. VUs 3–5 receive `503` and retry on the
+next iteration. No OOM: 5 × 8 MB = 40 MB peak in-flight, well within the 512 MB container limit.
+
+**Thresholds:**
+- `http_req_failed < 75%` — at least 25% succeed (pool: 2 workers, 5 VUs → ~40% theoretical max)
+- `http_req_duration{p95, expected_response:true} < 30000 ms`
+
+---
+
+### Interpreting results
+
+k6 prints a summary table at the end of every run. Key metrics to watch:
+
+| Metric | What it means |
+|---|---|
+| `http_req_failed` | Fraction of requests that errored or got non-2xx. High 503 rate is expected and correct. A non-zero rate of 500/502 is a bug. |
+| `http_req_duration{p95}` | 95th-percentile latency for successful responses. Should be stable, not trending up. |
+| `http_req_duration{p99}` | 99th-percentile. A climbing p99 during `upload-flood.js` indicates event-loop stall. |
+| `checks` | Pass rate of inline assertions (e.g. "no unexpected 5xx"). Failures here are always bugs. |
+| `iterations` | Total number of VU loop executions. Low iterations on `upload-large.js` is expected (long I/O). |
+
+**Signs of a crash or stall (bad):**
+- Server container exits with a non-zero code during the run
+- p99 climbs monotonically over the test duration
+- `http_req_failed` rate reaches 100% and stays there (pool permanently stuck)
+- `checks` failure rate on "no 5xx server errors" assertions
+
+**Signs of correct no-queue behaviour (expected):**
+- `http_req_failed` is high (50–80%) due to `503` responses
+- Successful uploads complete at roughly constant latency throughout the test
+- k6 summary shows `✓ status 200 or 503` checks passing at ~100%
+
+### File layout
+
+```
+tests/
+  stress/
+    upload-concurrent.js   1 → 50 VU ramp, 1 MB bodies — pool exhaustion
+    upload-flood.js        100 VU constant, 1-byte bodies — event-loop throughput
+    upload-large.js        5 VU constant, 8 MB bodies — disk I/O + sustained occupation
 ```

@@ -12,3 +12,11 @@ services:
       # Host-mounted config (read-only). Copy config.example.yml → config.yml to start.
       - ./config.yml:/app/config.yml:ro
     restart: unless-stopped
+    healthcheck:
+      # Lightweight TCP probe — avoids needing curl/wget in the alpine image.
+      # Deno's HTTP server is ready when it accepts connections on port 3000.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
