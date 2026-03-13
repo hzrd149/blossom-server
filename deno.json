@@ -1,7 +1,13 @@
 {
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
+  },
   "tasks": {
     "dev": "deno run --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts",
-    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts"
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts",
+    "test": "deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/",
+    "bundle": "deno bundle --platform browser --minify src/landing/client.tsx -o src/landing/client.bundle.js"
   },
   "imports": {
     "@hono/hono": "jsr:@hono/hono@^4.12.7",
@@ -14,6 +20,9 @@
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
     "nostr-tools": "npm:nostr-tools@^2.23.3",
-    "zod": "npm:zod@^4.3.6"
+    "zod": "npm:zod@^4.3.6",
+    "hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
+    "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
+    "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime"
   }
 }

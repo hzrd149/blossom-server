@@ -3,12 +3,32 @@ import { dirname } from "@std/path";
 
 let _client: Client | null = null;
 
-export async function initDb(databasePath: string): Promise<Client> {
-  // Ensure the parent directory exists
-  const dir = dirname(databasePath);
-  await Deno.mkdir(dir, { recursive: true });
+export interface DbConfig {
+  // Local SQLite path. Used when url is not set.
+  path: string;
+  // Remote libSQL / Turso URL. When present, path is ignored.
+  url?: string;
+  // Auth token for remote libSQL / Turso. Not required for local sqld.
+  authToken?: string;
+}
 
-  const client = createClient({ url: `file:${databasePath}` });
+/** Returns true when the config points at a remote (non-file:) libSQL server. */
+export function isRemoteDb(config: DbConfig): boolean {
+  return config.url !== undefined;
+}
+
+export async function initDb(config: DbConfig): Promise<Client> {
+  const remote = isRemoteDb(config);
+  let client: Client;
+
+  if (remote) {
+    client = createClient({ url: config.url!, authToken: config.authToken });
+  } else {
+    // Ensure the parent directory exists for local SQLite
+    const dir = dirname(config.path);
+    await Deno.mkdir(dir, { recursive: true });
+    client = createClient({ url: `file:${config.path}` });
+  }
 
   // Run initial migration
   const migrationSql = await Deno.readTextFile(
@@ -25,10 +45,12 @@ export async function initDb(databasePath: string): Promise<Client> {
     await client.execute(stmt);
   }
 
-  // Enable WAL mode for better concurrent read performance
-  await client.execute("PRAGMA journal_mode=WAL");
-  await client.execute("PRAGMA synchronous=NORMAL");
-  await client.execute("PRAGMA foreign_keys=ON");
+  // WAL mode and related pragmas are SQLite-only — skip for remote libSQL
+  if (!remote) {
+    await client.execute("PRAGMA journal_mode=WAL");
+    await client.execute("PRAGMA synchronous=NORMAL");
+    await client.execute("PRAGMA foreign_keys=ON");
+  }
 
   _client = client;
   return client;

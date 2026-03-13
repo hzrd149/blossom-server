@@ -10,14 +10,15 @@
  */
 
 import type { DbRequest, DbResponse } from "./bridge.ts";
-import type { BlobRecord } from "./blobs.ts";
+import type { IDbHandle } from "./handle.ts";
+import type { BlobRecord, BlobStats } from "./blobs.ts";
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
 }
 
-export class DbProxy {
+export class DbProxy implements IDbHandle {
   private pending = new Map<number, PendingRequest>();
   private counter = 0;
 
@@ -65,5 +66,9 @@ export class DbProxy {
 
   isOwner(sha256: string, pubkey: string): Promise<boolean> {
     return this.call<boolean>("isOwner", [sha256, pubkey]);
+  }
+
+  getStats(): Promise<BlobStats> {
+    return this.call<BlobStats>("getStats", []);
   }
 }

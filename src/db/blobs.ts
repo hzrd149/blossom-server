@@ -1,5 +1,11 @@
 import type { Client } from "@libsql/client";
 
+export interface BlobStats {
+  blobCount: number;
+  totalSize: number;
+  dailyUploads: number;
+}
+
 export interface BlobRecord {
   sha256: string;
   size: number;
@@ -124,6 +130,23 @@ export async function listBlobsByPubkey(
     type: row[2] as string | null,
     uploaded: row[3] as number,
   }));
+}
+
+/** Aggregate stats across all blobs: total count, total bytes, uploads in last 24h. */
+export async function getBlobStats(db: Client): Promise<BlobStats> {
+  const rs = await db.execute(`
+    SELECT
+      COUNT(*),
+      COALESCE(SUM(size), 0),
+      COUNT(CASE WHEN uploaded > unixepoch() - 86400 THEN 1 END)
+    FROM blobs
+  `);
+  const row = rs.rows[0];
+  return {
+    blobCount: row[0] as number,
+    totalSize: row[1] as number,
+    dailyUploads: row[2] as number,
+  };
 }
 
 /** Check whether a pubkey is an owner of a blob. */

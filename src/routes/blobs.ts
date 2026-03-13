@@ -109,7 +109,7 @@ export function buildBlobsRouter(
 }
 
 /** Parse a Range: bytes=start-end header. Returns null for unsatisfiable ranges. */
-function parseRange(
+export function parseRange(
   header: string,
   totalSize: number,
 ): { start: number; end: number } | null {

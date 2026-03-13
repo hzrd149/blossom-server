@@ -9,8 +9,23 @@
 # Defaults to the Host header of the incoming HTTP request.
 publicDomain: ""
 
-# Path to the LibSQL (SQLite-compatible) database file.
-databasePath: data/sqlite.db
+database:
+  # Path to the local SQLite file.
+  # Ignored when "url" is set.
+  path: data/sqlite.db
+
+  # Remote libSQL / Turso URL. When set, each upload worker opens its own
+  # direct connection — no MessageChannel bridge needed.
+  # Use "libsql://your-db.turso.io" for Turso cloud, or
+  # "http://localhost:8080" for a local sqld container:
+  #   docker run -p 8080:8080 ghcr.io/tursodatabase/libsql-server:latest
+  # url: libsql://your-db.turso.io
+
+  # Auth token for Turso cloud. Not required for a local sqld container.
+  # authToken: "${TURSO_AUTH_TOKEN}"
+
+# Deprecated: use the "database" section above instead.
+# databasePath: data/sqlite.db
 
 # HTTP port to listen on.
 port: 3000

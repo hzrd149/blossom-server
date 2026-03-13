@@ -11,7 +11,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import { hasBlob, getBlob, insertBlob, isOwner, type BlobRecord } from "./blobs.ts";
+import { hasBlob, getBlob, insertBlob, isOwner, getBlobStats, type BlobRecord } from "./blobs.ts";
 
 // ---------------------------------------------------------------------------
 // Wire types (structured-cloned over MessageChannel)
@@ -21,7 +21,8 @@ export type DbRequest =
   | { reqId: number; op: "hasBlob";    args: [sha256: string] }
   | { reqId: number; op: "getBlob";    args: [sha256: string] }
   | { reqId: number; op: "insertBlob"; args: [blob: BlobRecord, uploaderPubkey: string] }
-  | { reqId: number; op: "isOwner";    args: [sha256: string, pubkey: string] };
+  | { reqId: number; op: "isOwner";    args: [sha256: string, pubkey: string] }
+  | { reqId: number; op: "getStats";   args: [] };
 
 export interface DbResponse {
   reqId: number;
@@ -63,6 +64,10 @@ export function installDbBridge(db: Client, port: MessagePort): void {
 
         case "isOwner":
           result = await isOwner(db, msg.args[0], msg.args[1]);
+          break;
+
+        case "getStats":
+          result = await getBlobStats(db);
           break;
 
         default: {

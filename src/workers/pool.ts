@@ -3,11 +3,23 @@
  *
  * Each worker:
  *   - Is a persistent Deno Worker (separate V8 isolate, no per-upload startup cost)
- *   - Owns a persistent MessageChannel DB port (transferred at init, reused forever)
  *   - Handles exactly one upload job at a time
  *   - Receives the full request body stream (zero-copy transfer via postMessage)
  *   - Writes to a temp path + computes SHA-256 concurrently
  *   - Posts { hash, size } back on success, { error } on failure
+ *
+ * DB connection strategy (decided once at pool init, never inside worker code):
+ *
+ *   Local SQLite (file: URL)
+ *     Workers cannot share a SQLite file handle across V8 isolate boundaries.
+ *     Each worker gets a MessageChannel port (transferred at init). The main
+ *     thread owns the real Client and executes DB ops on behalf of workers via
+ *     the DbBridge. Workers use DbProxy, which has the same API as IDbHandle.
+ *
+ *   Remote libSQL / Turso (libsql:// or http:// URL)
+ *     A network-backed libSQL client is thread-safe and has no file-handle
+ *     affinity. Each worker receives the connection config and constructs its
+ *     own Client directly inside the isolate. No MessageChannel needed.
  *
  * Pool policy:
  *   - No queue — pool full → dispatch() returns null → route returns 503
@@ -16,6 +28,7 @@
 
 import type { Client } from "@libsql/client";
 import { installDbBridge } from "../db/bridge.ts";
+import type { DbConfig } from "../db/client.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,10 +58,10 @@ export class UploadWorkerPool {
   private pending = new Map<string, PendingJob>();
   private jobCounter = 0;
 
-  constructor(size: number, db: Client) {
-    for (let i = 0; i < size; i++) {
-      const { port1, port2 } = new MessageChannel();
+  constructor(size: number, db: Client, dbConfig: DbConfig) {
+    const remote = dbConfig.url !== undefined;
 
+    for (let i = 0; i < size; i++) {
       const worker = new Worker(
         new URL("./upload-worker.ts", import.meta.url),
         { type: "module" },
@@ -56,12 +69,22 @@ export class UploadWorkerPool {
 
       const state: WorkerState = { worker, busy: false };
 
-      // Send the DB port to the worker (transferred — worker owns port2).
-      // This is the one-time "init" message; all subsequent messages are jobs.
-      worker.postMessage({ type: "init", dbPort: port2 }, [port2]);
-
-      // Install the DB bridge on the main thread's side of the channel.
-      installDbBridge(db, port1);
+      if (remote) {
+        // Remote mode: worker creates its own Client from config.
+        // No MessageChannel — each isolate talks directly to the DB server.
+        worker.postMessage({
+          type: "init",
+          dbMode: "remote",
+          dbUrl: dbConfig.url,
+          dbAuthToken: dbConfig.authToken,
+        });
+      } else {
+        // Local SQLite mode: worker gets a MessageChannel port.
+        // Main thread executes all DB ops via the bridge.
+        const { port1, port2 } = new MessageChannel();
+        installDbBridge(db, port1);
+        worker.postMessage({ type: "init", dbMode: "local", dbPort: port2 }, [port2]);
+      }
 
       // Route job results back to waiting Promises
       worker.onmessage = (
@@ -160,9 +183,13 @@ export class UploadWorkerPool {
 
 let _pool: UploadWorkerPool | null = null;
 
-export function initPool(hashWorkers: number, db: Client): UploadWorkerPool {
+export function initPool(
+  hashWorkers: number,
+  db: Client,
+  dbConfig: DbConfig,
+): UploadWorkerPool {
   const size = hashWorkers > 0 ? hashWorkers : navigator.hardwareConcurrency;
-  _pool = new UploadWorkerPool(size, db);
+  _pool = new UploadWorkerPool(size, db, dbConfig);
   console.log(`Upload worker pool initialized with ${size} workers.`);
   return _pool;
 }

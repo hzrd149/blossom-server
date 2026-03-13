@@ -16,12 +16,14 @@ import { buildBlobsRouter } from "./routes/blobs.ts";
 import { buildUploadRouter } from "./routes/upload.ts";
 import { buildDeleteRouter } from "./routes/delete.ts";
 import { buildListRouter } from "./routes/list.ts";
+import { buildLandingRouter } from "./routes/landing.ts";
 
 export function buildApp(
   db: Client,
   storage: IBlobStorage,
   storageDir: string,
   config: Config,
+  landingWorker?: Worker,
 ): Hono {
   const app = new Hono();
 
@@ -33,6 +35,12 @@ export function buildApp(
 
   // BUD-11: parse auth header — populate ctx.var.auth (never blocks)
   app.use("*", authMiddleware(config.publicDomain));
+
+  // Landing page: GET / and GET /assets/client.js (disabled by default)
+  // Mounted first so GET / is claimed before the blob regex route.
+  if (config.landing.enabled && landingWorker) {
+    app.route("/", buildLandingRouter(landingWorker));
+  }
 
   // BUD-01: GET/HEAD /:sha256[.ext]
   app.route("/", buildBlobsRouter(db, storage, config));
