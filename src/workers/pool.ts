@@ -1,21 +1,34 @@
 /**
- * HashWorkerPool — pre-warmed pool of hash workers.
+ * UploadWorkerPool — pre-warmed pool of upload workers.
  *
- * Design constraints:
- * - No queue: pool full → caller receives null immediately → route returns 503
- * - Workers are persistent (no startup cost per upload)
- * - Each worker handles exactly one upload at a time
- * - Stream is transferred (zero-copy) to the worker via postMessage
+ * Each worker:
+ *   - Is a persistent Deno Worker (separate V8 isolate, no per-upload startup cost)
+ *   - Owns a persistent MessageChannel DB port (transferred at init, reused forever)
+ *   - Handles exactly one upload job at a time
+ *   - Receives the full request body stream (zero-copy transfer via postMessage)
+ *   - Writes to a temp path + computes SHA-256 concurrently
+ *   - Posts { hash, size } back on success, { error } on failure
+ *
+ * Pool policy:
+ *   - No queue — pool full → dispatch() returns null → route returns 503
+ *   - Rejection happens before any body bytes are read (fast, ~6ms)
  */
 
-interface PendingHash {
-  resolve: (result: HashResult) => void;
-  reject: (err: Error) => void;
-}
+import type { Client } from "@libsql/client";
+import { installDbBridge } from "../db/bridge.ts";
 
-interface HashResult {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface UploadJobResult {
   hash: string;
   size: number;
+}
+
+interface PendingJob {
+  resolve: (result: UploadJobResult) => void;
+  reject: (err: Error) => void;
 }
 
 interface WorkerState {
@@ -23,34 +36,45 @@ interface WorkerState {
   busy: boolean;
 }
 
-export class HashWorkerPool {
+// ---------------------------------------------------------------------------
+// Pool
+// ---------------------------------------------------------------------------
+
+export class UploadWorkerPool {
   private workers: WorkerState[] = [];
-  private pending = new Map<string, PendingHash>();
+  private pending = new Map<string, PendingJob>();
   private jobCounter = 0;
 
-  constructor(size: number) {
-    // Spawn pre-warmed workers
+  constructor(size: number, db: Client) {
     for (let i = 0; i < size; i++) {
+      const { port1, port2 } = new MessageChannel();
+
       const worker = new Worker(
-        new URL("./hash-worker.ts", import.meta.url),
+        new URL("./upload-worker.ts", import.meta.url),
         { type: "module" },
       );
 
       const state: WorkerState = { worker, busy: false };
 
+      // Send the DB port to the worker (transferred — worker owns port2).
+      // This is the one-time "init" message; all subsequent messages are jobs.
+      worker.postMessage({ type: "init", dbPort: port2 }, [port2]);
+
+      // Install the DB bridge on the main thread's side of the channel.
+      installDbBridge(db, port1);
+
+      // Route job results back to waiting Promises
       worker.onmessage = (
-        event: MessageEvent<
-          { id: string; hash?: string; size?: number; error?: string }
-        >,
+        event: MessageEvent<{ id: string; hash?: string; size?: number; error?: string }>,
       ) => {
         const { id, hash, size, error } = event.data;
         const pending = this.pending.get(id);
-        if (!pending) return;
+        if (!pending) return; // stale — ignore
 
         this.pending.delete(id);
         state.busy = false;
 
-        if (error) {
+        if (error !== undefined) {
           pending.reject(new Error(error));
         } else {
           pending.resolve({ hash: hash!, size: size! });
@@ -58,46 +82,64 @@ export class HashWorkerPool {
       };
 
       worker.onerror = (event) => {
-        console.error("Hash worker error:", event.message);
+        console.error(`Upload worker ${i} error:`, event.message);
+        // Mark worker as free so it can accept new jobs after the error
+        state.busy = false;
       };
 
       this.workers.push(state);
     }
   }
 
-  /** Returns the number of configured workers. */
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
+  /** Total number of workers in the pool. */
   get size(): number {
     return this.workers.length;
   }
 
-  /** Returns the number of currently idle workers. */
+  /** Number of currently idle workers. */
   get available(): number {
     return this.workers.filter((w) => !w.busy).length;
   }
 
   /**
-   * Submit a stream for hashing.
+   * Dispatch an upload job to a free worker.
    *
-   * IMPORTANT: the caller must tee() the request body first and pass one branch here.
-   * The stream is transferred to the worker (zero-copy); the caller cannot read it.
+   * The stream is transferred to the worker (zero-copy). The main thread
+   * must NOT read from it after calling dispatch().
    *
-   * Returns null if no workers are available (caller should return 503).
+   * @param stream    The request body ReadableStream (will be transferred).
+   * @param tmpPath   Temp file path the worker should write to.
+   * @param sizeHint  Content-Length value, or null if unknown.
+   * @param xSha256   Declared hash from X-SHA-256 header, or null.
+   *
+   * @returns A Promise that resolves to { hash, size } on success,
+   *          or null if no worker is available (caller should return 503).
    */
-  hash(stream: ReadableStream<Uint8Array>): Promise<HashResult> | null {
+  dispatch(
+    stream: ReadableStream<Uint8Array>,
+    tmpPath: string,
+    sizeHint: number | null,
+    xSha256: string | null,
+  ): Promise<UploadJobResult> | null {
     const state = this.workers.find((w) => !w.busy);
-    if (!state) return null; // Pool full — no queue, caller returns 503
+    if (!state) return null; // Pool full — caller returns 503
 
     state.busy = true;
     const id = String(++this.jobCounter);
 
-    const promise = new Promise<HashResult>((resolve, reject) => {
+    const promise = new Promise<UploadJobResult>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
     });
 
-    // Transfer the stream to the worker (zero-copy handoff)
-    state.worker.postMessage({ id, stream }, [
-      stream as unknown as Transferable,
-    ]);
+    // Transfer the stream to the worker — zero-copy, no tee on the main thread.
+    state.worker.postMessage(
+      { type: "job", id, stream, tmpPath, sizeHint, xSha256 },
+      [stream as unknown as Transferable],
+    );
 
     return promise;
   }
@@ -108,22 +150,24 @@ export class HashWorkerPool {
       worker.terminate();
     }
     this.workers = [];
+    this.pending.clear();
   }
 }
 
-/** Singleton pool, initialized once at startup. */
-let _pool: HashWorkerPool | null = null;
+// ---------------------------------------------------------------------------
+// Singleton
+// ---------------------------------------------------------------------------
 
-export function initPool(hashWorkers: number): HashWorkerPool {
+let _pool: UploadWorkerPool | null = null;
+
+export function initPool(hashWorkers: number, db: Client): UploadWorkerPool {
   const size = hashWorkers > 0 ? hashWorkers : navigator.hardwareConcurrency;
-  _pool = new HashWorkerPool(size);
-  console.log(`Hash worker pool initialized with ${size} workers.`);
+  _pool = new UploadWorkerPool(size, db);
+  console.log(`Upload worker pool initialized with ${size} workers.`);
   return _pool;
 }
 
-export function getPool(): HashWorkerPool {
-  if (!_pool) {
-    throw new Error("Worker pool not initialized. Call initPool() first.");
-  }
+export function getPool(): UploadWorkerPool {
+  if (!_pool) throw new Error("Worker pool not initialized. Call initPool() first.");
   return _pool;
 }

@@ -20,6 +20,7 @@ import { buildListRouter } from "./routes/list.ts";
 export function buildApp(
   db: Client,
   storage: IBlobStorage,
+  storageDir: string,
   config: Config,
 ): Hono {
   const app = new Hono();
@@ -37,7 +38,9 @@ export function buildApp(
   app.route("/", buildBlobsRouter(db, storage, config));
 
   // BUD-02 + BUD-06: PUT /upload, HEAD /upload
-  app.route("/", buildUploadRouter(db, storage, config));
+  // Upload route takes storageDir (not the storage adapter) because the
+  // worker does file I/O directly and only needs the path for Deno.rename.
+  app.route("/", buildUploadRouter(db, storageDir, config));
 
   // BUD-02: DELETE /:sha256
   app.route("/", buildDeleteRouter(db, storage, config));

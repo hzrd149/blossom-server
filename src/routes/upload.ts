@@ -2,25 +2,34 @@
  * BUD-02: PUT /upload — Upload a blob
  * BUD-06: HEAD /upload — Preflight check
  *
- * Upload pipeline:
- *   1. Auth check (BUD-11, t=upload)
+ * Upload pipeline (main thread responsibilities):
+ *   1. BUD-11 auth check
  *   2. Content-Length required → 411 if absent
  *   3. Content-Length > maxSize → 413 (body never read)
- *   4. MIME type check if allowedTypes configured → 415
- *   5. Pool worker available? → 503 if pool full (body never read)
- *   6. Dedup check (HEAD before write) → return existing descriptor if already stored
- *   7. req.body.tee() → [hashBranch → worker] + [diskBranch → storage.beginWrite()]
- *   8. Both drain concurrently via Promise.all
- *   9. Verify computed hash === X-SHA-256 header (if provided)
- *  10. storage.commitWrite() → atomic rename
- *  11. db.insertBlob() → record + owner
- *  12. Return BlobDescriptor JSON
+ *   4. MIME type allowlist check → 415
+ *   5. X-SHA-256 format + auth x-tag validation
+ *   6. Dedup check (hasBlob) → fast return if already stored
+ *   7. Pool worker available? → 503 if pool full (body never read)
+ *   8. Generate tmpPath, dispatch stream to worker (zero-copy transfer)
+ *   9. Await { hash, size } from worker
+ *  10. Verify computed hash === X-SHA-256 header (if provided) — worker also checks,
+ *      but we re-verify here before committing
+ *  11. Deno.rename(tmpPath → finalPath) — atomic commit, main thread
+ *  12. db.insertBlob() — metadata write, main thread
+ *  13. Return BlobDescriptor JSON
+ *
+ * Worker responsibilities (upload-worker.ts):
+ *   - Open tmpPath for writing
+ *   - Tee stream internally: hash branch (SHA-256) + write branch (disk)
+ *   - Both branches drain concurrently
+ *   - Post { hash, size } or { error } back
  */
 
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
-import type { IBlobStorage } from "../storage/interface.ts";
+import { join } from "@std/path";
+import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth, requireXTag } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
@@ -69,16 +78,15 @@ function mimeToExt(mime: string | null): string {
 
 export function buildUploadRouter(
   db: Client,
-  storage: IBlobStorage,
+  storageDir: string,
   config: Config,
 ): Hono {
   const app = new Hono();
 
-  /**
-   * HEAD /upload — BUD-06 preflight check.
-   * Client sends X-SHA-256, X-Content-Type, X-Content-Length headers.
-   * Server responds with 200 OK or an error explaining why upload would fail.
-   */
+  // ---------------------------------------------------------------------------
+  // HEAD /upload — BUD-06 preflight
+  // ---------------------------------------------------------------------------
+
   app.on("HEAD", "/upload", async (ctx) => {
     if (!config.upload.enabled) {
       return errorResponse(ctx, 403, "Uploads are disabled on this server");
@@ -95,7 +103,7 @@ export function buildUploadRouter(
       }
     }
 
-    const xSha256 = ctx.req.header("x-sha256");
+    const xSha256 = ctx.req.header("x-sha-256");
     const xContentType = ctx.req.header("x-content-type") ?? "application/octet-stream";
     const xContentLength = ctx.req.header("x-content-length");
 
@@ -124,12 +132,11 @@ export function buildUploadRouter(
     }
 
     // Check pool availability
-    const pool = getPool();
-    if (pool.available === 0) {
+    if (getPool().available === 0) {
       return errorResponse(ctx, 503, "Server busy, try again later");
     }
 
-    // If hash provided and blob already exists, signal that upload can skip
+    // If hash provided and blob already exists, signal upload can be skipped
     if (xSha256 && await hasBlob(db, xSha256)) {
       return ctx.body(null, 200, { "X-Reason": "Blob already exists (dedup)" });
     }
@@ -137,9 +144,10 @@ export function buildUploadRouter(
     return ctx.body(null, 200);
   });
 
-  /**
-   * PUT /upload — Upload a blob (BUD-02).
-   */
+  // ---------------------------------------------------------------------------
+  // PUT /upload — BUD-02 upload
+  // ---------------------------------------------------------------------------
+
   app.put("/upload", async (ctx) => {
     if (!config.upload.enabled) {
       return errorResponse(ctx, 403, "Uploads are disabled on this server");
@@ -185,17 +193,13 @@ export function buildUploadRouter(
       return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
     }
 
-    // --- 5. Acquire worker (503 if pool full — no queue) ---
-    const pool = getPool();
-    const xSha256 = ctx.req.header("x-sha256")?.toLowerCase();
-
-    // Validate x-sha256 header format if provided
+    // --- 5. X-SHA-256 validation + auth x-tag check ---
+    const xSha256 = ctx.req.header("x-sha-256")?.toLowerCase() ?? null;
     if (xSha256 && !/^[0-9a-f]{64}$/.test(xSha256)) {
       await ctx.req.raw.body?.cancel();
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
     }
 
-    // BUD-11: if x tags present in auth, verify the claimed hash is authorized
     if (auth && xSha256) {
       try {
         requireXTag(auth, xSha256);
@@ -208,43 +212,35 @@ export function buildUploadRouter(
       }
     }
 
-    // --- 6. Dedup: if blob already exists, skip storage write ---
+    // --- 6. Dedup: if blob already exists, skip the whole write ---
     if (xSha256 && await hasBlob(db, xSha256)) {
       await ctx.req.raw.body?.cancel();
       const existing = await getBlob(db, xSha256);
-      if (existing && auth) {
-        // Register this pubkey as an owner too (re-upload)
-        if (!await isOwner(db, xSha256, auth.pubkey)) {
+      if (existing) {
+        // Register this pubkey as an owner if they aren't already
+        if (auth && !await isOwner(db, xSha256, auth.pubkey)) {
           await insertBlob(db, existing, auth.pubkey);
         }
-      }
-      if (existing) {
         const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-        const descriptor: BlobDescriptor = {
+        return ctx.json({
           url: getBlobUrl(existing.sha256, existing.type, baseUrl),
           sha256: existing.sha256,
           size: existing.size,
           type: existing.type ?? "application/octet-stream",
           uploaded: existing.uploaded,
-        };
-        return ctx.json(descriptor, 200);
+        } satisfies BlobDescriptor);
       }
     }
 
-    // --- 5b. Pool availability check (after dedup to avoid unnecessary 503s) ---
+    // --- 7. Acquire worker (503 if pool full — no queue) ---
     const body = ctx.req.raw.body;
     if (!body) {
       return errorResponse(ctx, 400, "Request body is empty");
     }
 
-    // Tee the stream: one branch to hash worker, one to disk
-    const [hashBranch, diskBranch] = body.tee();
-
-    const hashPromise = pool.hash(hashBranch);
-    if (!hashPromise) {
-      // Cancel both branches — no worker available
-      await hashBranch.cancel().catch(() => {});
-      await diskBranch.cancel().catch(() => {});
+    const pool = getPool();
+    if (pool.available === 0) {
+      await body.cancel();
       return errorResponse(
         ctx,
         503,
@@ -252,44 +248,57 @@ export function buildUploadRouter(
       );
     }
 
-    // --- 7. Begin storage write with the disk branch ---
-    const session = await storage.beginWrite(contentLength);
+    // --- 8. Generate temp path + dispatch to worker ---
+    // tmpPath is inside the storage dir so Deno.rename() is always atomic
+    // (same filesystem guaranteed).
+    const tmpPath = join(storageDir, ".tmp", ulid());
 
-    let computedHash: string;
-    let computedSize: number;
-
-    try {
-      // Pipe disk branch to storage — zero-copy async I/O
-      const pipePromise = diskBranch.pipeTo(session.writable);
-
-      // Both drain concurrently
-      const [hashResult] = await Promise.all([hashPromise, pipePromise]);
-
-      computedHash = hashResult.hash;
-      computedSize = hashResult.size;
-    } catch (err) {
-      await storage.abortWrite(session).catch(() => {});
-      throw err;
-    }
-
-    // --- 9. Verify hash if X-SHA-256 was provided ---
-    if (xSha256 && computedHash !== xSha256) {
-      await storage.abortWrite(session);
+    const jobPromise = pool.dispatch(body, tmpPath, contentLength, xSha256);
+    if (!jobPromise) {
+      // Race condition: another request claimed the last worker between
+      // pool.available check and dispatch(). Rare but safe to handle.
+      await body.cancel().catch(() => {});
       return errorResponse(
         ctx,
-        400,
-        `Hash mismatch: declared ${xSha256}, computed ${computedHash}`,
+        503,
+        "Server busy. All upload workers are occupied. Try again shortly.",
       );
     }
 
-    // --- 10. Atomic commit ---
-    await storage.commitWrite(session, computedHash);
+    // --- 9. Await worker result ---
+    let hash: string;
+    let size: number;
+    try {
+      ({ hash, size } = await jobPromise);
+    } catch (err) {
+      // Worker already cleaned up tmpPath
+      return errorResponse(
+        ctx,
+        400,
+        err instanceof Error ? err.message : "Upload failed",
+      );
+    }
+
+    // --- 10. Atomic commit: rename temp → final path ---
+    const finalPath = join(storageDir, hash);
+    try {
+      await Deno.rename(tmpPath, finalPath);
+    } catch (err) {
+      // If the final blob already exists (race between two identical uploads),
+      // remove the temp file and continue — the existing file is correct.
+      const exists = await Deno.stat(finalPath).then(() => true).catch(() => false);
+      if (!exists) {
+        await Deno.remove(tmpPath).catch(() => {});
+        throw err;
+      }
+      await Deno.remove(tmpPath).catch(() => {});
+    }
 
     // --- 11. Insert metadata ---
     const now = Math.floor(Date.now() / 1000);
     const blobRecord = {
-      sha256: computedHash,
-      size: computedSize,
+      sha256: hash,
+      size,
       type: mimeType !== "application/octet-stream" ? mimeType : null,
       uploaded: now,
     };
@@ -297,15 +306,13 @@ export function buildUploadRouter(
 
     // --- 12. Return BlobDescriptor ---
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-    const descriptor: BlobDescriptor = {
-      url: getBlobUrl(computedHash, blobRecord.type, baseUrl),
-      sha256: computedHash,
-      size: computedSize,
+    return ctx.json({
+      url: getBlobUrl(hash, blobRecord.type, baseUrl),
+      sha256: hash,
+      size,
       type: blobRecord.type ?? "application/octet-stream",
       uploaded: now,
-    };
-
-    return ctx.json(descriptor, 200);
+    } satisfies BlobDescriptor);
   });
 
   return app;
@@ -323,9 +330,7 @@ function isAllowedType(mimeType: string, allowedTypes: string[]): boolean {
 
 /** Derive the base URL for blob descriptors. */
 function getBaseUrl(request: Request, publicDomain: string): string {
-  if (publicDomain) {
-    return publicDomain.replace(/\/$/, "");
-  }
+  if (publicDomain) return publicDomain.replace(/\/$/, "");
   const url = new URL(request.url);
   return `${url.protocol}//${url.host}`;
 }

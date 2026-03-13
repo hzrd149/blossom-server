@@ -31,23 +31,24 @@ console.log("  Database: ready");
 
 // Init storage
 let storage: LocalStorage;
+let storageDir: string;
 if (config.storage.backend === "local") {
-  const dir = config.storage.local?.dir ?? "./data/blobs";
-  storage = new LocalStorage(dir);
+  storageDir = config.storage.local?.dir ?? "./data/blobs";
+  storage = new LocalStorage(storageDir);
   await storage.setup();
-  console.log(`  Storage:  local (${dir})`);
+  console.log(`  Storage:  local (${storageDir})`);
 } else {
   // S3 adapter not yet implemented
   console.error("S3 storage backend is not yet implemented.");
   Deno.exit(1);
 }
 
-// Init hash worker pool
-const pool = initPool(config.upload.hashWorkers);
-console.log(`  Workers:  ${pool.size} hash workers`);
+// Init upload worker pool — db passed so each worker gets a MessageChannel DB port
+const pool = initPool(config.upload.hashWorkers, db);
+console.log(`  Workers:  ${pool.size} upload workers`);
 
 // Build Hono app
-const app = buildApp(db, storage, config);
+const app = buildApp(db, storage, storageDir, config);
 
 // Start server
 const server = Deno.serve(
