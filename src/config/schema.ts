@@ -144,6 +144,9 @@ export const ConfigSchema = z
     // If "database" is absent this value seeds database.path.
     databasePath: z.string().optional(),
     database: DatabaseSchema.optional(),
+    // Interface/hostname to bind the HTTP server to.
+    // Use "0.0.0.0" to listen on all IPv4 interfaces.
+    host: z.string().default("0.0.0.0"),
     port: z.number().int().min(1).max(65535).default(3000),
     storage: StorageSchema.optional().transform((v) =>
       v ?? StorageSchema.parse({})

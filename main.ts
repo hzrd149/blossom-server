@@ -30,6 +30,7 @@ console.log("Blossom Server starting...");
 console.log(`  Config:   ${configPath}`);
 console.log(`  Database: ${dbLabel}`);
 console.log(`  Storage:  ${config.storage.backend}`);
+console.log(`  Host:     ${config.host}`);
 console.log(`  Port:     ${config.port}`);
 
 // Init database
@@ -111,6 +112,7 @@ const app = buildApp(db, storage, config, landingWorker);
 // Start server
 const server = Deno.serve(
   {
+    hostname: config.host,
     port: config.port,
     onListen({ port, hostname }) {
       console.log(`\nBlossom Server listening on http://${hostname}:${port}`);

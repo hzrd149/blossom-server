@@ -30,6 +30,10 @@ database:
 # HTTP port to listen on.
 port: 3000
 
+# Interface/hostname to bind the HTTP server to.
+# Use 0.0.0.0 to accept connections from other machines.
+host: 0.0.0.0
+
 storage:
   # Storage backend: "local" or "s3"
   backend: local
