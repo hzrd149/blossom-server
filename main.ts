@@ -107,8 +107,86 @@ if (config.landing.enabled) {
   console.log("  Landing:  ready");
 }
 
+// Resolve admin dashboard password (auto-generate if blank)
+let adminPassword: string | undefined;
+if (config.dashboard.enabled) {
+  if (config.dashboard.password) {
+    adminPassword = config.dashboard.password;
+  } else {
+    // Generate a random 20-char alphanumeric password
+    const bytes = new Uint8Array(15);
+    crypto.getRandomValues(bytes);
+    adminPassword = btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "").slice(0, 20);
+    console.log(`  Admin:    password auto-generated: ${adminPassword}`);
+  }
+
+  // Build the admin dashboard if dist is missing or source is newer than dist.
+  // This ensures the React Admin SPA is always up-to-date on startup without
+  // requiring a separate manual build step.
+  await buildAdminDashboard();
+}
+
+/**
+ * Build the React Admin SPA using Vite.
+ * Runs `node_modules/.bin/vite build` inside the `admin/` directory.
+ * Skips the build if `admin/dist/index.html` already exists and is newer
+ * than `admin/src/` — i.e. a rebuild is only triggered when source changes.
+ */
+async function buildAdminDashboard(): Promise<void> {
+  const distIndex = "./admin/dist/index.html";
+  const adminSrc = "./admin/src";
+
+  // Check if dist is already fresh by comparing mtime of dist/index.html
+  // against the newest file in admin/src/.
+  let needsBuild = true;
+  try {
+    const distStat = await Deno.stat(distIndex);
+    const distMtime = distStat.mtime?.getTime() ?? 0;
+
+    // Walk src dir and find newest mtime
+    let srcNewest = 0;
+    for await (const entry of Deno.readDir(adminSrc)) {
+      const stat = await Deno.stat(`${adminSrc}/${entry.name}`);
+      const mtime = stat.mtime?.getTime() ?? 0;
+      if (mtime > srcNewest) srcNewest = mtime;
+    }
+
+    if (distMtime >= srcNewest) {
+      needsBuild = false;
+    }
+  } catch {
+    // dist doesn't exist — definitely need to build
+  }
+
+  if (!needsBuild) {
+    console.log("  Admin:    dist is up-to-date, skipping build");
+    return;
+  }
+
+  console.log("  Admin:    building dashboard (vite)...");
+  const cmd = new Deno.Command("node", {
+    args: ["node_modules/vite/bin/vite.js", "build"],
+    cwd: "./admin",
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout, stderr } = await cmd.output();
+
+  if (code !== 0) {
+    const errText = new TextDecoder().decode(stderr);
+    console.error("  Admin:    build FAILED:\n" + errText);
+    console.error("  Admin:    dashboard will be unavailable. Fix build errors and restart.");
+  } else {
+    const outText = new TextDecoder().decode(stdout);
+    // Print only the last summary line (vite outputs "✓ built in Xs")
+    const summary = outText.trim().split("\n").findLast((l: string) => l.includes("built in"));
+    console.log(`  Admin:    build complete${summary ? " — " + summary.trim() : ""}`);
+  }
+}
+
 // Build Hono app
-const app = buildApp(db, storage, config, landingWorker);
+const app = buildApp(db, storage, config, landingWorker, adminPassword);
 
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the
@@ -167,6 +245,12 @@ const server = Deno.serve(
           (pruneEnabled
             ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
             : "disabled (no rules configured)"),
+      );
+      console.log(
+        "  Admin:   dashboard              " +
+          (config.dashboard.enabled
+            ? `ready (user=${config.dashboard.username}) — http://${hostname}:${port}/admin`
+            : "disabled"),
       );
     },
   },

@@ -8,10 +8,11 @@
     "tests/stress/"
   ],
   "tasks": {
-    "dev": "deno run --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts",
-    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys main.ts",
+    "dev": "deno run --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "test": "deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/",
-    "bundle": "deno bundle --platform browser --minify src/landing/client.tsx -o src/landing/client.bundle.js"
+    "bundle": "deno bundle --platform browser --minify src/landing/client.tsx -o src/landing/client.bundle.js",
+    "build-admin": "cd admin && node node_modules/vite/bin/vite.js build"
   },
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
@@ -33,6 +34,7 @@
     "zod": "npm:zod@^4.3.6",
     "hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
     "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
-    "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime"
+    "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime",
+    "@hono/hono/basic-auth": "jsr:@hono/hono@^4.12.7/basic-auth"
   }
 }

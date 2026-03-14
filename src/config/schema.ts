@@ -189,6 +189,18 @@ const LandingSchema = z.object({
   ),
 });
 
+const DashboardSchema = z.object({
+  enabled: z.boolean().default(false).describe(
+    "Enable the admin dashboard at /admin and the admin API at /api. Protected by HTTP Basic Auth.",
+  ),
+  username: z.string().default("admin").describe(
+    "HTTP Basic Auth username for the admin dashboard.",
+  ),
+  password: z.string().default("").describe(
+    "HTTP Basic Auth password. If blank, a random password is generated on startup and logged to stdout.",
+  ),
+});
+
 const PruneSchema = z.object({
   initialDelayMs: z.number().int().min(0).default(60_000).describe(
     "Delay in milliseconds before the first prune run after server startup. Default: 60 seconds.",
@@ -249,6 +261,9 @@ export const ConfigSchema = z
     ),
     prune: PruneSchema.optional().transform((v) => v ?? PruneSchema.parse({})).describe(
       "Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules.",
+    ),
+    dashboard: DashboardSchema.optional().transform((v) => v ?? DashboardSchema.parse({})).describe(
+      "Admin dashboard and API settings.",
     ),
   })
   .transform((raw) => {

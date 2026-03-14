@@ -242,6 +242,214 @@ export async function getBlobsForPrune(
   }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin query helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Blob record enriched with an owners array — used by the admin API. */
+export interface AdminBlobRecord extends BlobRecord {
+  owners: string[];
+}
+
+/** Valid column names for blob list sorting (allowlist against SQL injection). */
+const BLOB_SORT_COLUMNS = new Set(["sha256", "type", "size", "uploaded"]);
+
+/**
+ * List all blobs with their owners joined. Supports filter, sort, and
+ * LIMIT/OFFSET pagination for the admin react-admin data provider.
+ *
+ * @param opts.filter.q     Full-text search across sha256 and type columns.
+ * @param opts.filter.type  Exact MIME type or array of MIME types (IN clause).
+ * @param opts.sort         [column, "ASC"|"DESC"]. Column must be in BLOB_SORT_COLUMNS.
+ * @param opts.limit        LIMIT clause value.
+ * @param opts.offset       OFFSET clause value.
+ */
+export async function listAllBlobs(
+  db: Client,
+  opts: {
+    filter?: { q?: string; type?: string | string[] };
+    sort?: [string, string];
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<AdminBlobRecord[]> {
+  const conditions: string[] = [];
+  const args: (string | number)[] = [];
+
+  if (opts.filter?.q) {
+    conditions.push("(b.sha256 LIKE ? OR b.type LIKE ?)");
+    args.push(`%${opts.filter.q}%`, `%${opts.filter.q}%`);
+  }
+  if (opts.filter?.type !== undefined) {
+    const types = Array.isArray(opts.filter.type) ? opts.filter.type : [opts.filter.type];
+    if (types.length === 1) {
+      conditions.push("b.type = ?");
+      args.push(types[0]);
+    } else if (types.length > 1) {
+      conditions.push(`b.type IN (${types.map(() => "?").join(", ")})`);
+      args.push(...types);
+    }
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // Validate sort column against allowlist
+  const [sortCol, sortDir] = opts.sort ?? ["uploaded", "DESC"];
+  const safeCol = BLOB_SORT_COLUMNS.has(sortCol) ? sortCol : "uploaded";
+  const safeDir = sortDir === "ASC" ? "ASC" : "DESC";
+
+  let sql = `
+    SELECT b.sha256, b.size, b.type, b.uploaded,
+           COALESCE(GROUP_CONCAT(o.pubkey, ','), '') AS owners
+    FROM blobs b
+    LEFT JOIN owners o ON o.blob = b.sha256
+    ${where}
+    GROUP BY b.sha256
+    ORDER BY b.${safeCol} ${safeDir}
+  `;
+
+  if (opts.limit !== undefined) {
+    sql += ` LIMIT ?`;
+    args.push(opts.limit);
+  }
+  if (opts.offset !== undefined) {
+    sql += ` OFFSET ?`;
+    args.push(opts.offset);
+  }
+
+  const rs = await db.execute({ sql, args });
+  return rs.rows.map((row) => ({
+    sha256: row[0] as string,
+    size: row[1] as number,
+    type: row[2] as string | null,
+    uploaded: row[3] as number,
+    owners: row[4] ? (row[4] as string).split(",") : [],
+  }));
+}
+
+/**
+ * Count all blobs matching an optional filter.
+ * Used to compute the Content-Range total for admin blob list responses.
+ */
+export async function countBlobs(
+  db: Client,
+  filter?: { q?: string; type?: string | string[] },
+): Promise<number> {
+  const conditions: string[] = [];
+  const args: (string | number)[] = [];
+
+  if (filter?.q) {
+    conditions.push("(sha256 LIKE ? OR type LIKE ?)");
+    args.push(`%${filter.q}%`, `%${filter.q}%`);
+  }
+  if (filter?.type !== undefined) {
+    const types = Array.isArray(filter.type) ? filter.type : [filter.type];
+    if (types.length === 1) {
+      conditions.push("type = ?");
+      args.push(types[0]);
+    } else if (types.length > 1) {
+      conditions.push(`type IN (${types.map(() => "?").join(", ")})`);
+      args.push(...types);
+    }
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rs = await db.execute({ sql: `SELECT COUNT(*) FROM blobs ${where}`, args });
+  return (rs.rows[0]?.[0] as number) ?? 0;
+}
+
+/** User record for the admin API — pubkey plus list of owned blob hashes. */
+export interface AdminUserRecord {
+  pubkey: string;
+  blobs: string[];
+}
+
+/** Valid column names for user list sorting (allowlist). */
+const USER_SORT_COLUMNS = new Set(["pubkey"]);
+
+/**
+ * List all users (distinct pubkeys in the owners table) with their blob hashes.
+ * Supports filter, sort, and LIMIT/OFFSET pagination for the admin data provider.
+ */
+export async function listAllUsers(
+  db: Client,
+  opts: {
+    filter?: { q?: string; pubkey?: string };
+    sort?: [string, string];
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<AdminUserRecord[]> {
+  const conditions: string[] = [];
+  const args: (string | number)[] = [];
+
+  if (opts.filter?.q) {
+    conditions.push("o.pubkey LIKE ?");
+    args.push(`%${opts.filter.q}%`);
+  }
+  if (opts.filter?.pubkey) {
+    conditions.push("o.pubkey = ?");
+    args.push(opts.filter.pubkey);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const [sortCol, sortDir] = opts.sort ?? ["pubkey", "ASC"];
+  const safeCol = USER_SORT_COLUMNS.has(sortCol) ? sortCol : "pubkey";
+  const safeDir = sortDir === "ASC" ? "ASC" : "DESC";
+
+  let sql = `
+    SELECT o.pubkey, GROUP_CONCAT(o.blob, ',') AS blobs
+    FROM owners o
+    ${where}
+    GROUP BY o.pubkey
+    ORDER BY o.${safeCol} ${safeDir}
+  `;
+
+  if (opts.limit !== undefined) {
+    sql += ` LIMIT ?`;
+    args.push(opts.limit);
+  }
+  if (opts.offset !== undefined) {
+    sql += ` OFFSET ?`;
+    args.push(opts.offset);
+  }
+
+  const rs = await db.execute({ sql, args });
+  return rs.rows.map((row) => ({
+    pubkey: row[0] as string,
+    blobs: row[1] ? (row[1] as string).split(",") : [],
+  }));
+}
+
+/**
+ * Count distinct users (pubkeys) matching an optional filter.
+ * Used to compute the Content-Range total for admin user list responses.
+ */
+export async function countUsers(
+  db: Client,
+  filter?: { q?: string; pubkey?: string },
+): Promise<number> {
+  const conditions: string[] = [];
+  const args: (string | number)[] = [];
+
+  if (filter?.q) {
+    conditions.push("pubkey LIKE ?");
+    args.push(`%${filter.q}%`);
+  }
+  if (filter?.pubkey) {
+    conditions.push("pubkey = ?");
+    args.push(filter.pubkey);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const rs = await db.execute({
+    sql: `SELECT COUNT(DISTINCT pubkey) FROM owners ${where}`,
+    args,
+  });
+  return (rs.rows[0]?.[0] as number) ?? 0;
+}
+
 /**
  * Return sha256 + type for all blobs that have no entry in the owners table.
  * Used by the prune engine's removeWhenNoOwners phase.
