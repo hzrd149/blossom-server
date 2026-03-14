@@ -18,7 +18,11 @@
 import type { Client } from "@libsql/client";
 import type { StorageRule } from "../config/schema.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
-import { deleteBlob, getBlobsForPrune, getOwnerlessBlobSha256s } from "../db/blobs.ts";
+import {
+  deleteBlob,
+  getBlobsForPrune,
+  getOwnerlessBlobSha256s,
+} from "../db/blobs.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { mimeToSqlLike, parseDuration } from "./rules.ts";
 
@@ -59,7 +63,10 @@ export async function pruneStorage(
     try {
       cutoffSeconds = now - parseDuration(rule.expiration);
     } catch (err) {
-      console.warn(`[prune] Skipping rule (invalid expiration "${rule.expiration}"):`, err);
+      console.warn(
+        `[prune] Skipping rule (invalid expiration "${rule.expiration}"):`,
+        err,
+      );
       continue;
     }
 
@@ -69,7 +76,10 @@ export async function pruneStorage(
     try {
       rows = await getBlobsForPrune(db, typePattern, rule.pubkeys);
     } catch (err) {
-      console.warn(`[prune] Failed to query blobs for rule type="${rule.type}":`, err);
+      console.warn(
+        `[prune] Failed to query blobs for rule type="${rule.type}":`,
+        err,
+      );
       continue;
     }
 
@@ -118,7 +128,10 @@ export async function pruneStorage(
         await storage.remove(row.sha256, ext); // fixes legacy bug: file was never removed
         deleted++;
       } catch (err) {
-        console.warn(`[prune] Failed to delete ownerless blob ${row.sha256}:`, err);
+        console.warn(
+          `[prune] Failed to delete ownerless blob ${row.sha256}:`,
+          err,
+        );
         errors++;
       }
     }

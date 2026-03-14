@@ -68,8 +68,10 @@ export function buildApp(
       try {
         const file = await Deno.readFile(`./admin/dist/assets/${filename}`);
         const ext = filename.split(".").pop()?.toLowerCase();
-        const contentType = ext === "js" ? "application/javascript"
-          : ext === "css" ? "text/css"
+        const contentType = ext === "js"
+          ? "application/javascript"
+          : ext === "css"
+          ? "text/css"
           : "application/octet-stream";
         return c.body(file, 200, {
           "Content-Type": contentType,

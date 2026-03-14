@@ -112,7 +112,9 @@ export function buildUploadRouter(
     // When storage.rules is non-empty, rules are the upload gate.
     // auth may not be populated yet for HEAD (auth is optional in preflight),
     // so pass pubkey only when available.
-    const preflightAuth = config.upload.requireAuth ? ctx.get("auth") : ctx.get("auth");
+    const preflightAuth = config.upload.requireAuth
+      ? ctx.get("auth")
+      : ctx.get("auth");
     const preflightPubkey = preflightAuth?.pubkey;
     if (config.storage.rules.length > 0) {
       const rule = getFileRule(
@@ -122,9 +124,17 @@ export function buildUploadRouter(
       );
       if (!rule) {
         if (config.upload.requirePubkeyInRule) {
-          return errorResponse(ctx, 401, "Pubkey not authorized by any storage rule");
+          return errorResponse(
+            ctx,
+            401,
+            "Pubkey not authorized by any storage rule",
+          );
         }
-        return errorResponse(ctx, 415, `Server does not accept ${xContentType} blobs`);
+        return errorResponse(
+          ctx,
+          415,
+          `Server does not accept ${xContentType} blobs`,
+        );
       }
     } else if (
       config.upload.allowedTypes.length > 0 &&
@@ -225,11 +235,22 @@ export function buildUploadRouter(
       );
       if (!rule) {
         await ctx.req.raw.body?.cancel();
-        debug(debugPrefix, `rejected: no storage rule matches — mime=${mimeType}`);
+        debug(
+          debugPrefix,
+          `rejected: no storage rule matches — mime=${mimeType}`,
+        );
         if (config.upload.requirePubkeyInRule) {
-          return errorResponse(ctx, 401, "Pubkey not authorized by any storage rule");
+          return errorResponse(
+            ctx,
+            401,
+            "Pubkey not authorized by any storage rule",
+          );
         }
-        return errorResponse(ctx, 415, `Server does not accept ${mimeType} blobs`);
+        return errorResponse(
+          ctx,
+          415,
+          `Server does not accept ${mimeType} blobs`,
+        );
       }
     } else if (
       config.upload.allowedTypes.length > 0 &&

@@ -86,7 +86,9 @@ function parseListQuery(query: Record<string, string>): {
  * ra-data-simple-rest uses 0-indexed, both-inclusive ranges.
  * LIMIT = end - start + 1  (fixes legacy off-by-one: legacy used end - start)
  */
-function rangeToLimitOffset(range: [number, number]): { limit: number; offset: number } {
+function rangeToLimitOffset(
+  range: [number, number],
+): { limit: number; offset: number } {
   return {
     limit: range[1] - range[0] + 1,
     offset: range[0],
@@ -98,7 +100,11 @@ function rangeToLimitOffset(range: [number, number]): { limit: number; offset: n
  *   with range:    "<resource> <start>-<end>/<total>"
  *   without range: "<resource> * /<total>"
  */
-function contentRange(resource: string, range: [number, number] | undefined, total: number): string {
+function contentRange(
+  resource: string,
+  range: [number, number] | undefined,
+  total: number,
+): string {
   if (range) {
     return `${resource} ${range[0]}-${range[1]}/${total}`;
   }
@@ -145,7 +151,9 @@ export function buildAdminRouter(
 
   // ── GET /api/blobs — paginated blob list ───────────────────────────────────
   app.get("/api/blobs", async (c) => {
-    const { filter, sort, range } = parseListQuery(c.req.query() as Record<string, string>);
+    const { filter, sort, range } = parseListQuery(
+      c.req.query() as Record<string, string>,
+    );
 
     // Extract typed filter fields
     const blobFilter: { q?: string; type?: string | string[] } = {};
@@ -153,7 +161,9 @@ export function buildAdminRouter(
     if (typeof filter.type === "string") blobFilter.type = filter.type;
     if (Array.isArray(filter.type)) blobFilter.type = filter.type as string[];
 
-    const { limit, offset } = range ? rangeToLimitOffset(range) : { limit: undefined, offset: undefined };
+    const { limit, offset } = range
+      ? rangeToLimitOffset(range)
+      : { limit: undefined, offset: undefined };
 
     const [blobs, total] = await Promise.all([
       listAllBlobs(db, { filter: blobFilter, sort, limit, offset }),
@@ -217,13 +227,17 @@ export function buildAdminRouter(
 
   // ── GET /api/users — paginated user list ──────────────────────────────────
   app.get("/api/users", async (c) => {
-    const { filter, sort, range } = parseListQuery(c.req.query() as Record<string, string>);
+    const { filter, sort, range } = parseListQuery(
+      c.req.query() as Record<string, string>,
+    );
 
     const userFilter: { q?: string; pubkey?: string } = {};
     if (typeof filter.q === "string") userFilter.q = filter.q;
     if (typeof filter.pubkey === "string") userFilter.pubkey = filter.pubkey;
 
-    const { limit, offset } = range ? rangeToLimitOffset(range) : { limit: undefined, offset: undefined };
+    const { limit, offset } = range
+      ? rangeToLimitOffset(range)
+      : { limit: undefined, offset: undefined };
 
     const [users, total] = await Promise.all([
       listAllUsers(db, { filter: userFilter, sort, limit, offset }),
@@ -245,7 +259,9 @@ export function buildAdminRouter(
 
   // ── GET /api/rules — list storage rules ───────────────────────────────────
   app.get("/api/rules", (c) => {
-    const { filter, sort, range } = parseListQuery(c.req.query() as Record<string, string>);
+    const { filter, sort, range } = parseListQuery(
+      c.req.query() as Record<string, string>,
+    );
 
     let rules = config.storage.rules.map((r, i) => ({ ...r, id: i }));
 

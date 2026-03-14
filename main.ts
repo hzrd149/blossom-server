@@ -116,7 +116,8 @@ if (config.dashboard.enabled) {
     // Generate a random 20-char alphanumeric password
     const bytes = new Uint8Array(15);
     crypto.getRandomValues(bytes);
-    adminPassword = btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "").slice(0, 20);
+    adminPassword = btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "")
+      .slice(0, 20);
     console.log(`  Admin:    password auto-generated: ${adminPassword}`);
   }
 
@@ -176,12 +177,18 @@ async function buildAdminDashboard(): Promise<void> {
   if (code !== 0) {
     const errText = new TextDecoder().decode(stderr);
     console.error("  Admin:    build FAILED:\n" + errText);
-    console.error("  Admin:    dashboard will be unavailable. Fix build errors and restart.");
+    console.error(
+      "  Admin:    dashboard will be unavailable. Fix build errors and restart.",
+    );
   } else {
     const outText = new TextDecoder().decode(stdout);
     // Print only the last summary line (vite outputs "✓ built in Xs")
-    const summary = outText.trim().split("\n").findLast((l: string) => l.includes("built in"));
-    console.log(`  Admin:    build complete${summary ? " — " + summary.trim() : ""}`);
+    const summary = outText.trim().split("\n").findLast((l: string) =>
+      l.includes("built in")
+    );
+    console.log(
+      `  Admin:    build complete${summary ? " — " + summary.trim() : ""}`,
+    );
   }
 }
 
@@ -191,7 +198,8 @@ const app = buildApp(db, storage, config, landingWorker, adminPassword);
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the
 // current one fully completes, preventing overlapping runs under slow I/O.
-const pruneEnabled = config.storage.rules.length > 0 || config.storage.removeWhenNoOwners;
+const pruneEnabled = config.storage.rules.length > 0 ||
+  config.storage.removeWhenNoOwners;
 let pruneTimeout: ReturnType<typeof setTimeout> | undefined;
 if (pruneEnabled) {
   const runPrune = async () => {
@@ -202,7 +210,11 @@ if (pruneEnabled) {
         config.storage.rules,
         config.storage.removeWhenNoOwners,
       );
-      console.log(`[prune] deleted=${result.deleted} errors=${result.errors}`);
+      if (result.deleted > 0 || result.errors > 0) {
+        console.log(
+          `[prune] deleted=${result.deleted} errors=${result.errors}`,
+        );
+      }
     } catch (err) {
       console.error("[prune] Unexpected error in prune loop:", err);
     }
@@ -243,7 +255,9 @@ const server = Deno.serve(
       console.log(
         "  Prune:   storage rules          " +
           (pruneEnabled
-            ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
+            ? `active (${config.storage.rules.length} rules, first run in ${
+              config.prune.initialDelayMs / 1000
+            }s)`
             : "disabled (no rules configured)"),
       );
       console.log(

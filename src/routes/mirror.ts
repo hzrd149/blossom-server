@@ -267,9 +267,17 @@ export function buildMirrorRouter(
       if (!rule) {
         await originResponse.body?.cancel();
         if (config.upload.requirePubkeyInRule) {
-          return errorResponse(ctx, 401, "Pubkey not authorized by any storage rule");
+          return errorResponse(
+            ctx,
+            401,
+            "Pubkey not authorized by any storage rule",
+          );
         }
-        return errorResponse(ctx, 415, `Server does not accept ${mimeType} blobs`);
+        return errorResponse(
+          ctx,
+          415,
+          `Server does not accept ${mimeType} blobs`,
+        );
       }
     } else if (
       config.upload.allowedTypes.length > 0 &&

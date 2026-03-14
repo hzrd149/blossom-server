@@ -139,9 +139,10 @@ const VideoOptimizeSchema = z.object({
   audioCodec: z.enum(["aac", "mp3", "vorbis", "opus"]).default("aac").describe(
     'Audio codec. Must be compatible with the chosen format. mp4/mkv: "aac" (default), "mp3". webm: "opus" (default), "vorbis".',
   ),
-  videoCodec: z.enum(["libx264", "libx265", "vp8", "vp9"]).default("libx264").describe(
-    'Video codec. Must be compatible with the chosen format. mp4/mkv: "libx264" (default), "libx265". webm: "vp9" (default), "vp8".',
-  ),
+  videoCodec: z.enum(["libx264", "libx265", "vp8", "vp9"]).default("libx264")
+    .describe(
+      'Video codec. Must be compatible with the chosen format. mp4/mkv: "libx264" (default), "libx265". webm: "vp9" (default), "vp8".',
+    ),
 });
 
 const MediaSchema = z.object({
@@ -234,7 +235,9 @@ export const ConfigSchema = z
     databasePath: z.string().optional().describe(
       "Deprecated. Use the database.path field instead.",
     ),
-    database: DatabaseSchema.optional().describe("Database connection settings."),
+    database: DatabaseSchema.optional().describe(
+      "Database connection settings.",
+    ),
     host: z.string().default("0.0.0.0").describe(
       'Interface/hostname to bind the HTTP server to. Use "0.0.0.0" to accept connections on all IPv4 interfaces.',
     ),
@@ -256,13 +259,17 @@ export const ConfigSchema = z
     landing: LandingSchema.optional().transform((v) =>
       v ?? LandingSchema.parse({})
     ).describe("Landing page settings."),
-    media: MediaSchema.optional().transform((v) => v ?? MediaSchema.parse({})).describe(
-      "Media optimisation endpoint settings (BUD-05).",
-    ),
-    prune: PruneSchema.optional().transform((v) => v ?? PruneSchema.parse({})).describe(
-      "Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules.",
-    ),
-    dashboard: DashboardSchema.optional().transform((v) => v ?? DashboardSchema.parse({})).describe(
+    media: MediaSchema.optional().transform((v) => v ?? MediaSchema.parse({}))
+      .describe(
+        "Media optimisation endpoint settings (BUD-05).",
+      ),
+    prune: PruneSchema.optional().transform((v) => v ?? PruneSchema.parse({}))
+      .describe(
+        "Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules.",
+      ),
+    dashboard: DashboardSchema.optional().transform((v) =>
+      v ?? DashboardSchema.parse({})
+    ).describe(
       "Admin dashboard and API settings.",
     ),
   })

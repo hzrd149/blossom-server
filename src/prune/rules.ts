@@ -41,7 +41,9 @@ export function parseDuration(s: string): number {
   const count = parseInt(match[1], 10);
   const unit = match[2].toLowerCase();
   const multiplier = DURATION_UNITS[unit];
-  if (multiplier === undefined) throw new Error(`Unknown duration unit: "${unit}" in "${s}"`);
+  if (multiplier === undefined) {
+    throw new Error(`Unknown duration unit: "${unit}" in "${s}"`);
+  }
   return count * multiplier;
 }
 
@@ -58,7 +60,10 @@ export function parseDuration(s: string): number {
  *   "image/jpeg" → exact match only
  *   null MIME    → only matches "*"
  */
-export function mimeMatchesRule(mimeType: string | null, ruleType: string): boolean {
+export function mimeMatchesRule(
+  mimeType: string | null,
+  ruleType: string,
+): boolean {
   if (ruleType === "*") return true;
   if (!mimeType) return false; // typed rule requires a MIME type
   if (mimeType === ruleType) return true;

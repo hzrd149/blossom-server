@@ -281,7 +281,9 @@ export async function listAllBlobs(
     args.push(`%${opts.filter.q}%`, `%${opts.filter.q}%`);
   }
   if (opts.filter?.type !== undefined) {
-    const types = Array.isArray(opts.filter.type) ? opts.filter.type : [opts.filter.type];
+    const types = Array.isArray(opts.filter.type)
+      ? opts.filter.type
+      : [opts.filter.type];
     if (types.length === 1) {
       conditions.push("b.type = ?");
       args.push(types[0]);
@@ -291,7 +293,9 @@ export async function listAllBlobs(
     }
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = conditions.length > 0
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
 
   // Validate sort column against allowlist
   const [sortCol, sortDir] = opts.sort ?? ["uploaded", "DESC"];
@@ -353,8 +357,13 @@ export async function countBlobs(
     }
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-  const rs = await db.execute({ sql: `SELECT COUNT(*) FROM blobs ${where}`, args });
+  const where = conditions.length > 0
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
+  const rs = await db.execute({
+    sql: `SELECT COUNT(*) FROM blobs ${where}`,
+    args,
+  });
   return (rs.rows[0]?.[0] as number) ?? 0;
 }
 
@@ -392,7 +401,9 @@ export async function listAllUsers(
     args.push(opts.filter.pubkey);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = conditions.length > 0
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
 
   const [sortCol, sortDir] = opts.sort ?? ["pubkey", "ASC"];
   const safeCol = USER_SORT_COLUMNS.has(sortCol) ? sortCol : "pubkey";
@@ -442,7 +453,9 @@ export async function countUsers(
     args.push(filter.pubkey);
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = conditions.length > 0
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
   const rs = await db.execute({
     sql: `SELECT COUNT(DISTINCT pubkey) FROM owners ${where}`,
     args,
