@@ -1,0 +1,14 @@
+{
+  "name": "blossom-landing",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "hono": "^4.12.7"
+  },
+  "devDependencies": {
+    "vite": "^5.2.10"
+  }
+}

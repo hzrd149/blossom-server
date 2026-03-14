@@ -11,8 +11,9 @@
     "dev": "deno run --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "test": "deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/",
-    "bundle": "deno bundle --platform browser --minify src/landing/client.tsx -o src/landing/client.bundle.js",
-    "build-admin": "cd admin && node node_modules/vite/bin/vite.js build"
+    "build-admin": "cd admin && deno run --allow-all npm:vite build",
+    "build-landing": "cd landing && deno run --allow-all npm:vite build",
+    "build": "deno task build-landing && deno task build-admin"
   },
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",

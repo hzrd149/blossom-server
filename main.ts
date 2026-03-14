@@ -84,6 +84,15 @@ const pool = initPool(
 );
 console.log(`  Workers:  ${pool.size} upload workers`);
 
+// Build landing page client if enabled and dist is stale
+if (config.landing.enabled) {
+  await runViteBuild(
+    "Landing",
+    "./landing",
+    "Landing page client JS will be unavailable. Fix build errors and restart.",
+  );
+}
+
 // Init landing page worker (optional — off by default)
 let landingWorker: Worker | undefined;
 if (config.landing.enabled) {
@@ -124,70 +133,75 @@ if (config.dashboard.enabled) {
   // Build the admin dashboard if dist is missing or source is newer than dist.
   // This ensures the React Admin SPA is always up-to-date on startup without
   // requiring a separate manual build step.
-  await buildAdminDashboard();
+  await runViteBuild(
+    "Admin",
+    "./admin",
+    "Dashboard will be unavailable. Fix build errors and restart.",
+  );
 }
 
 /**
- * Build the React Admin SPA using Vite.
- * Runs `node_modules/.bin/vite build` inside the `admin/` directory.
- * Skips the build if `admin/dist/index.html` already exists and is newer
- * than `admin/src/` — i.e. a rebuild is only triggered when source changes.
+ * Run a Vite build for a sub-project using Deno's npm: specifier support.
+ * Equivalent to `deno run --allow-all npm:vite build` in the given directory.
+ *
+ * Skips the build if `<projectDir>/dist/index.html` already exists and is
+ * newer than any file in `<projectDir>/src/` — rebuild only on source changes.
+ *
+ * @param label      Short label for console output (e.g. "Admin", "Landing")
+ * @param projectDir Path to the Vite project directory (relative to CWD)
+ * @param unavailableMsg Message to show when the build fails and the feature won't work
  */
-async function buildAdminDashboard(): Promise<void> {
-  const distIndex = "./admin/dist/index.html";
-  const adminSrc = "./admin/src";
+async function runViteBuild(
+  label: string,
+  projectDir: string,
+  unavailableMsg: string,
+): Promise<void> {
+  const distIndex = `${projectDir}/dist/index.html`;
+  const srcDir = `${projectDir}/src`;
+  const pad = label.padEnd(8);
 
-  // Check if dist is already fresh by comparing mtime of dist/index.html
-  // against the newest file in admin/src/.
+  // Stale-check: compare mtime of dist/index.html against newest file in src/
   let needsBuild = true;
   try {
-    const distStat = await Deno.stat(distIndex);
-    const distMtime = distStat.mtime?.getTime() ?? 0;
-
-    // Walk src dir and find newest mtime
+    const distMtime = (await Deno.stat(distIndex)).mtime?.getTime() ?? 0;
     let srcNewest = 0;
-    for await (const entry of Deno.readDir(adminSrc)) {
-      const stat = await Deno.stat(`${adminSrc}/${entry.name}`);
-      const mtime = stat.mtime?.getTime() ?? 0;
+    for await (const entry of Deno.readDir(srcDir)) {
+      const mtime =
+        (await Deno.stat(`${srcDir}/${entry.name}`)).mtime?.getTime() ?? 0;
       if (mtime > srcNewest) srcNewest = mtime;
     }
-
-    if (distMtime >= srcNewest) {
-      needsBuild = false;
-    }
+    if (distMtime >= srcNewest) needsBuild = false;
   } catch {
-    // dist doesn't exist — definitely need to build
+    // dist doesn't exist yet — must build
   }
 
   if (!needsBuild) {
-    console.log("  Admin:    dist is up-to-date, skipping build");
+    console.log(`  ${pad}  dist is up-to-date, skipping build`);
     return;
   }
 
-  console.log("  Admin:    building dashboard (vite)...");
-  const cmd = new Deno.Command("node", {
-    args: ["node_modules/vite/bin/vite.js", "build"],
-    cwd: "./admin",
+  console.log(`  ${pad}  building (vite)...`);
+
+  // `deno run --allow-all npm:vite build` resolves Vite from the project's
+  // own node_modules (via the cwd) — no global Node.js installation needed.
+  const cmd = new Deno.Command(Deno.execPath(), {
+    args: ["run", "--allow-all", "npm:vite", "build"],
+    cwd: projectDir,
     stdout: "piped",
     stderr: "piped",
   });
 
   const { code, stdout, stderr } = await cmd.output();
+  const dec = new TextDecoder();
 
   if (code !== 0) {
-    const errText = new TextDecoder().decode(stderr);
-    console.error("  Admin:    build FAILED:\n" + errText);
-    console.error(
-      "  Admin:    dashboard will be unavailable. Fix build errors and restart.",
-    );
+    console.error(`  ${pad}  build FAILED:\n` + dec.decode(stderr));
+    console.error(`  ${pad}  ${unavailableMsg}`);
   } else {
-    const outText = new TextDecoder().decode(stdout);
-    // Print only the last summary line (vite outputs "✓ built in Xs")
-    const summary = outText.trim().split("\n").findLast((l: string) =>
-      l.includes("built in")
-    );
+    const summary = dec.decode(stdout).trim().split("\n")
+      .findLast((l: string) => l.includes("built in"));
     console.log(
-      `  Admin:    build complete${summary ? " — " + summary.trim() : ""}`,
+      `  ${pad}  build complete${summary ? " — " + summary.trim() : ""}`,
     );
   }
 }

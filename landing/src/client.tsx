@@ -3,7 +3,7 @@
 /**
  * Client-side upload + mirror form — runs in the browser.
  *
- * Bundled with `deno task build-landing` (Vite) into landing/dist/assets/client.js.
+ * Bundled with `deno task bundle` into client.bundle.js.
  * Hydrates the #upload-root div rendered by upload-island.tsx (SSR).
  *
  * Nostr signing uses NIP-07 window.nostr (browser extension).

@@ -63,8 +63,13 @@ self.onmessage = async (event: MessageEvent<InitMessage | RequestMessage>) => {
   const db = new DbProxy(msg.dbPort);
   const config = msg.config;
 
-  // Read the pre-built client bundle from disk
-  const bundlePath = new URL("../landing/client.bundle.js", import.meta.url);
+  // Read the pre-built client bundle from disk (built by `deno run --allow-all npm:vite build`
+  // in the landing/ directory — output is landing/dist/assets/client.js).
+  // Resolve relative to the project root (two levels up from src/workers/).
+  const bundlePath = new URL(
+    "../../landing/dist/assets/client.js",
+    import.meta.url,
+  );
   const clientBundle = await Deno.readTextFile(bundlePath);
 
   // Build the internal Hono app

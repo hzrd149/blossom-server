@@ -1,17 +1,17 @@
 import * as React from "react";
 import {
-  useMediaQuery,
-  Theme,
-  IconButton,
+  Button,
   Card,
   CardContent,
-  Stack,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
+  Stack,
+  Theme,
+  useMediaQuery,
   useTheme,
-  DialogActions,
-  Button,
 } from "@mui/material";
 import { OpenInNew, Visibility } from "@mui/icons-material";
 import {
@@ -36,7 +36,9 @@ import mime from "mime-types";
 import { truncateHash } from "../helpers/string";
 import BlobPreview, { canPreview } from "./BlobPreview";
 
-const UserBulkActionButtons = (props: any) => <BulkDeleteWithConfirmButton {...props} />;
+const UserBulkActionButtons = (props: any) => (
+  <BulkDeleteWithConfirmButton {...props} />
+);
 
 function PreviewButton() {
   const theme = useTheme();
@@ -109,7 +111,10 @@ function SideBar() {
           <FilterListItem label=".gif" value={{ type: ["image/gif"] }} />
           <FilterListItem label=".svg" value={{ type: ["image/svg+xml"] }} />
           <FilterListItem label=".bmp" value={{ type: ["image/bmp"] }} />
-          <FilterListItem label=".psd" value={{ type: ["image/vnd.adobe.photoshop"] }} />
+          <FilterListItem
+            label=".psd"
+            value={{ type: ["image/vnd.adobe.photoshop"] }}
+          />
         </FilterList>
         <FilterList label="Audio" icon={null}>
           <FilterListItem label=".mp3" value={{ type: "audio/mpeg" }} />
@@ -132,11 +137,20 @@ function SideBar() {
         <FilterList label="Application" icon={null}>
           <FilterListItem label=".pdf" value={{ type: "application/pdf" }} />
           <FilterListItem label=".xml" value={{ type: "application/xml" }} />
-          <FilterListItem label=".doc" value={{ type: ["application/msword"] }} />
-          <FilterListItem label=".srt" value={{ type: ["application/x-subrip"] }} />
+          <FilterListItem
+            label=".doc"
+            value={{ type: ["application/msword"] }}
+          />
+          <FilterListItem
+            label=".srt"
+            value={{ type: ["application/x-subrip"] }}
+          />
           <FilterListItem label=".zip" value={{ type: "application/zip" }} />
           <FilterListItem label=".tar" value={{ type: "application/x-tar" }} />
-          <FilterListItem label=".bin" value={{ type: "application/octet-stream" }} />
+          <FilterListItem
+            label=".bin"
+            value={{ type: "application/octet-stream" }}
+          />
         </FilterList>
         <FilterList label="Model" icon={null}>
           <FilterListItem label=".obj" value={{ type: "model/obj" }} />
@@ -154,7 +168,10 @@ export default function BlobList() {
         <SearchInput source="q" alwaysOn />,
         <AutocompleteArrayInput
           source="type"
-          choices={Object.keys(mime.extensions).map((type) => ({ id: type, name: type }))}
+          choices={Object.keys(mime.extensions).map((type) => ({
+            id: type,
+            name: type,
+          }))}
         />,
       ]}
       filterDefaultValues={{}}
@@ -162,17 +179,30 @@ export default function BlobList() {
       pagination={<Pagination rowsPerPageOptions={[10, 25, 50, 100]} />}
       aside={<SideBar />}
     >
-      {useMediaQuery((theme: Theme) => theme.breakpoints.down("md")) ? (
-        <SimpleList primaryText={(record) => truncateHash(record.sha256)} secondaryText={(record) => record.type} />
-      ) : (
-        <Datagrid rowClick="show" bulkActionButtons={<UserBulkActionButtons />} optimized>
-          <TextField source="sha256" sortable={false} />
-          <TextField source="type" />
-          <NumberField source="size" />
-          <DateField source="uploaded" transform={(unix: number) => dayjs.unix(unix).toDate()} showTime />
-          <RowActions />
-        </Datagrid>
-      )}
+      {useMediaQuery((theme: Theme) => theme.breakpoints.down("md"))
+        ? (
+          <SimpleList
+            primaryText={(record) => truncateHash(record.sha256)}
+            secondaryText={(record) => record.type}
+          />
+        )
+        : (
+          <Datagrid
+            rowClick="show"
+            bulkActionButtons={<UserBulkActionButtons />}
+            optimized
+          >
+            <TextField source="sha256" sortable={false} />
+            <TextField source="type" />
+            <NumberField source="size" />
+            <DateField
+              source="uploaded"
+              transform={(unix: number) => dayjs.unix(unix).toDate()}
+              showTime
+            />
+            <RowActions />
+          </Datagrid>
+        )}
     </List>
   );
 }

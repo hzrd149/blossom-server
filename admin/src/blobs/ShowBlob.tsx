@@ -1,5 +1,12 @@
 import { Button, Stack, Typography } from "@mui/material";
-import { DeleteButton, NumberField, Show, TabbedShowLayout, TextField, useShowController } from "react-admin";
+import {
+  DeleteButton,
+  NumberField,
+  Show,
+  TabbedShowLayout,
+  TextField,
+  useShowController,
+} from "react-admin";
 import BlobPreview, { canPreview } from "./BlobPreview";
 
 type BlobShape = {
@@ -16,7 +23,9 @@ function PreviewContent() {
   const { record } = useShowController<BlobShape>();
   if (!record) return;
 
-  return canPreview(record) ? <BlobPreview blob={record} /> : <Typography>No preview available</Typography>;
+  return canPreview(record)
+    ? <BlobPreview blob={record} />
+    : <Typography>No preview available</Typography>;
 }
 
 function Page() {
