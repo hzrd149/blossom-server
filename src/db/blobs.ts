@@ -189,3 +189,75 @@ export async function isOwner(
   });
   return rs.rows.length > 0;
 }
+
+/** Extended BlobRecord that includes last-access timestamp for prune evaluation. */
+export interface BlobPruneRecord extends BlobRecord {
+  /** Unix timestamp from the accessed table, or null if the blob has never been accessed. */
+  accessed: number | null;
+}
+
+/**
+ * Fetch blobs matching a SQL LIKE type pattern, with their last-access timestamp.
+ * Used by the prune engine to evaluate rule-based expiry.
+ *
+ * @param typePattern  SQL LIKE pattern (e.g. "image/%", "%"). Use mimeToSqlLike() to derive this.
+ * @param pubkeys      If provided, only blobs owned by one of these pubkeys are returned.
+ */
+export async function getBlobsForPrune(
+  db: Client,
+  typePattern: string,
+  pubkeys?: string[],
+): Promise<BlobPruneRecord[]> {
+  let sql: string;
+  let args: (string | number)[];
+
+  if (pubkeys && pubkeys.length > 0) {
+    const placeholders = pubkeys.map(() => "?").join(", ");
+    sql = `
+      SELECT b.sha256, b.size, b.type, b.uploaded, a.timestamp AS accessed
+      FROM blobs b
+      JOIN owners o ON o.blob = b.sha256
+      LEFT JOIN accessed a ON a.blob = b.sha256
+      WHERE b.type LIKE ?
+        AND o.pubkey IN (${placeholders})
+    `;
+    args = [typePattern, ...pubkeys];
+  } else {
+    sql = `
+      SELECT b.sha256, b.size, b.type, b.uploaded, a.timestamp AS accessed
+      FROM blobs b
+      LEFT JOIN accessed a ON a.blob = b.sha256
+      WHERE b.type LIKE ?
+    `;
+    args = [typePattern];
+  }
+
+  const rs = await db.execute({ sql, args });
+  return rs.rows.map((row) => ({
+    sha256: row[0] as string,
+    size: row[1] as number,
+    type: row[2] as string | null,
+    uploaded: row[3] as number,
+    accessed: row[4] as number | null,
+  }));
+}
+
+/**
+ * Return sha256 + type for all blobs that have no entry in the owners table.
+ * Used by the prune engine's removeWhenNoOwners phase.
+ * The type field is needed to derive the on-disk file extension for deletion.
+ */
+export async function getOwnerlessBlobSha256s(
+  db: Client,
+): Promise<{ sha256: string; type: string | null }[]> {
+  const rs = await db.execute(`
+    SELECT b.sha256, b.type
+    FROM blobs b
+    LEFT JOIN owners o ON o.blob = b.sha256
+    WHERE o.blob IS NULL
+  `);
+  return rs.rows.map((row) => ({
+    sha256: row[0] as string,
+    type: row[1] as string | null,
+  }));
+}

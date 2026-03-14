@@ -1,65 +1,97 @@
-# Blossom Server Configuration
+# Blossom Server — Example Configuration
 #
-# Environment Variable Support:
+# Copy this file to config.yml and adjust to your needs.
+# Pass a config path as the first argument: deno task start my-config.yml
+# Defaults to config.yml in the working directory.
+#
+# Environment Variable Interpolation:
 #   Use "${VAR_NAME}" anywhere in this file to substitute an env var at startup.
-#   Example: accessKey: "${S3_ACCESS_KEY}"
-#   If the env var is not set, the literal string "${VAR_NAME}" is kept.
+#   If the variable is not set the literal string "${VAR_NAME}" is kept.
+#   Example:  accessKey: "${S3_ACCESS_KEY}"
 
-# Override the domain used in the "url" field of blob descriptors.
-# Defaults to the Host header of the incoming HTTP request.
-publicDomain: ""
+# ---------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------
+
+# TCP port to listen on.
+port: 3000
+
+# Interface/hostname to bind to.
+# Use 0.0.0.0 to accept connections on all interfaces (typical for containers).
+# Use 127.0.0.1 to accept only loopback connections (behind a local reverse proxy).
+host: 0.0.0.0
+
+# Override the domain used in blob descriptor "url" fields.
+# Defaults to the Host header of each incoming request.
+# Set this when running behind a reverse proxy that rewrites the Host header.
+# publicDomain: "https://blobs.example.com"
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
 
 database:
-  # Path to the local SQLite file.
+  # Path to the local SQLite file. Created automatically if it does not exist.
   # Ignored when "url" is set.
   path: data/sqlite.db
 
-  # Remote libSQL / Turso URL. When set, each upload worker opens its own
-  # direct connection — no MessageChannel bridge needed.
-  # Use "libsql://your-db.turso.io" for Turso cloud, or
-  # "http://localhost:8080" for a local sqld container:
-  #   docker run -p 8080:8080 ghcr.io/tursodatabase/libsql-server:latest
+  # Remote libSQL / Turso URL.
+  # When set, "path" is ignored and each upload worker opens its own direct
+  # connection (no MessageChannel bridge needed).
+  #   Turso cloud:      libsql://your-db.turso.io
+  #   Local sqld:       http://localhost:8080
+  #     docker run -p 8080:8080 ghcr.io/tursodatabase/libsql-server:latest
   # url: libsql://your-db.turso.io
 
   # Auth token for Turso cloud. Not required for a local sqld container.
   # authToken: "${TURSO_AUTH_TOKEN}"
 
-# Deprecated: use the "database" section above instead.
-# databasePath: data/sqlite.db
-
-# HTTP port to listen on.
-port: 3000
-
-# Interface/hostname to bind the HTTP server to.
-# Use 0.0.0.0 to accept connections from other machines.
-host: 0.0.0.0
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
 
 storage:
   # Storage backend: "local" or "s3"
   backend: local
 
+  # Local filesystem storage. Used when backend is "local".
   local:
+    # Directory where blob files are stored. Created automatically.
     dir: ./data/blobs
 
-  # S3-compatible object storage
+  # S3-compatible object storage. Used when backend is "s3".
   # s3:
   #   endpoint: https://s3.amazonaws.com
   #   bucket: my-blossom-bucket
   #   accessKey: "${S3_ACCESS_KEY}"
   #   secretKey: "${S3_SECRET_KEY}"
   #   region: us-east-1
+  #
   #   # If set, GET /:sha256 redirects to this URL prefix instead of proxying.
-  #   # The blob's sha256 + extension is appended automatically.
-  #   publicURL: https://my-bucket.s3.amazonaws.com/
+  #   # The blob hash and extension are appended automatically.
+  #   # publicURL: https://my-bucket.s3.amazonaws.com/
+  #
+  #   # Local directory for buffering uploads before committing to S3.
+  #   # Must have enough free space for the largest expected upload.
+  #   # tmpDir: ./data/s3-tmp
 
-  # Remove blobs with no owners immediately (rather than waiting for expiry rules).
+  # When true, blobs with no owners are removed on each prune cycle,
+  # regardless of expiry rules.
   removeWhenNoOwners: false
 
-  # Expiry rules — checked in order; first match wins for the blob's type.
-  # Blobs whose last-access timestamp exceeds the expiration are pruned.
-  # "type" supports glob wildcards: "image/*", "*"
-  # "expiration" is a human-readable duration: "7 days", "1 month", "24 hours"
-  # "pubkeys" (optional) restricts the rule to specific uploader pubkeys.
+  # Retention rules — evaluated in order; first match governs the blob's expiry.
+  #
+  # Rules also serve as the upload allowlist: when this list is non-empty, blobs
+  # whose MIME type matches no rule are rejected with 415 Unsupported Media Type.
+  # Remove all rules (set to []) to accept any MIME type with no expiry.
+  #
+  # Fields:
+  #   type        MIME type pattern. Supports glob wildcards:
+  #               "image/*" matches all image types, "*" matches everything.
+  #   expiration  How long a blob may go unaccessed before being pruned.
+  #               Human-readable duration: "7 days", "1 month", "24 hours".
+  #   pubkeys     Optional list of uploader Nostr pubkeys (hex) this rule applies to.
+  #               When set, only blobs from these pubkeys are matched by this rule.
   rules:
     - type: "image/*"
       expiration: 1 month
@@ -68,140 +100,173 @@ storage:
     - type: "*"
       expiration: 1 week
 
+  # Example: pubkey-scoped rule — give specific users longer image retention
+  # rules:
+  #   - type: "image/*"
+  #     expiration: 1 year
+  #     pubkeys:
+  #       - "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d"
+  #   - type: "image/*"
+  #     expiration: 1 month
+  #   - type: "*"
+  #     expiration: 1 week
+
+# ---------------------------------------------------------------------------
+# Upload  (BUD-02 / BUD-06)
+# ---------------------------------------------------------------------------
+
 upload:
-  # Enable the PUT /upload endpoint (BUD-02).
+  # Enable the PUT /upload endpoint. Set to false for a read-only server.
   enabled: true
 
-  # Require a valid BUD-11 Nostr auth token for uploads.
+  # Require a valid BUD-11 Nostr auth event for uploads.
+  # When false, anonymous uploads are accepted (not recommended in production).
   requireAuth: true
 
-  # Maximum blob size in bytes. Enforced from the Content-Length header
-  # BEFORE any body bytes are read. Requests without Content-Length
-  # receive 411 Length Required.
+  # Maximum blob size in bytes, enforced from Content-Length before reading the body.
+  # Requests without Content-Length receive 411 Length Required.
   maxSize: 2147483648 # 2 GB
 
   # Number of upload worker threads.
-  # 0 = auto (navigator.hardwareConcurrency — one per CPU core).
-  # Each worker handles multiple concurrent uploads (see maxJobsPerWorker).
-  # When all workers are at capacity, new uploads receive 503 Service Unavailable.
-  # There is no queue: rejection is fast (~6ms) and body bytes are never read.
+  # 0 = one per CPU core (navigator.hardwareConcurrency).
+  # When all workers are at capacity, new uploads receive 503 — there is no queue.
   workers: 0
 
-  # Maximum number of concurrent upload jobs a single worker will accept.
-  # Workers interleave jobs on their event loop during I/O, so a single slow
-  # upload does not monopolise a worker slot. Raise this if you expect many
-  # simultaneous slow or small uploads; lower it if uploads are large and
-  # CPU-bound (hashing dominates).
+  # Maximum concurrent upload jobs per worker.
+  # Workers interleave jobs during I/O so a single slow upload does not block others.
+  # Increase for many simultaneous small/slow uploads; decrease for large CPU-bound ones.
   maxJobsPerWorker: 4
 
-  # How often (in milliseconds) each worker reports its aggregate throughput
-  # to the pool. The pool uses this to route new uploads to the worker
-  # currently handling the least I/O load (lowest bytes/sec).
-  # Lower values = more responsive routing; higher values = less overhead.
+  # How often (ms) each worker reports throughput to the pool.
+  # The pool routes new uploads to the least-loaded worker.
+  # Lower = more responsive routing; higher = less overhead.
   throughputWindowMs: 1000
 
-  # Allowed MIME types. Empty list = all types accepted.
-  # Example: ["image/jpeg", "image/png", "image/webp", "video/mp4"]
+  # Simple MIME type allowlist. Empty = all types accepted.
+  # Supports wildcards: "image/*", "video/*".
+  # NOTE: ignored when storage.rules is non-empty — rules act as the upload gate.
   allowedTypes: []
 
-list:
-  # Enable the GET /list/:pubkey endpoint (BUD-02).
-  # This endpoint is optional and unrecommended per the BUD-02 spec.
-  enabled: false
+  # When true, uploads are rejected unless the uploader's Nostr pubkey appears
+  # in at least one storage rule's "pubkeys" list.
+  # Enables closed/invite-only servers. Only meaningful with pubkey-scoped rules.
+  requirePubkeyInRule: false
 
-  # Require a valid BUD-11 auth token to list blobs.
-  requireAuth: false
-
-  # Allow listing blobs uploaded by other pubkeys.
-  allowListOthers: true
-
-delete:
-  # Require a valid BUD-11 auth token to delete blobs.
-  requireAuth: true
+# ---------------------------------------------------------------------------
+# Mirror  (BUD-04)
+# ---------------------------------------------------------------------------
 
 mirror:
-  # Enable the PUT /mirror endpoint (BUD-04).
+  # Enable the PUT /mirror endpoint.
+  # Allows clients to request the server fetch and store a blob from a remote URL.
   enabled: true
 
-  # Require a valid BUD-11 Nostr auth token for mirroring.
+  # Require a valid BUD-11 Nostr auth event for mirror requests.
   requireAuth: true
 
-  # Timeout in milliseconds for the outbound fetch to the origin server.
+  # Timeout (ms) for the outbound fetch to the origin server.
   # 0 = no timeout (not recommended in production).
   fetchTimeout: 30000
 
-media:
-  # Enable the PUT /media endpoint (BUD-05).
-  # Clients upload an image or video; the server optimises/transcodes it,
-  # stores the optimised derivative, and returns its hash and URL.
-  # Requires ffmpeg to be installed on the host (for video transcoding).
-  enabled: true
+# ---------------------------------------------------------------------------
+# Delete  (BUD-02)
+# ---------------------------------------------------------------------------
 
-  # Require a valid BUD-11 Nostr auth token with t="media" for media uploads.
+delete:
+  # Require a valid BUD-11 Nostr auth event to delete blobs.
+  # When false, any client may delete any blob (not recommended).
   requireAuth: true
 
-  # Maximum input file size in bytes before reading the body.
-  maxSize: 524288000 # 500 MB
+# ---------------------------------------------------------------------------
+# Media optimisation  (BUD-05)
+# ---------------------------------------------------------------------------
+
+media:
+  # Enable the PUT /media endpoint.
+  # Clients upload an image or video; the server optimises/transcodes it,
+  # stores the result, and returns the optimised blob descriptor.
+  # Video transcoding requires ffmpeg to be installed on the host.
+  enabled: false
+
+  # Require a valid BUD-11 Nostr auth event for media uploads.
+  requireAuth: true
+
+  # Maximum input file size in bytes before reading the body. Default: 1 GB.
+  maxSize: 1073741824 # 1 GB
 
   image:
-    # Output quality 0–100 (default 90).
+    # Output quality 0–100. Higher = better quality, larger file.
     quality: 90
 
-    # Produce progressive JPEG / interlaced PNG for better streaming on slow
-    # connections. Has no effect when outputFormat is "webp". (default true)
+    # Produce progressive JPEG / interlaced PNG for better streaming on slow connections.
+    # No effect when outputFormat is "webp".
     progressive: true
 
-    # Maximum output width in pixels. Images wider than this are scaled down
-    # while preserving aspect ratio. (default 1920)
+    # Maximum output dimensions in pixels. Images are scaled down to fit within
+    # these bounds while preserving aspect ratio.
     maxWidth: 1920
-
-    # Maximum output height in pixels. (default 1080)
     maxHeight: 1080
 
-    # Output image format: "webp" | "jpeg" | "png" (default "webp")
-    outputFormat: "webp"
+    # Output format: "webp" | "jpeg" | "png"
+    # webp offers the best compression for web delivery.
+    outputFormat: webp
 
-    # Preserve aspect ratio when resizing. (default true)
-    # Setting this to false stretches the image to exactly maxWidth×maxHeight.
+    # Preserve aspect ratio when resizing.
+    # When false, images are stretched to exactly maxWidth×maxHeight.
     maintainAspectRatio: true
 
-    # Keep EXIF metadata in the output file. (default false)
-    # When false, all EXIF data is stripped (recommended for privacy).
+    # Keep EXIF metadata in the output file.
+    # When false (default), all EXIF data is stripped — recommended for privacy.
     keepExif: false
 
     # Maximum frame rate for animated GIF output.
-    # Frames that would exceed this rate are dropped. (default 30)
+    # Frames exceeding this rate are dropped.
     fps: 30
 
   video:
-    # Output quality 0–100 mapped to a CRF value.
-    # quality=100 → CRF=0 (lossless), quality=0 → CRF=51 (worst). (default 90)
+    # Output quality 0–100, mapped to a CRF value.
+    # 100 = CRF 0 (lossless); 0 = CRF 51 (lowest quality).
     quality: 90
 
-    # Maximum output height in pixels. Width is scaled to preserve aspect ratio.
-    # Uses ffmpeg's fit-inside scaling: ?x<maxHeight>. (default 1080)
+    # Maximum output height in pixels. Width is scaled proportionally.
     maxHeight: 1080
 
     # Maximum output frame rate. Frames above this threshold are dropped.
-    # The source FPS is probed via ffprobe and clamped to this value. (default 30)
     maxFps: 30
 
-    # Output container format: "mp4" | "webm" | "mkv" (default "mp4")
+    # Output container format: "mp4" | "webm" | "mkv"
     # mp4 is the most widely compatible; webm is preferred for web delivery.
-    format: "mp4"
+    format: mp4
 
     # Audio codec. Must be compatible with the chosen format.
     #   mp4 / mkv: "aac" (default), "mp3"
     #   webm:      "opus" (default for webm), "vorbis"
-    audioCodec: "aac"
+    audioCodec: aac
 
     # Video codec. Must be compatible with the chosen format.
     #   mp4 / mkv: "libx264" (default), "libx265"
     #   webm:      "vp9" (default for webm), "vp8"
-    videoCodec: "libx264"
+    videoCodec: libx264
+
+# ---------------------------------------------------------------------------
+# Prune loop
+# ---------------------------------------------------------------------------
+
+prune:
+  # Delay (ms) before the first prune run after server startup.
+  initialDelayMs: 60000 # 60 seconds
+
+  # Minimum gap (ms) between the end of one prune run and the start of the next.
+  # Uses recursive setTimeout — the next run begins only after the current one completes.
+  intervalMs: 30000 # 30 seconds
+
+# ---------------------------------------------------------------------------
+# Landing page
+# ---------------------------------------------------------------------------
 
 landing:
-  # Enable the SSR landing page at GET /.
+  # Enable the server-rendered landing page at GET /.
+  # Shows server info, storage stats, and accepted MIME types.
   enabled: false
 
   # Page title shown in <title> and <h1>.

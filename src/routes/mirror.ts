@@ -33,13 +33,14 @@
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
-import { extension as extFromMime } from "@std/media-types";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
+import { mimeToExt } from "../utils/mime.ts";
+import { getFileRule } from "../prune/rules.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -101,13 +102,8 @@ function checkSsrf(hostname: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (same logic as upload.ts — kept local for route self-containment)
+// Helpers
 // ---------------------------------------------------------------------------
-
-function mimeToExt(mime: string | null): string {
-  if (!mime || mime === "application/octet-stream") return "";
-  return extFromMime(mime) ?? "";
-}
 
 function getBlobUrl(
   hash: string,
@@ -254,13 +250,28 @@ export function buildMirrorRouter(
       );
     }
 
-    // --- 10. Content-Type allowlist ---
+    // --- 10. Content-Type check / storage rule gate ---
     // BUD-04: use Content-Type from origin; fall back to application/octet-stream.
     const rawContentType = originResponse.headers.get("content-type") ??
       "application/octet-stream";
     const mimeType = rawContentType.split(";")[0].trim() ||
       "application/octet-stream";
-    if (
+
+    if (config.storage.rules.length > 0) {
+      // When storage.rules is non-empty, rules are the single upload gate (legacy behavior).
+      const rule = getFileRule(
+        { mimeType, pubkey: auth?.pubkey },
+        config.storage.rules,
+        config.upload.requirePubkeyInRule,
+      );
+      if (!rule) {
+        await originResponse.body?.cancel();
+        if (config.upload.requirePubkeyInRule) {
+          return errorResponse(ctx, 401, "Pubkey not authorized by any storage rule");
+        }
+        return errorResponse(ctx, 415, `Server does not accept ${mimeType} blobs`);
+      }
+    } else if (
       config.upload.allowedTypes.length > 0 &&
       !isAllowedType(mimeType, config.upload.allowedTypes)
     ) {

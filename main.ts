@@ -18,6 +18,7 @@ import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
 import { installDbBridge } from "./src/db/bridge.ts";
 import { buildApp } from "./src/server.ts";
+import { pruneStorage } from "./src/prune/prune.ts";
 
 const configPath = Deno.args[0] ?? "config.yml";
 const config = await loadConfig(configPath);
@@ -109,6 +110,29 @@ if (config.landing.enabled) {
 // Build Hono app
 const app = buildApp(db, storage, config, landingWorker);
 
+// Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
+// Uses recursive setTimeout (not setInterval) so the next run starts only after the
+// current one fully completes, preventing overlapping runs under slow I/O.
+const pruneEnabled = config.storage.rules.length > 0 || config.storage.removeWhenNoOwners;
+let pruneTimeout: ReturnType<typeof setTimeout> | undefined;
+if (pruneEnabled) {
+  const runPrune = async () => {
+    try {
+      const result = await pruneStorage(
+        db,
+        storage,
+        config.storage.rules,
+        config.storage.removeWhenNoOwners,
+      );
+      console.log(`[prune] deleted=${result.deleted} errors=${result.errors}`);
+    } catch (err) {
+      console.error("[prune] Unexpected error in prune loop:", err);
+    }
+    pruneTimeout = setTimeout(runPrune, config.prune.intervalMs);
+  };
+  pruneTimeout = setTimeout(runPrune, config.prune.initialDelayMs);
+}
+
 // Start server
 const server = Deno.serve(
   {
@@ -138,6 +162,12 @@ const server = Deno.serve(
         "  Landing: GET /                  " +
           (config.landing.enabled ? "ready" : "disabled"),
       );
+      console.log(
+        "  Prune:   storage rules          " +
+          (pruneEnabled
+            ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
+            : "disabled (no rules configured)"),
+      );
     },
   },
   app.fetch,
@@ -146,6 +176,7 @@ const server = Deno.serve(
 // Graceful shutdown
 const shutdown = () => {
   console.log("\nShutting down...");
+  if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
   pool.shutdown();
   landingWorker?.terminate();
   server.shutdown().then(() => {

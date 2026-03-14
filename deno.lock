@@ -18,6 +18,7 @@
     "jsr:@std/media-types@^1.1.0": "1.1.0",
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@std/ulid@1": "1.0.0",
+    "jsr:@std/yaml@*": "1.0.12",
     "jsr:@std/yaml@^1.0.12": "1.0.12",
     "npm:@libsql/client@0.17": "0.17.0",
     "npm:@types/fluent-ffmpeg@^2.1.27": "2.1.28",

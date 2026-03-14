@@ -11,20 +11,14 @@
 
 import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
-import { extension as extFromMime } from "@std/media-types";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getBlob, touchBlob } from "../db/blobs.ts";
 import { optionalAuth } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
+import { mimeToExt } from "../utils/mime.ts";
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
-
-/** Derive the stored file extension from a MIME type. Empty string if none. */
-function mimeToExt(mime: string | null): string {
-  if (!mime || mime === "application/octet-stream") return "";
-  return extFromMime(mime) ?? "";
-}
 
 export function buildBlobsRouter(
   db: Client,

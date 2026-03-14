@@ -27,7 +27,6 @@
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
-import { extension as extFromMime } from "@std/media-types";
 import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth, requireXTag } from "../middleware/auth.ts";
@@ -36,6 +35,8 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
+import { mimeToExt } from "../utils/mime.ts";
+import { getFileRule } from "../prune/rules.ts";
 
 /** BUD-02 Blob Descriptor */
 interface BlobDescriptor {
@@ -44,16 +45,6 @@ interface BlobDescriptor {
   size: number;
   type: string;
   uploaded: number;
-}
-
-/**
- * Derive a file extension from a MIME type.
- * Returns empty string for unknown types or application/octet-stream.
- * Uses @std/media-types for comprehensive MIME → extension coverage.
- */
-export function mimeToExt(mime: string | null): string {
-  if (!mime || mime === "application/octet-stream") return "";
-  return extFromMime(mime) ?? "";
 }
 
 function getBlobUrl(
@@ -117,7 +108,25 @@ export function buildUploadRouter(
       );
     }
 
-    if (
+    // --- Storage rule check (preflight) ---
+    // When storage.rules is non-empty, rules are the upload gate.
+    // auth may not be populated yet for HEAD (auth is optional in preflight),
+    // so pass pubkey only when available.
+    const preflightAuth = config.upload.requireAuth ? ctx.get("auth") : ctx.get("auth");
+    const preflightPubkey = preflightAuth?.pubkey;
+    if (config.storage.rules.length > 0) {
+      const rule = getFileRule(
+        { mimeType: xContentType, pubkey: preflightPubkey },
+        config.storage.rules,
+        config.upload.requirePubkeyInRule,
+      );
+      if (!rule) {
+        if (config.upload.requirePubkeyInRule) {
+          return errorResponse(ctx, 401, "Pubkey not authorized by any storage rule");
+        }
+        return errorResponse(ctx, 415, `Server does not accept ${xContentType} blobs`);
+      }
+    } else if (
       config.upload.allowedTypes.length > 0 &&
       !isAllowedType(xContentType, config.upload.allowedTypes)
     ) {
@@ -202,11 +211,27 @@ export function buildUploadRouter(
       );
     }
 
-    // --- 4. MIME type check ---
+    // --- 4. MIME type check / storage rule gate ---
     const contentType = ctx.req.header("content-type") ??
       "application/octet-stream";
     const mimeType = contentType.split(";")[0].trim();
-    if (
+
+    if (config.storage.rules.length > 0) {
+      // When storage.rules is non-empty, rules are the single upload gate (legacy behavior).
+      const rule = getFileRule(
+        { mimeType, pubkey: auth?.pubkey },
+        config.storage.rules,
+        config.upload.requirePubkeyInRule,
+      );
+      if (!rule) {
+        await ctx.req.raw.body?.cancel();
+        debug(debugPrefix, `rejected: no storage rule matches — mime=${mimeType}`);
+        if (config.upload.requirePubkeyInRule) {
+          return errorResponse(ctx, 401, "Pubkey not authorized by any storage rule");
+        }
+        return errorResponse(ctx, 415, `Server does not accept ${mimeType} blobs`);
+      }
+    } else if (
       config.upload.allowedTypes.length > 0 &&
       !isAllowedType(mimeType, config.upload.allowedTypes)
     ) {
