@@ -82,7 +82,9 @@ export function buildBlobsRouter(
     // Short-circuit before storage I/O: only the DB lookup has occurred at this point.
     const ifNoneMatch = ctx.req.header("if-none-match");
     if (ifNoneMatch) {
-      const tags = ifNoneMatch.split(",").map((t) => t.trim().replace(/^"(.*)"$/, "$1"));
+      const tags = ifNoneMatch.split(",").map((t) =>
+        t.trim().replace(/^"(.*)"$/, "$1")
+      );
       if (tags.includes(hash) || tags.includes("*")) {
         return ctx.body(null, 304, {
           "ETag": headers["ETag"],

@@ -41,7 +41,7 @@
  */
 
 import { createClient } from "@libsql/client";
-import { initDb, type DbConfig } from "./client.ts";
+import { type DbConfig, initDb } from "./client.ts";
 
 // ---------------------------------------------------------------------------
 // Public API — single entry point
@@ -169,7 +169,9 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
   log(`         blobs:    ${blobs.length}`);
   log(
     `         owners:   ${owners.length}` +
-      (duplicatesRemoved > 0 ? ` (${duplicatesRemoved} duplicate rows removed)` : ""),
+      (duplicatesRemoved > 0
+        ? ` (${duplicatesRemoved} duplicate rows removed)`
+        : ""),
   );
   log(`         accessed: ${accessed.length}`);
 
@@ -192,7 +194,9 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
   // the singleton Client it manages for the rest of the server's lifetime.
   const fresh = await initDb(dbConfig);
   log("         tables: blobs, owners, accessed, media_derivatives");
-  log("         owners: composite PRIMARY KEY (blob, pubkey) + ON DELETE CASCADE");
+  log(
+    "         owners: composite PRIMARY KEY (blob, pubkey) + ON DELETE CASCADE",
+  );
 
   // ------------------------------------------------------------------
   // Step 4 — Import data
@@ -215,7 +219,8 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
     const normalized = normalizeType(b.type);
     if (normalized !== b.type) normalizedCount++;
     await fresh.execute({
-      sql: "INSERT OR IGNORE INTO blobs (sha256, type, size, uploaded) VALUES (?, ?, ?, ?)",
+      sql:
+        "INSERT OR IGNORE INTO blobs (sha256, type, size, uploaded) VALUES (?, ?, ?, ?)",
       args: [b.sha256, normalized, b.size, b.uploaded],
     });
   }
@@ -236,7 +241,9 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
 
   log(`         blobs:    ${blobs.length} imported`);
   if (normalizedCount > 0) {
-    log(`         type:     ${normalizedCount} MIME types stripped of charset params`);
+    log(
+      `         type:     ${normalizedCount} MIME types stripped of charset params`,
+    );
   }
   log(`         owners:   ${owners.length} imported`);
   log(`         accessed: ${accessed.length} imported`);
@@ -257,8 +264,7 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
   const gotOwners = vo.rows[0][0] as number;
   const gotAccessed = va.rows[0][0] as number;
 
-  const ok =
-    gotBlobs === blobs.length &&
+  const ok = gotBlobs === blobs.length &&
     gotOwners === owners.length &&
     gotAccessed === accessed.length;
 
@@ -289,9 +295,13 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
 
   console.log("");
   log("━━━ Migration successful ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  log(`  blobs:    ${gotBlobs}  |  owners: ${gotOwners}  |  accessed: ${gotAccessed}`);
+  log(
+    `  blobs:    ${gotBlobs}  |  owners: ${gotOwners}  |  accessed: ${gotAccessed}`,
+  );
   if (normalizedCount > 0) {
-    log(`  MIME:     ${normalizedCount} type values normalised (charset params stripped)`);
+    log(
+      `  MIME:     ${normalizedCount} type values normalised (charset params stripped)`,
+    );
   }
   if (duplicatesRemoved > 0) {
     log(`  dedup:    ${duplicatesRemoved} duplicate owner rows removed`);

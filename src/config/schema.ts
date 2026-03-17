@@ -246,7 +246,7 @@ export type DatabaseConfig = z.infer<typeof DatabaseSchema>;
 export const ConfigSchema = z
   .object({
     publicDomain: z.string().default("").describe(
-      "The bare domain name this server is publicly reachable at, e.g. \"cdn.example.com\". " +
+      'The bare domain name this server is publicly reachable at, e.g. "cdn.example.com". ' +
         "Used to build blob descriptor URLs and to validate the BUD-11 'server' tag in auth events. " +
         "Defaults to the Host header of the incoming request. Useful behind a reverse proxy. " +
         "Do NOT include a protocol scheme (https://) — bare hostname only.",

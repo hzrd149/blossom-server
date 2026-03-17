@@ -402,13 +402,18 @@ export function buildMirrorRouter(
         // message when the rejection crosses a Worker isolate boundary, arriving
         // as Error { name: "Error", message: "" }. A plain Error survives intact.
         bodyAbort.abort(
-          new Error(`Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`),
+          new Error(
+            `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`,
+          ),
         );
       }, config.mirror.bodyTimeout);
 
       // Pipe through a PassThrough that respects the abort signal so the worker
       // receives an errored stream if the timer fires.
-      const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+      const { readable, writable } = new TransformStream<
+        Uint8Array,
+        Uint8Array
+      >();
       body.pipeTo(writable, { signal: bodyAbort.signal }).catch(() => {});
       streamForWorker = readable;
     }
@@ -465,8 +470,11 @@ export function buildMirrorRouter(
       // DOMException (e.g. TimeoutError from AbortSignal) has a non-empty
       // .name but may have an empty .message — use name as fallback.
       const errName = err instanceof Error ? err.name : "";
-      const errMsg = err instanceof Error ? (err.message || err.name) : String(err);
-      const isBodyTimeout = errName === "TimeoutError" && config.mirror.bodyTimeout > 0;
+      const errMsg = err instanceof Error
+        ? (err.message || err.name)
+        : String(err);
+      const isBodyTimeout = errName === "TimeoutError" &&
+        config.mirror.bodyTimeout > 0;
       const msg = isBodyTimeout
         ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`
         : errMsg || "Mirror failed";

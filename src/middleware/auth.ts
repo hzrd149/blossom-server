@@ -29,7 +29,9 @@ declare module "@hono/hono" {
  *   "http://localhost:3000"  → "localhost"
  *   ""                       → null
  */
-export function extractHostname(value: string | null | undefined): string | null {
+export function extractHostname(
+  value: string | null | undefined,
+): string | null {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
