@@ -15,7 +15,13 @@ import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
 import { extension as extFromMime } from "@std/media-types";
 import type { IBlobStorage } from "../storage/interface.ts";
-import { deleteBlob, getBlob, isOwner } from "../db/blobs.ts";
+import {
+  countOwners,
+  deleteBlob,
+  getBlob,
+  isOwner,
+  removeOwner,
+} from "../db/blobs.ts";
 import { requireAuth, requireXTag } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
@@ -45,30 +51,44 @@ export function buildDeleteRouter(
       return errorResponse(ctx, 400, "Invalid sha256 hash");
     }
 
+    // Look up the blob before auth so we can return 404 early if it doesn't exist
+    const blob = await getBlob(db, hash);
+    if (!blob) {
+      return errorResponse(ctx, 404, "Blob not found");
+    }
+
     // Auth enforcement
-    let pubkey = "anonymous";
+    let pubkey: string | null = null;
     if (config.delete.requireAuth) {
       const auth = requireAuth(ctx, "delete");
       pubkey = auth.pubkey;
 
-      // BUD-11: x tags for delete require the hash to be listed
+      // BUD-11: the delete auth event must include the blob hash in an x tag
       requireXTag(auth, hash);
 
-      // Ownership check — DELETE requires being an owner of the blob
+      // Ownership check — only owners may delete their copy of a blob
       if (!await isOwner(db, hash, pubkey)) {
         return errorResponse(ctx, 403, "You are not an owner of this blob");
       }
     }
 
-    // Look up the blob to get its MIME type — needed to derive on-disk filename
-    const blob = await getBlob(db, hash);
-    const ext = blob ? mimeToExt(blob.type) : "";
+    const ext = mimeToExt(blob.type);
 
-    // Remove from storage + DB (cascade deletes owners and accessed records)
-    const existed = await deleteBlob(db, hash);
-    if (!existed) {
-      return errorResponse(ctx, 404, "Blob not found");
+    if (pubkey !== null) {
+      // Remove only this pubkey's ownership record
+      await removeOwner(db, hash, pubkey);
+
+      // Check whether any other owners remain
+      const remaining = await countOwners(db, hash);
+
+      if (remaining > 0) {
+        // Other owners still hold references — leave the blob in place
+        return ctx.body(null, 200);
+      }
     }
+
+    // No owners left (or unauthenticated delete) — purge the blob entirely
+    await deleteBlob(db, hash);
 
     // Remove from storage backend (best-effort — DB record is the source of truth)
     await storage.remove(hash, ext).catch((err) =>

@@ -69,6 +69,35 @@ export async function deleteBlob(db: Client, sha256: string): Promise<boolean> {
   return (rs.rowsAffected ?? 0) > 0;
 }
 
+/**
+ * Remove a single pubkey's ownership of a blob.
+ * Does NOT delete the blob row itself — use deleteBlob() for that.
+ * Returns true if the owner row existed and was removed.
+ */
+export async function removeOwner(
+  db: Client,
+  sha256: string,
+  pubkey: string,
+): Promise<boolean> {
+  const rs = await db.execute({
+    sql: "DELETE FROM owners WHERE blob = ? AND pubkey = ?",
+    args: [sha256, pubkey],
+  });
+  return (rs.rowsAffected ?? 0) > 0;
+}
+
+/**
+ * Count the number of owners for a blob.
+ * Returns 0 if the blob has no owners or does not exist.
+ */
+export async function countOwners(db: Client, sha256: string): Promise<number> {
+  const rs = await db.execute({
+    sql: "SELECT COUNT(*) FROM owners WHERE blob = ?",
+    args: [sha256],
+  });
+  return (rs.rows[0]?.[0] as number) ?? 0;
+}
+
 export async function touchBlob(
   db: Client,
   sha256: string,
