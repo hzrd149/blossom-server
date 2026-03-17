@@ -373,6 +373,10 @@ export function buildUploadRouter(
     let hash: string;
     let size: number;
     try {
+      debug(
+        debugPrefix,
+        `awaiting worker result hash=${xSha256?.slice(0, 8) ?? "pending"}`,
+      );
       ({ hash, size } = await jobPromise);
       debug(
         debugPrefix,
@@ -406,8 +410,12 @@ export function buildUploadRouter(
     // For local storage: atomic Deno.rename() to <hash>.<ext>.
     // For S3 storage: stream the verified local tmp file to S3, then delete it.
     // commitWrite() handles dedup internally (no-op if blob already exists).
+    debug(debugPrefix, `commitWrite start hash=${hash} ext=${ext}`);
+    const t0 = Date.now();
     try {
       await storage.commitWrite(session, hash, ext);
+      const t1 = Date.now();
+      debug(debugPrefix, `commitWrite complete elapsed=${t1 - t0}ms`);
     } catch (err) {
       await storage.abortWrite(session).catch(() => {});
       throw err;
@@ -421,7 +429,11 @@ export function buildUploadRouter(
       type: mimeType !== "application/octet-stream" ? mimeType : null,
       uploaded: now,
     };
+    debug(debugPrefix, `insertBlob start hash=${hash}`);
+    const t2 = Date.now();
     await insertBlob(db, blobRecord, auth?.pubkey ?? "anonymous");
+    const t3 = Date.now();
+    debug(debugPrefix, `insertBlob complete elapsed=${t3 - t2}ms`);
 
     // --- 12. Return BlobDescriptor ---
     debug(

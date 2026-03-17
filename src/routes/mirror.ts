@@ -33,8 +33,10 @@
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
+import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
+import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
@@ -141,8 +143,12 @@ export function buildMirrorRouter(
   const app = new Hono();
 
   app.put("/mirror", async (ctx) => {
+    const reqId = ulid();
+    const debugPrefix = `[mirror:${reqId}]`;
+
     // --- 1. Feature flag ---
     if (!config.mirror.enabled) {
+      debug(debugPrefix, "rejected: mirroring disabled");
       return errorResponse(ctx, 403, "Mirroring is disabled on this server");
     }
 
@@ -152,6 +158,8 @@ export function buildMirrorRouter(
       try {
         auth = requireAuth(ctx, "upload");
       } catch (err) {
+        const msg = err instanceof HTTPException ? err.message : String(err);
+        debug(debugPrefix, `rejected: auth failed — ${msg}`);
         if (err instanceof HTTPException) {
           return errorResponse(ctx, err.status as 401 | 403, err.message);
         }
@@ -167,6 +175,7 @@ export function buildMirrorRouter(
     try {
       const body = await ctx.req.json() as { url?: unknown };
       if (!body.url || typeof body.url !== "string") {
+        debug(debugPrefix, "rejected: missing url field in body");
         return errorResponse(
           ctx,
           400,
@@ -175,6 +184,7 @@ export function buildMirrorRouter(
       }
       mirrorUrl = new URL(body.url);
     } catch {
+      debug(debugPrefix, "rejected: invalid JSON body");
       return errorResponse(
         ctx,
         400,
@@ -182,8 +192,19 @@ export function buildMirrorRouter(
       );
     }
 
+    debug(
+      debugPrefix,
+      `PUT /mirror — url=${mirrorUrl.toString()} pubkey=${
+        auth?.pubkey?.slice(0, 8) ?? "anon"
+      }`,
+    );
+
     // --- 4. URL scheme validation ---
     if (mirrorUrl.protocol !== "http:" && mirrorUrl.protocol !== "https:") {
+      debug(
+        debugPrefix,
+        `rejected: unsupported scheme — ${mirrorUrl.protocol}`,
+      );
       return errorResponse(
         ctx,
         400,
@@ -194,12 +215,14 @@ export function buildMirrorRouter(
     // --- 5. SSRF guard: reject literal private / loopback IP addresses ---
     const ssrfError = checkSsrf(mirrorUrl.hostname);
     if (ssrfError) {
+      debug(debugPrefix, `rejected: SSRF guard — ${ssrfError}`);
       return errorResponse(ctx, 400, ssrfError);
     }
 
     // --- 6. Pre-fetch pool check (before opening any TCP connection) ---
     // If all workers are busy, fail immediately without touching the network.
     if (getPool().available === 0) {
+      debug(debugPrefix, "rejected: all upload workers busy (pre-fetch)");
       return errorResponse(
         ctx,
         503,
@@ -208,24 +231,40 @@ export function buildMirrorRouter(
     }
 
     // --- 7. Outbound fetch with timeout ---
+    debug(
+      debugPrefix,
+      `fetching origin url=${mirrorUrl.toString()} timeout=${config.mirror.fetchTimeout}ms`,
+    );
+    const t0 = Date.now();
     let originResponse: Response;
     try {
       const signal = config.mirror.fetchTimeout > 0
         ? AbortSignal.timeout(config.mirror.fetchTimeout)
         : undefined;
       originResponse = await fetch(mirrorUrl.toString(), { signal });
+      const t1 = Date.now();
+      debug(
+        debugPrefix,
+        `origin responded status=${originResponse.status} elapsed=${t1 - t0}ms`,
+      );
     } catch (err) {
+      const t1 = Date.now();
       const reason = err instanceof Error && err.name === "TimeoutError"
         ? `Origin server did not respond within ${config.mirror.fetchTimeout}ms`
         : `Failed to fetch from origin: ${
           err instanceof Error ? err.message : String(err)
         }`;
+      debug(debugPrefix, `fetch failed elapsed=${t1 - t0}ms — ${reason}`);
       return errorResponse(ctx, 502, reason);
     }
 
     // --- 8. Non-2xx origin response ---
     if (!originResponse.ok) {
       await originResponse.body?.cancel();
+      debug(
+        debugPrefix,
+        `rejected: origin ${originResponse.status} ${originResponse.statusText}`,
+      );
       return errorResponse(
         ctx,
         502,
@@ -243,6 +282,10 @@ export function buildMirrorRouter(
       contentLength > config.upload.maxSize
     ) {
       await originResponse.body?.cancel();
+      debug(
+        debugPrefix,
+        `rejected: remote blob too large — ${contentLength} > ${config.upload.maxSize} bytes`,
+      );
       return errorResponse(
         ctx,
         413,
@@ -257,6 +300,13 @@ export function buildMirrorRouter(
     const mimeType = rawContentType.split(";")[0].trim() ||
       "application/octet-stream";
 
+    debug(
+      debugPrefix,
+      `origin content-type=${mimeType} content-length=${
+        contentLength ?? "unknown"
+      }`,
+    );
+
     if (config.storage.rules.length > 0) {
       // When storage.rules is non-empty, rules are the single upload gate (legacy behavior).
       const rule = getFileRule(
@@ -266,6 +316,10 @@ export function buildMirrorRouter(
       );
       if (!rule) {
         await originResponse.body?.cancel();
+        debug(
+          debugPrefix,
+          `rejected: no storage rule matches — mime=${mimeType}`,
+        );
         if (config.upload.requirePubkeyInRule) {
           return errorResponse(
             ctx,
@@ -284,6 +338,7 @@ export function buildMirrorRouter(
       !isAllowedType(mimeType, config.upload.allowedTypes)
     ) {
       await originResponse.body?.cancel();
+      debug(debugPrefix, `rejected: unsupported media type — ${mimeType}`);
       return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
     }
 
@@ -292,11 +347,19 @@ export function buildMirrorRouter(
     // commitWrite() is called after hash verification.
     const body = originResponse.body;
     if (!body) {
+      debug(debugPrefix, "rejected: origin returned empty body");
       return errorResponse(ctx, 502, "Origin server returned an empty body");
     }
 
     const pool = getPool();
     const session = await storage.beginWrite(contentLength);
+
+    debug(
+      debugPrefix,
+      `dispatching to worker — size=${
+        contentLength ?? "unknown"
+      } mime=${mimeType}`,
+    );
 
     // Pass null as xSha256 — the hash is unknown pre-download. The x-tag
     // verification happens post-hash (step 13) after the worker returns.
@@ -310,6 +373,10 @@ export function buildMirrorRouter(
       // Race: another request claimed the last worker between step 6 and now.
       await body.cancel().catch(() => {});
       await storage.abortWrite(session).catch(() => {});
+      debug(
+        debugPrefix,
+        "rejected: worker race — all workers claimed before dispatch",
+      );
       return errorResponse(
         ctx,
         503,
@@ -320,11 +387,18 @@ export function buildMirrorRouter(
     // --- 12. Await worker result ---
     let hash: string;
     let size: number;
+    debug(debugPrefix, "awaiting worker result");
     try {
       ({ hash, size } = await jobPromise);
+      debug(
+        debugPrefix,
+        `worker complete — hash=${hash.slice(0, 8)} size=${size}`,
+      );
     } catch (err) {
       // Worker already deleted session.tmpPath on failure.
       await storage.abortWrite(session).catch(() => {});
+      const msg = err instanceof Error ? err.message : "Mirror failed";
+      debug(debugPrefix, `worker error — ${msg}`);
       return errorResponse(
         ctx,
         400,
@@ -342,6 +416,10 @@ export function buildMirrorRouter(
       const xTags = auth.tags.filter((t) => t[0] === "x");
       if (xTags.length === 0) {
         await storage.abortWrite(session).catch(() => {});
+        debug(
+          debugPrefix,
+          `rejected: auth event missing x tag for hash=${hash.slice(0, 8)}`,
+        );
         return errorResponse(
           ctx,
           403,
@@ -350,6 +428,12 @@ export function buildMirrorRouter(
       }
       if (!xTags.some((t) => t[1] === hash)) {
         await storage.abortWrite(session).catch(() => {});
+        debug(
+          debugPrefix,
+          `rejected: x tag mismatch — hash=${
+            hash.slice(0, 8)
+          } not in auth tags`,
+        );
         return errorResponse(
           ctx,
           403,
@@ -365,6 +449,10 @@ export function buildMirrorRouter(
       await storage.abortWrite(session).catch(() => {});
       const existing = await getBlob(db, hash);
       if (existing) {
+        debug(
+          debugPrefix,
+          `dedup hit — returning existing blob ${hash.slice(0, 8)}`,
+        );
         if (auth && !await isOwner(db, hash, auth.pubkey)) {
           await insertBlob(db, existing, auth.pubkey);
         }
@@ -383,8 +471,12 @@ export function buildMirrorRouter(
 
     // --- 15. Commit: move verified tmp file to final storage location ---
     // For local: atomic rename. For S3: stream to bucket, delete local tmp.
+    debug(debugPrefix, `commitWrite start hash=${hash} ext=${ext}`);
+    const t2 = Date.now();
     try {
       await storage.commitWrite(session, hash, ext);
+      const t3 = Date.now();
+      debug(debugPrefix, `commitWrite complete elapsed=${t3 - t2}ms`);
     } catch (err) {
       await storage.abortWrite(session).catch(() => {});
       throw err;
@@ -398,9 +490,19 @@ export function buildMirrorRouter(
       type: mimeType !== "application/octet-stream" ? mimeType : null,
       uploaded: now,
     };
+    debug(debugPrefix, `insertBlob start hash=${hash}`);
+    const t4 = Date.now();
     await insertBlob(db, blobRecord, auth?.pubkey ?? "anonymous");
+    const t5 = Date.now();
+    debug(debugPrefix, `insertBlob complete elapsed=${t5 - t4}ms`);
 
     // --- 17. Return BlobDescriptor ---
+    debug(
+      debugPrefix,
+      `mirror complete — ${hash} (${size} bytes, ${
+        blobRecord.type ?? "application/octet-stream"
+      })`,
+    );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     return ctx.json(
       {

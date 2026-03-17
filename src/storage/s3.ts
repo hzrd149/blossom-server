@@ -2,6 +2,7 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 import { join } from "@std/path";
 import { ulid } from "@std/ulid";
 import type { IBlobStorage, WriteSession } from "./interface.ts";
+import { debug } from "../middleware/debug.ts";
 
 /**
  * S3 storage adapter — implements IBlobStorage with a local-disk tmp buffer.
@@ -260,27 +261,63 @@ export class S3Storage implements IBlobStorage {
     hash: string,
     ext: string,
   ): Promise<void> {
+    const t0 = Date.now();
+    debug(`[s3:commit] start hash=${hash} ext=${ext} src=${srcPath}`);
+
     const key = this.objectKey(hash, ext);
 
     // Check for existing object — dedup, avoid redundant PUT
+    const t1 = Date.now();
+    debug(`[s3:commit] checking dedup via has() hash=${hash}`);
     const alreadyExists = await this.has(hash, ext);
+    const t2 = Date.now();
     if (alreadyExists) {
+      debug(
+        `[s3:commit] dedup hit — skipping putObject hash=${hash} elapsed=${
+          t2 - t1
+        }ms`,
+      );
       await Deno.remove(srcPath).catch(() => {});
       return;
     }
 
     const stat = await Deno.stat(srcPath);
+    debug(`[s3:commit] opening local file size=${stat.size} bytes`);
+
     const file = await Deno.open(srcPath, { read: true });
 
     try {
+      debug(`[s3:commit] putObject start key=${key} size=${stat.size} bytes`);
+      const t3 = Date.now();
       await this.client.putObject(key, file.readable, {
         size: stat.size,
       });
+      const t4 = Date.now();
+      debug(
+        `[s3:commit] putObject complete key=${key} elapsed=${t4 - t3}ms total=${
+          t4 - t0
+        }ms`,
+      );
     } finally {
+      // Some stream consumers may already close the file descriptor.
+      // Ignore "BadResource" so successful uploads don't fail in cleanup.
+      try {
+        debug(`[s3:commit] closing file handle hash=${hash}`);
+        file.close();
+      } catch {
+        // no-op
+      }
       // Ensure the local tmp file is always removed, even on upload error.
       // The caller (commitWrite / commitFile) is responsible for deciding
       // whether to retry or surface the error.
+      const t5 = Date.now();
       await Deno.remove(srcPath).catch(() => {});
+      const t6 = Date.now();
+      debug(
+        `[s3:commit] removed local tmp file elapsed=${t6 - t5}ms total=${
+          t6 - t0
+        }ms`,
+      );
     }
   }
 }

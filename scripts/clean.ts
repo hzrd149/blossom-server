@@ -29,5 +29,9 @@ for (const { path, label } of targets) {
   }
 }
 
-console.log(`\nClean complete. ${cleaned} director${cleaned === 1 ? "y" : "ies"} removed.`);
+console.log(
+  `\nClean complete. ${cleaned} director${
+    cleaned === 1 ? "y" : "ies"
+  } removed.`,
+);
 console.log("Run `deno task build` or start the server to rebuild.");
