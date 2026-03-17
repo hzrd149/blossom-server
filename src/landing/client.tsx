@@ -204,6 +204,27 @@ function xhrUpload(
 }
 
 /**
+ * HEAD /<sha256> — checks if the server already has this blob.
+ * Returns true when the server responds 200 (blob exists).
+ */
+async function blobExists(hash: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/${hash}`, { method: "HEAD" });
+    return res.ok;
+  } catch {
+    // Network error — fall through to normal upload
+    return false;
+  }
+}
+
+/** Build the expected blob URL from origin + hash + file extension (from filename). */
+function buildBlobUrl(hash: string, fileName: string): string {
+  const dotIdx = fileName.lastIndexOf(".");
+  const ext = dotIdx >= 0 ? fileName.slice(dotIdx) : ""; // includes the dot, e.g. ".jpg"
+  return `${globalThis.location.origin}/${hash}${ext}`;
+}
+
+/**
  * BUD-04 PUT /mirror — sends the blob URL as a JSON body per spec:
  *   { "url": "<blob-url>" }
  * The server fetches the blob itself; we just tell it where to find it.
@@ -518,13 +539,40 @@ function UploadForm(
   }, [addFiles]);
 
   const uploadOne = useCallback(
-    async (uf: UploadFile, authHeader: string | undefined) => {
+    async (
+      uf: UploadFile,
+      authHeader: string | undefined,
+      hash?: string,
+    ) => {
       const endpoint = uf.optimize ? "/media" : "/upload";
       try {
-        patchFile(uf.id, { status: "uploading", progress: 0 });
+        // Dedup check via HEAD /<sha256> — only for /upload (not /media) and
+        // when we have a pre-computed hash. If the server already has this blob,
+        // skip the PUT entirely and synthesize the result locally.
+        if (!uf.optimize && hash) {
+          patchFile(uf.id, { status: "uploading", progress: 0 });
+          const alreadyExists = await blobExists(hash);
+          if (alreadyExists) {
+            patchFile(uf.id, {
+              status: "done",
+              progress: 100,
+              result: {
+                sha256: hash,
+                size: uf.file.size,
+                type: uf.file.type || "application/octet-stream",
+                url: buildBlobUrl(hash, uf.file.name),
+              },
+            });
+            return;
+          }
+        } else {
+          patchFile(uf.id, { status: "uploading", progress: 0 });
+        }
+
         const headers: Record<string, string> = {
           "Content-Type": uf.file.type || "application/octet-stream",
         };
+        if (hash) headers["X-SHA-256"] = hash;
         if (authHeader) headers["Authorization"] = authHeader;
         const result = await xhrUpload(
           endpoint,
@@ -553,11 +601,17 @@ function UploadForm(
     );
 
     if (!needsAuth) {
+      // Hash all files first (enables X-SHA-256 header + HEAD dedup preflight)
+      const hashes = await hashBatch(
+        pending,
+        (id, status) => patchFile(id, { status }),
+      );
+
       const semSlots = Math.max(0, concurrency - activeCount.current);
       const toStart = pending.slice(0, semSlots);
       for (const uf of toStart) {
         activeCount.current++;
-        uploadOne(uf, undefined).finally(() => {
+        uploadOne(uf, undefined, hashes.get(uf.id)).finally(() => {
           activeCount.current--;
           runQueue();
         });
@@ -616,7 +670,7 @@ function UploadForm(
           }
           activeCount.current++;
           try {
-            await uploadOne(uf, authHeader);
+            await uploadOne(uf, authHeader, hashes.get(uf.id));
           } finally {
             activeCount.current--;
           }

@@ -164,9 +164,15 @@ mirror:
   # Require a valid BUD-11 Nostr auth event for mirror requests.
   requireAuth: true
 
-  # Timeout (ms) for the outbound fetch to the origin server.
-  # 0 = no timeout (not recommended in production).
-  fetchTimeout: 30000
+  # Timeout (ms) to establish the connection and receive response headers from
+  # the origin server. Does NOT apply to body streaming — use bodyTimeout for that.
+  # 0 = no timeout.
+  connectTimeout: 30000
+
+  # Timeout (ms) for the full body transfer after headers have been received.
+  # 0 = no timeout (default — recommended for large blobs such as videos).
+  # Set a value only if you need a hard cap on total mirror duration.
+  bodyTimeout: 0
 
 # ---------------------------------------------------------------------------
 # Delete  (BUD-02)

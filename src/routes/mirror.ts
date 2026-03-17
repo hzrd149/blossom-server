@@ -234,18 +234,53 @@ export function buildMirrorRouter(
       );
     }
 
-    // --- 7. Outbound fetch with timeout ---
+    // --- 7. Outbound fetch with connect timeout ---
+    // IMPORTANT: We must NOT pass an AbortSignal directly to fetch() because
+    // the signal remains bound to the response body stream — if it fires mid-
+    // transfer, the body stream errors inside the worker with a DOMException
+    // whose message is lost across the isolate boundary (arrives as "Error").
+    //
+    // Instead we race the fetch Promise against a manual timeout. If headers
+    // don't arrive in time we cancel the in-flight fetch via a separate
+    // AbortController. The body stream is never associated with the timeout
+    // signal — bodyTimeout (if set) handles transfer limits separately.
     debug(
       debugPrefix,
-      `fetching origin url=${mirrorUrl.toString()} timeout=${config.mirror.fetchTimeout}ms`,
+      `fetching origin url=${mirrorUrl.toString()} connectTimeout=${config.mirror.connectTimeout}ms bodyTimeout=${config.mirror.bodyTimeout}ms`,
     );
     const t0 = Date.now();
     let originResponse: Response;
     try {
-      const signal = config.mirror.fetchTimeout > 0
-        ? AbortSignal.timeout(config.mirror.fetchTimeout)
-        : undefined;
-      originResponse = await fetch(mirrorUrl.toString(), { signal });
+      if (config.mirror.connectTimeout > 0) {
+        // Race fetch against a timeout. The AbortController is only used to
+        // cancel the network request when the timeout wins — it is never
+        // associated with the response body stream.
+        const connectAbort = new AbortController();
+        let connectTimerId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          connectTimerId = setTimeout(() => {
+            connectAbort.abort();
+            reject(
+              new Error(
+                `Origin server did not respond within ${config.mirror.connectTimeout}ms`,
+              ),
+            );
+          }, config.mirror.connectTimeout);
+        });
+        try {
+          const fetchPromise = fetch(mirrorUrl.toString(), {
+            signal: connectAbort.signal,
+          });
+          // Suppress the unhandled rejection that occurs when the timeout wins
+          // and connectAbort cancels the in-flight fetch.
+          fetchPromise.catch(() => {});
+          originResponse = await Promise.race([fetchPromise, timeoutPromise]);
+        } finally {
+          clearTimeout(connectTimerId!);
+        }
+      } else {
+        originResponse = await fetch(mirrorUrl.toString());
+      }
       const t1 = Date.now();
       debug(
         debugPrefix,
@@ -253,11 +288,10 @@ export function buildMirrorRouter(
       );
     } catch (err) {
       const t1 = Date.now();
-      const reason = err instanceof Error && err.name === "TimeoutError"
-        ? `Origin server did not respond within ${config.mirror.fetchTimeout}ms`
-        : `Failed to fetch from origin: ${
-          err instanceof Error ? err.message : String(err)
-        }`;
+      // Normalise error message — DOMException.message can be empty.
+      const reason = err instanceof Error
+        ? (err.message || `Fetch aborted (${err.name})`)
+        : `Failed to fetch from origin: ${String(err)}`;
       debug(debugPrefix, `fetch failed elapsed=${t1 - t0}ms — ${reason}`);
       return errorResponse(ctx, 502, reason);
     }
@@ -355,6 +389,30 @@ export function buildMirrorRouter(
       return errorResponse(ctx, 502, "Origin server returned an empty body");
     }
 
+    // Apply bodyTimeout: if configured, wrap the stream with an AbortController
+    // that fires after bodyTimeout ms. This is separate from connectTimeout so
+    // that large blobs are not aborted mid-stream by the connection timeout.
+    let bodyAbortTimer: ReturnType<typeof setTimeout> | null = null;
+    let streamForWorker: ReadableStream<Uint8Array> = body;
+
+    if (config.mirror.bodyTimeout > 0) {
+      const bodyAbort = new AbortController();
+      bodyAbortTimer = setTimeout(() => {
+        // Use a plain Error rather than DOMException: DOMException loses its
+        // message when the rejection crosses a Worker isolate boundary, arriving
+        // as Error { name: "Error", message: "" }. A plain Error survives intact.
+        bodyAbort.abort(
+          new Error(`Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`),
+        );
+      }, config.mirror.bodyTimeout);
+
+      // Pipe through a PassThrough that respects the abort signal so the worker
+      // receives an errored stream if the timer fires.
+      const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+      body.pipeTo(writable, { signal: bodyAbort.signal }).catch(() => {});
+      streamForWorker = readable;
+    }
+
     const pool = getPool();
     const session = await storage.beginWrite(contentLength);
 
@@ -368,14 +426,15 @@ export function buildMirrorRouter(
     // Pass null as xSha256 — the hash is unknown pre-download. The x-tag
     // verification happens post-hash (step 13) after the worker returns.
     const jobPromise = pool.dispatch(
-      body,
+      streamForWorker,
       session.tmpPath,
       contentLength,
       null,
     );
     if (!jobPromise) {
       // Race: another request claimed the last worker between step 6 and now.
-      await body.cancel().catch(() => {});
+      if (bodyAbortTimer) clearTimeout(bodyAbortTimer);
+      await streamForWorker.cancel().catch(() => {});
       await storage.abortWrite(session).catch(() => {});
       debug(
         debugPrefix,
@@ -394,20 +453,25 @@ export function buildMirrorRouter(
     debug(debugPrefix, "awaiting worker result");
     try {
       ({ hash, size } = await jobPromise);
+      if (bodyAbortTimer) clearTimeout(bodyAbortTimer);
       debug(
         debugPrefix,
         `worker complete — hash=${hash.slice(0, 8)} size=${size}`,
       );
     } catch (err) {
       // Worker already deleted session.tmpPath on failure.
+      if (bodyAbortTimer) clearTimeout(bodyAbortTimer);
       await storage.abortWrite(session).catch(() => {});
-      const msg = err instanceof Error ? err.message : "Mirror failed";
+      // DOMException (e.g. TimeoutError from AbortSignal) has a non-empty
+      // .name but may have an empty .message — use name as fallback.
+      const errName = err instanceof Error ? err.name : "";
+      const errMsg = err instanceof Error ? (err.message || err.name) : String(err);
+      const isBodyTimeout = errName === "TimeoutError" && config.mirror.bodyTimeout > 0;
+      const msg = isBodyTimeout
+        ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`
+        : errMsg || "Mirror failed";
       debug(debugPrefix, `worker error — ${msg}`);
-      return errorResponse(
-        ctx,
-        400,
-        err instanceof Error ? err.message : "Mirror failed",
-      );
+      return errorResponse(ctx, 502, msg);
     }
 
     // --- 13. BUD-11 x-tag verification (strict, post-hash) ---

@@ -170,9 +170,27 @@ const MirrorSchema = z.object({
   requireAuth: z.boolean().default(true).describe(
     "Require a valid BUD-11 Nostr auth event for mirror requests.",
   ),
-  fetchTimeout: z.number().int().min(0).default(30_000).describe(
-    "Timeout in milliseconds for the outbound fetch to the origin server. 0 = no timeout (not recommended in production).",
+  /**
+   * @deprecated Use connectTimeout instead. Kept for backwards compatibility
+   * — if present and connectTimeout is absent, its value seeds connectTimeout.
+   */
+  fetchTimeout: z.number().int().min(0).optional().describe(
+    "Deprecated. Use connectTimeout instead.",
   ),
+  connectTimeout: z.number().int().min(0).default(30_000).describe(
+    "Timeout in milliseconds to establish the connection and receive response headers from the origin server. 0 = no timeout. Does not apply to body streaming — use bodyTimeout for that. Default: 30 000 ms.",
+  ),
+  bodyTimeout: z.number().int().min(0).default(0).describe(
+    "Timeout in milliseconds for the entire body transfer from the origin server after headers have been received. 0 = no timeout (default, recommended for large blobs). Set a value only if you need a hard cap on total mirror duration.",
+  ),
+}).transform((v) => {
+  // Back-compat: if the deprecated fetchTimeout is present and connectTimeout
+  // was not explicitly set, promote fetchTimeout → connectTimeout.
+  if (v.fetchTimeout !== undefined) {
+    const { fetchTimeout, ...rest } = v;
+    return { ...rest, connectTimeout: rest.connectTimeout ?? fetchTimeout };
+  }
+  return v;
 });
 
 const DeleteSchema = z.object({
@@ -182,7 +200,7 @@ const DeleteSchema = z.object({
 });
 
 const LandingSchema = z.object({
-  enabled: z.boolean().default(false).describe(
+  enabled: z.boolean().default(true).describe(
     "Enable the server-rendered landing page at GET /. Shows server info and stats.",
   ),
   title: z.string().default("Blossom Server").describe(
