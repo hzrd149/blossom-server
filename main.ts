@@ -95,6 +95,7 @@ console.log(`  Workers:  ${pool.size} upload workers`);
 if (config.landing.enabled) {
   await runViteBuild(
     "Landing",
+    "./vite.config.landing.ts",
     "./landing",
     "Landing page client JS will be unavailable. Fix build errors and restart.",
   );
@@ -142,24 +143,31 @@ if (config.dashboard.enabled) {
   // requiring a separate manual build step.
   await runViteBuild(
     "Admin",
+    "./vite.config.admin.ts",
     "./admin",
     "Dashboard will be unavailable. Fix build errors and restart.",
   );
 }
 
 /**
- * Run a Vite build for a sub-project using Deno's npm: specifier support.
- * Equivalent to `deno run --allow-all npm:vite build` in the given directory.
+ * Run a Vite build using Deno's npm: specifier support.
+ * Equivalent to `deno run --allow-all npm:vite build --config <configFile>`.
+ *
+ * Both landing and admin use root-level vite configs (vite.config.landing.ts
+ * and vite.config.admin.ts) with a shared root-level node_modules — no
+ * per-project package.json needed.
  *
  * Skips the build if `<projectDir>/dist/index.html` already exists and is
  * newer than any file in `<projectDir>/src/` — rebuild only on source changes.
  *
  * @param label      Short label for console output (e.g. "Admin", "Landing")
- * @param projectDir Path to the Vite project directory (relative to CWD)
- * @param unavailableMsg Message to show when the build fails and the feature won't work
+ * @param configFile Path to the vite config file (relative to CWD)
+ * @param projectDir Path to the project source directory (for stale-check)
+ * @param unavailableMsg Message to show when the build fails
  */
 async function runViteBuild(
   label: string,
+  configFile: string,
   projectDir: string,
   unavailableMsg: string,
 ): Promise<void> {
@@ -189,11 +197,10 @@ async function runViteBuild(
 
   console.log(`  ${pad}  building (vite)...`);
 
-  // `deno run --allow-all npm:vite build` resolves Vite from the project's
-  // own node_modules (via the cwd) — no global Node.js installation needed.
+  // Uses Deno's own npm: resolver — no Node.js installation required.
+  // The root-level node_modules/ is shared between both projects.
   const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-all", "npm:vite", "build"],
-    cwd: projectDir,
+    args: ["run", "--allow-all", "npm:vite", "build", "--config", configFile],
     stdout: "piped",
     stderr: "piped",
   });

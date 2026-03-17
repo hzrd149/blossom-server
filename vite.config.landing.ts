@@ -1,18 +1,21 @@
 import { defineConfig } from "vite";
 
-// https://vitejs.dev/config/
+// Build config for the landing page client (landing/src/client.tsx).
+// Output goes to landing/dist/ so the landing worker can read it at startup.
 export default defineConfig({
+  root: "landing",
   base: "/",
   esbuild: {
-    // Use hono/jsx/dom as the JSX runtime (matches client.tsx's @jsxImportSource pragma)
+    // hono/jsx/dom is the JSX runtime used in client.tsx
     jsx: "automatic",
     jsxImportSource: "hono/jsx/dom",
   },
   build: {
     outDir: "dist",
+    emptyOutDir: true,
     rollupOptions: {
       output: {
-        // Stable output filename — landing client is small and doesn't need content hashing
+        // Stable filename — no content hash needed for a small, single-chunk bundle
         entryFileNames: "assets/client.js",
         chunkFileNames: "assets/[name].js",
         assetFileNames: "assets/[name][extname]",

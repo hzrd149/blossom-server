@@ -11,8 +11,8 @@
     "dev": "deno run --env-file=.env --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "start": "deno run --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "test": "deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/",
-    "build-admin": "cd admin && deno run --env-file=../.env --allow-all npm:vite build",
-    "build-landing": "cd landing && deno run --env-file=../.env --allow-all npm:vite build",
+    "build-admin": "deno run --allow-all npm:vite build --config vite.config.admin.ts",
+    "build-landing": "deno run --allow-all npm:vite build --config vite.config.landing.ts",
     "build": "deno task build-landing && deno task build-admin",
     "clean": "deno run --env-file=.env --allow-read --allow-write scripts/clean.ts"
   },
@@ -39,5 +39,6 @@
     "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
     "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime",
     "@hono/hono/basic-auth": "jsr:@hono/hono@^4.12.7/basic-auth"
-  }
+  },
+  "allowScripts": ["npm:esbuild@0.21.5", "npm:sharp@0.34.5"]
 }

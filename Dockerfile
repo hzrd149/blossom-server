@@ -3,71 +3,62 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 1 — builder
 #
-# Installs frontend dependencies and runs both Vite builds so the runtime
-# image contains pre-built dist/ directories and never needs Node at runtime.
+# Installs all frontend npm deps once at the project root and runs both Vite
+# builds. The runtime image gets only the compiled dist/ outputs — no
+# node_modules, no Node.js, no pnpm.
 # ─────────────────────────────────────────────────────────────────────────────
 FROM denoland/deno:alpine AS builder
 
 WORKDIR /app
 
-# Install Node.js + pnpm for the admin Vite build.
-# The landing build uses `deno run npm:vite` so it only needs Deno (already present).
-RUN apk add --no-cache nodejs npm && npm install -g pnpm
+# Copy root dependency manifests first so Docker layer caching skips the slow
+# `deno install` step when only source files change.
+COPY package.json deno.lock ./
+
+# Install all npm deps (admin + landing) into a single root node_modules/.
+# deno install reads package.json and creates node_modules/ using Deno's npm resolver.
+RUN deno install
+
+# Copy Vite configs (at root — shared by both projects)
+COPY vite.config.admin.ts vite.config.landing.ts ./
 
 # ── Landing page client ───────────────────────────────────────────────────────
-# Copy manifest + lockfile first so Docker cache skips npm install when only
-# source files change.
-COPY landing/package.json landing/deno.lock ./landing/
-# Install landing deps via deno (creates landing/node_modules/)
-RUN cd landing && deno install
-
-# Copy landing source and build
 COPY landing/src/ ./landing/src/
-COPY landing/index.html landing/vite.config.ts ./landing/
-RUN cd landing && deno run --allow-all npm:vite build
+COPY landing/index.html ./landing/
+RUN deno run --allow-all npm:vite build --config vite.config.landing.ts
 
 # ── Admin dashboard ───────────────────────────────────────────────────────────
-# Copy manifest + lockfile first
-COPY admin/package.json admin/pnpm-lock.yaml ./admin/
-# Install admin deps via pnpm (frozen lockfile = reproducible, CI=true suppresses TTY prompts)
-RUN cd admin && CI=true pnpm install --frozen-lockfile
-
-# Copy admin source and build
 COPY admin/src/ ./admin/src/
-COPY admin/index.html admin/vite.config.ts ./admin/
-RUN cd admin && deno run --allow-all npm:vite build
+COPY admin/index.html ./admin/
+RUN deno run --allow-all npm:vite build --config vite.config.admin.ts
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — runtime
 #
-# Pure Deno image. Copies only:
-#   - Deno server source (src/, main.ts, deno.json, deno.lock)
-#   - Pre-built frontend dist/ directories from the builder stage
-#   - scripts/ for deno task clean etc.
-# No Node, no pnpm, no node_modules in the final image.
+# Pure Deno image — no Node, no npm, no node_modules.
+# Contains only the Deno server source and the pre-built dist/ directories.
 # ─────────────────────────────────────────────────────────────────────────────
 FROM denoland/deno:alpine
 
 WORKDIR /app
 
-# Copy Deno server source
+# Copy Deno server source + lockfile
 COPY deno.json deno.lock ./
 COPY main.ts ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 
-# Copy pre-built frontend assets from builder stage
+# Copy pre-built frontend assets from the builder stage
 COPY --from=builder /app/landing/dist/ ./landing/dist/
 COPY --from=builder /app/admin/dist/ ./admin/dist/
 
-# Warm the Deno module cache so first startup is fast.
+# Warm the Deno module cache so first startup is instant.
 #
-# Step 1: deno cache resolves all JSR/npm module sources declared in deno.json.
-# Step 2: A minimal inline import of @libsql/client triggers the lazy download
-#         of its platform-specific native binary (.so). This must be a real
-#         `deno run` (not just `deno cache`) because the binary is fetched on
-#         first FFI load, not at resolution time.
+# Step 1: deno cache downloads all JSR/npm module sources declared in deno.json.
+# Step 2: deno run forces @libsql/client to fetch its platform-specific native
+#         binary (.so) — the binary is downloaded lazily on first FFI load, so
+#         deno cache alone does not capture it.
 # --frozen ensures the lockfile is never modified during the image build.
 RUN deno cache --frozen main.ts && \
     deno run --allow-ffi --allow-env --allow-read --allow-sys \
@@ -78,6 +69,4 @@ VOLUME ["/app/data"]
 
 EXPOSE 3000
 
-# deno task start includes all required --allow-* flags.
-# --allow-run is included for the stale-check build path (skipped when dist/ exists).
 ENTRYPOINT ["deno", "task", "start"]

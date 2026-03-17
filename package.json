@@ -1,17 +1,11 @@
 {
-  "name": "admin",
+  "name": "blossom-server-frontend",
   "private": true,
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "serve": "vite preview",
-    "type-check": "tsc --noEmit",
-    "format": "prettier --write ./src"
-  },
   "dependencies": {
     "@mui/icons-material": "^5.15.15",
     "@mui/material": "^5.15.15",
     "dayjs": "^1.11.10",
+    "hono": "^4.12.7",
     "mime-types": "^2.1.35",
     "nanoid": "^5.0.7",
     "ra-data-simple-rest": "^4.16.16",
@@ -27,6 +21,6 @@
     "@vitejs/plugin-react": "^4.2.1",
     "prettier": "^3.2.5",
     "typescript": "^5.4.5",
-    "vite": "^5.2.10"
+    "vite": "^8.0.0"
   }
 }
