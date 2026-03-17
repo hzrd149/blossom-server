@@ -252,7 +252,7 @@ async function signBatch(
   authVerb: string,
   content: string,
 ): Promise<string> {
-  const expiration = Math.floor(Date.now() / 1000) + 300;
+  const expiration = Math.floor(Date.now() / 1000) + 1800;
   const authEvent = await nostr.signEvent({
     kind: 24242,
     content,
