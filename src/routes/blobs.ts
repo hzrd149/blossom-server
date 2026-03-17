@@ -31,14 +31,14 @@ export function buildBlobsRouter(
   // GET /:sha256 and GET /:sha256.ext
   // HEAD /:sha256 and HEAD /:sha256.ext
   // Match the full segment including optional extension (e.g. abc123...def.jpg)
-  app.on(["GET", "HEAD"], "/:filename", async (ctx) => {
+  app.on(["GET", "HEAD"], "/:filename", async (ctx, next) => {
     const filename = ctx.req.param("filename") ?? "";
     // Extract 64-char hex hash — the last 64-char hex run in the segment
     const match = filename.match(/([0-9a-f]{64})/);
     const hash = match?.[1] ?? "";
 
     if (!SHA256_RE.test(hash)) {
-      return errorResponse(ctx, 400, "Invalid sha256 hash");
+      return next();
     }
 
     // Optional auth enforcement for private blobs (config-gated, not implemented in v1)
