@@ -73,7 +73,24 @@ export function buildBlobsRouter(
       "Content-Length": String(blob.size),
       "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=31536000, immutable",
+      "ETag": `"${hash}"`,
+      "Last-Modified": new Date(blob.uploaded * 1000).toUTCString(),
     };
+
+    // Conditional request: If-None-Match (RFC 9110 §13.1.2)
+    // The SHA-256 hash is a perfect ETag — content-addressed, immutable, already computed.
+    // Short-circuit before storage I/O: only the DB lookup has occurred at this point.
+    const ifNoneMatch = ctx.req.header("if-none-match");
+    if (ifNoneMatch) {
+      const tags = ifNoneMatch.split(",").map((t) => t.trim().replace(/^"(.*)"$/, "$1"));
+      if (tags.includes(hash) || tags.includes("*")) {
+        return ctx.body(null, 304, {
+          "ETag": headers["ETag"],
+          "Cache-Control": headers["Cache-Control"],
+          "Last-Modified": headers["Last-Modified"],
+        });
+      }
+    }
 
     if (ctx.req.method === "HEAD") {
       return ctx.body(null, 200, headers);
