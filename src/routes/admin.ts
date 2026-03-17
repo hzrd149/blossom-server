@@ -122,7 +122,11 @@ function buildBlobUrl(
   hostHeader: string,
 ): string {
   const ext = mimeToExt(type);
-  const base = (publicDomain || `http://${hostHeader}`).replace(/\/$/, "");
+  // publicDomain is a bare hostname (e.g. "cdn.example.com"); prepend https://.
+  // Fall back to the request Host header with http:// for local/dev environments.
+  const base = publicDomain
+    ? `https://${publicDomain.replace(/\/$/, "")}`
+    : `http://${hostHeader}`;
   return `${base}/${hash}${ext ? "." + ext : ""}`;
 }
 

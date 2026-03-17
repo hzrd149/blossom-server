@@ -469,7 +469,11 @@ function isAllowedType(mimeType: string, allowedTypes: string[]): boolean {
 
 /** Derive the base URL for blob descriptors. */
 function getBaseUrl(request: Request, publicDomain: string): string {
-  if (publicDomain) return publicDomain.replace(/\/$/, "");
+  if (publicDomain) {
+    // publicDomain is a bare hostname (e.g. "cdn.example.com").
+    // Strip any accidental trailing slash and prepend https://.
+    return `https://${publicDomain.replace(/\/$/, "")}`;
+  }
   const url = new URL(request.url);
   return `${url.protocol}//${url.host}`;
 }

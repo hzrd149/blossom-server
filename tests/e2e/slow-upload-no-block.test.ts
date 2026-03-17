@@ -126,7 +126,7 @@ Deno.test({
     pool = initPool(1, MAX_JOBS_PER_WORKER, 500, db, dbConfig);
 
     const config = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       upload: {
         requireAuth: false,
         enabled: true,

@@ -91,11 +91,11 @@ Deno.test({
     const pool = initPool(1, 4, 500, db, dbConfig);
 
     const configNoAuth = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       upload: { requireAuth: false, enabled: true },
     });
     const configWithAuth = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       upload: { requireAuth: true, enabled: true },
     });
 
@@ -150,7 +150,7 @@ Deno.test({
     const smallStorage = new LocalStorage(join(tmpDir, "blobs-small-maxsize"));
     await smallStorage.setup();
     const smallConfig = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       storage: { rules: [] },
       upload: { requireAuth: false, enabled: true, maxSize: 100 },
     });
@@ -182,7 +182,7 @@ Deno.test({
     const restrictedStorage = new LocalStorage(restrictedStorageDir);
     await restrictedStorage.setup();
     const restrictedConfig = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       // Disable storage.rules so that allowedTypes is the active MIME gate.
       storage: { rules: [] },
       upload: { requireAuth: false, enabled: true, allowedTypes: ["image/*"] },
@@ -272,7 +272,7 @@ Deno.test({
     assertEquals(json.sha256, expectedHash);
     assertEquals(json.size, body.byteLength);
     assertEquals(json.type, "text/plain");
-    assertMatch(json.url, /http:\/\/localhost\//);
+    assertMatch(json.url, /https:\/\/localhost\//);
     assertMatch(json.url, new RegExp(expectedHash));
   },
   ...testOpts,
@@ -503,7 +503,7 @@ Deno.test({
     const smallStorage = new LocalStorage(join(tmpDir, "blobs-small-maxsize-head"));
     await smallStorage.setup();
     const smallConfig = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       storage: { rules: [] },
       upload: { requireAuth: false, enabled: true, maxSize: 100 },
     });

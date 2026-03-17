@@ -20,6 +20,32 @@ declare module "@hono/hono" {
 }
 
 /**
+ * Extract a bare hostname from a value that may be a bare domain name or a
+ * full URL. Never throws — returns null if the value is empty/falsy.
+ *
+ * Examples:
+ *   "cdn.example.com"       → "cdn.example.com"
+ *   "https://cdn.example.com" → "cdn.example.com"
+ *   "http://localhost:3000"  → "localhost"
+ *   ""                       → null
+ */
+export function extractHostname(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  // If the value contains "://" treat it as a URL and extract the hostname.
+  if (trimmed.includes("://")) {
+    try {
+      return new URL(trimmed).hostname.toLowerCase();
+    } catch {
+      // Malformed URL — fall through and use the raw value as-is.
+    }
+  }
+  // Bare domain (possibly with port): strip port and lowercase.
+  return trimmed.split(":")[0].toLowerCase();
+}
+
+/**
  * Parse and validate a BUD-11 auth event from an Authorization header.
  * Throws HTTPException on any validation failure.
  *
@@ -75,10 +101,14 @@ export function parseAuthEvent(
     throw new HTTPException(400, { message: "Auth event missing t tag" });
   }
 
-  // BUD-11: if server tags present, this server's domain must appear in at least one
+  // BUD-11: if server tags present, this server's domain must appear in at least one.
+  // Normalize each tag value to a bare hostname in case clients send full URLs.
   const serverTags = auth.tags.filter((t) => t[0] === "server");
   if (serverTags.length > 0) {
-    if (!serverDomain || !serverTags.some((t) => t[1] === serverDomain)) {
+    if (
+      !serverDomain ||
+      !serverTags.some((t) => extractHostname(t[1]) === serverDomain)
+    ) {
       throw new HTTPException(401, {
         message: "Auth token not valid for this server",
       });
@@ -103,9 +133,8 @@ export function authMiddleware(publicDomain: string): MiddlewareHandler {
     const authHeader = ctx.req.header("authorization");
     if (authHeader?.startsWith("Nostr ")) {
       const raw = authHeader.slice("Nostr ".length).trim();
-      const domain = publicDomain
-        ? new URL(publicDomain).hostname.toLowerCase()
-        : ctx.req.header("host")?.split(":")[0]?.toLowerCase() ?? null;
+      const domain = extractHostname(publicDomain) ??
+        ctx.req.header("host")?.split(":")[0]?.toLowerCase() ?? null;
 
       try {
         const auth = parseAuthEvent(raw, domain);

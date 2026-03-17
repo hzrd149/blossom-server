@@ -112,7 +112,7 @@ Deno.test({
     const pool = initPool(1, 4, 500, db, { path: dbPath });
 
     const config = ConfigSchema.parse({
-      publicDomain: "http://localhost",
+      publicDomain: "localhost",
       upload: { requireAuth: false, enabled: true },
     });
 

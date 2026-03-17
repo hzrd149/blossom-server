@@ -15,6 +15,7 @@ import {
 } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import {
+  extractHostname,
   parseAuthEvent,
   requireAuth,
   requireXTag,
@@ -338,4 +339,58 @@ Deno.test("requireXTag: x tags present, empty hash → throws 403", () => {
     () => requireXTag(event, ""),
     HTTPException,
   );
+});
+
+// ---------------------------------------------------------------------------
+// extractHostname
+// ---------------------------------------------------------------------------
+
+Deno.test("extractHostname: bare domain → returned as-is (lowercased)", () => {
+  assertEquals(extractHostname("cdn.example.com"), "cdn.example.com");
+});
+
+Deno.test("extractHostname: full https URL → hostname only", () => {
+  assertEquals(extractHostname("https://cdn.example.com"), "cdn.example.com");
+});
+
+Deno.test("extractHostname: full http URL with port → hostname only (no port)", () => {
+  assertEquals(extractHostname("http://localhost:3000"), "localhost");
+});
+
+Deno.test("extractHostname: bare domain with port → hostname only (no port)", () => {
+  assertEquals(extractHostname("cdn.example.com:8080"), "cdn.example.com");
+});
+
+Deno.test("extractHostname: uppercase → lowercased", () => {
+  assertEquals(extractHostname("CDN.Example.COM"), "cdn.example.com");
+});
+
+Deno.test("extractHostname: empty string → null", () => {
+  assertEquals(extractHostname(""), null);
+});
+
+Deno.test("extractHostname: null → null", () => {
+  assertEquals(extractHostname(null), null);
+});
+
+Deno.test("extractHostname: undefined → null", () => {
+  assertEquals(extractHostname(undefined), null);
+});
+
+// ---------------------------------------------------------------------------
+// parseAuthEvent — server tag with full-URL values (client sends https:// accidentally)
+// ---------------------------------------------------------------------------
+
+Deno.test("parseAuthEvent: server tag with full URL value matches bare domain → accepted", () => {
+  const event = makeEvent({
+    tags: [
+      ["t", "upload"],
+      ["expiration", String(Math.floor(Date.now() / 1000) + 600)],
+      // Client accidentally put a full URL in the server tag instead of bare domain
+      ["server", "https://cdn.example.com"],
+    ],
+  });
+  // Server domain is the bare hostname
+  const result = parseAuthEvent(encodeEvent(event), "cdn.example.com");
+  assertEquals(result.id, event.id);
 });
