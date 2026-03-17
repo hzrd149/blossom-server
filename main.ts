@@ -12,6 +12,7 @@
 
 import { loadConfig } from "./src/config/loader.ts";
 import { type DbConfig, initDb } from "./src/db/client.ts";
+import { maybeMigrateLegacyDb } from "./src/db/legacy-migration.ts";
 import type { IBlobStorage } from "./src/storage/interface.ts";
 import { LocalStorage } from "./src/storage/local.ts";
 import { S3Storage } from "./src/storage/s3.ts";
@@ -33,6 +34,12 @@ console.log(`  Database: ${dbLabel}`);
 console.log(`  Storage:  ${config.storage.backend}`);
 console.log(`  Host:     ${config.host}`);
 console.log(`  Port:     ${config.port}`);
+
+// Migrate legacy Node.js database if present (no-op for remote or already-migrated DBs).
+// Must run before initDb() opens the file. See src/db/legacy-migration.ts for details.
+if (!dbConfig.url) {
+  await maybeMigrateLegacyDb(dbConfig.path, dbConfig);
+}
 
 // Init database
 const db = await initDb(dbConfig);

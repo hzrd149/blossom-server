@@ -42,6 +42,20 @@ export function buildApp(
   // BUD-11: parse auth header — populate ctx.var.auth (never blocks)
   app.use("*", authMiddleware(config.publicDomain));
 
+  // Serve favicon from the public folder — always registered so the server
+  // never returns a 404 for /favicon.ico regardless of other feature flags.
+  app.get("/favicon.ico", async (c) => {
+    try {
+      const file = await Deno.readFile("./public/favicon.ico");
+      return c.body(file, 200, {
+        "Content-Type": "image/x-icon",
+        "Cache-Control": "public, max-age=86400",
+      });
+    } catch {
+      return c.text("Not found", 404);
+    }
+  });
+
   // Landing page: GET / and GET /assets/client.js (disabled by default)
   // Mounted first so GET / is claimed before the blob regex route.
   if (config.landing.enabled && landingWorker) {
