@@ -135,7 +135,7 @@ Deno.test({
       },
     });
 
-    app = buildApp(db, storage, storageDir, config);
+    app = buildApp(db, storage, config);
   },
   sanitizeOps: false,
   sanitizeResources: false,

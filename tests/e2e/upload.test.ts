@@ -99,8 +99,8 @@ Deno.test({
       upload: { requireAuth: true, enabled: true },
     });
 
-    appNoAuth = buildApp(db, storage, storageDir, configNoAuth);
-    appWithAuth = buildApp(db, storage, storageDir, configWithAuth);
+    appNoAuth = buildApp(db, storage, configNoAuth);
+    appWithAuth = buildApp(db, storage, configWithAuth);
 
     cleanup = async () => {
       pool.shutdown();
@@ -172,7 +172,7 @@ Deno.test({
       upload: { requireAuth: false, enabled: true, allowedTypes: ["image/*"] },
     });
     // Note: getPool() singleton is reused here — same pool, different config
-    const restrictedApp = buildApp(restrictedDb, restrictedStorage, restrictedStorageDir, restrictedConfig);
+    const restrictedApp = buildApp(restrictedDb, restrictedStorage, restrictedConfig);
 
     const body = new Uint8Array([1, 2, 3]);
     const res = await restrictedApp.fetch(new Request("http://localhost/upload", {

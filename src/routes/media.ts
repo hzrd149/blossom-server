@@ -125,7 +125,7 @@ async function hashFile(
   const [hashBuf] = await Promise.all([
     stdCrypto.subtle.digest(
       "SHA-256",
-      s1 as ReadableStream<Uint8Array<ArrayBuffer>>,
+      s1 as unknown as AsyncIterable<Uint8Array<ArrayBuffer>>,
     ),
     s2.pipeThrough(countingTransform).pipeTo(new WritableStream()),
   ]);

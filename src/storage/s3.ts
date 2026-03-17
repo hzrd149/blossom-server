@@ -124,6 +124,38 @@ export class S3Storage implements IBlobStorage {
     }
   }
 
+  /**
+   * Native S3 range read using getPartialObject.
+   *
+   * Issues a GET request with a Range header directly to S3 — zero bytes
+   * are transferred before `start`. When publicURL is set, returns null
+   * so the route layer can redirect the client (the client will include
+   * its own Range header in the redirect request).
+   */
+  async readRange(
+    hash: string,
+    ext: string,
+    start: number,
+    end: number,
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    // With publicURL, the route redirects the client. The client is responsible
+    // for sending its own Range header to the CDN — we must not proxy here.
+    if (this.publicURL) {
+      return null;
+    }
+
+    try {
+      const response = await this.client.getPartialObject(
+        this.objectKey(hash, ext),
+        { offset: start, length: end - start + 1 },
+      );
+      if (!response.body) return null;
+      return response.body as ReadableStream<Uint8Array>;
+    } catch {
+      return null;
+    }
+  }
+
   async size(hash: string, ext: string): Promise<number | null> {
     try {
       const stat = await this.client.statObject(this.objectKey(hash, ext));

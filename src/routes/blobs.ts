@@ -6,7 +6,8 @@
  *   Hono passes stream to Deno.serve() unchanged
  *   Deno.serve() pipes to TCP socket via OS async I/O
  *
- * Range requests: delegated to the OS / Deno's file.readable with seek support.
+ * Range requests: prefer storage.readRange() (native seek/S3 Range header),
+ * fall back to stream-slicing when the adapter does not implement readRange().
  */
 
 import { Hono } from "@hono/hono";
@@ -140,8 +141,13 @@ export function parseRange(
 
 /**
  * Read a byte range from storage.
- * For local storage: uses Deno file seek for efficient partial reads.
- * For S3: falls back to reading the full stream and slicing (S3 supports Range natively via fetch).
+ *
+ * Prefers the storage adapter's native readRange() when available:
+ *   - LocalStorage: Deno.open + file.seek(start) — zero bytes wasted before start
+ *   - S3Storage: getPartialObject issues a Range header directly to S3
+ *
+ * Falls back to stream-slicing over the full read() stream when readRange()
+ * is not implemented (e.g. a custom IBlobStorage that only provides the base interface).
  */
 async function readRange(
   storage: IBlobStorage,
@@ -150,8 +156,12 @@ async function readRange(
   start: number,
   end: number,
 ): Promise<ReadableStream<Uint8Array> | null> {
-  // The storage interface returns the full stream; we slice it here.
-  // A future optimization: LocalStorage can seek to start and read (end-start+1) bytes.
+  // Prefer native range support when available
+  if (storage.readRange) {
+    return storage.readRange(hash, ext, start, end);
+  }
+
+  // Fallback: stream-slice the full blob
   const fullStream = await storage.read(hash, ext);
   if (!fullStream) return null;
 

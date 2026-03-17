@@ -34,6 +34,26 @@ export interface IBlobStorage {
    */
   read(hash: string, ext: string): Promise<ReadableStream<Uint8Array> | null>;
 
+  /**
+   * Read a byte range [start, end] inclusive, returning exactly (end - start + 1) bytes.
+   * Returns null if the blob does not exist.
+   *
+   * Optional — when absent, the caller falls back to stream-slicing via read().
+   *
+   * For local storage: Deno.open + file.seek(start) — zero bytes wasted.
+   * For S3: getPartialObject with native Range header — no proxy streaming overhead.
+   * For S3 with publicURL: returns null (caller redirects; range header is the client's problem).
+   *
+   * @param start First byte offset (inclusive, 0-based).
+   * @param end   Last byte offset (inclusive).
+   */
+  readRange?(
+    hash: string,
+    ext: string,
+    start: number,
+    end: number,
+  ): Promise<ReadableStream<Uint8Array> | null>;
+
   /** Returns the stored byte size of the blob, or null if not found. */
   size(hash: string, ext: string): Promise<number | null>;
 

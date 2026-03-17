@@ -1,6 +1,7 @@
 import { join } from "@std/path";
 import { ulid } from "@std/ulid";
 import type { IBlobStorage, WriteSession } from "./interface.ts";
+import { byteLimitTransform } from "../utils/streams.ts";
 
 /**
  * Local filesystem storage adapter.
@@ -50,6 +51,28 @@ export class LocalStorage implements IBlobStorage {
     try {
       const file = await Deno.open(this.blobPath(hash, ext), { read: true });
       return file.readable; // ReadableStream; file is closed when stream ends
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Native seek-based range read.
+   *
+   * Opens the file, seeks the read head to `start`, then streams exactly
+   * (end - start + 1) bytes through a byteLimitTransform. Zero bytes are
+   * read from disk before `start` — optimal for large files and late ranges.
+   */
+  async readRange(
+    hash: string,
+    ext: string,
+    start: number,
+    end: number,
+  ): Promise<ReadableStream<Uint8Array> | null> {
+    try {
+      const file = await Deno.open(this.blobPath(hash, ext), { read: true });
+      await file.seek(start, Deno.SeekMode.Start);
+      return file.readable.pipeThrough(byteLimitTransform(end - start + 1));
     } catch {
       return null;
     }
