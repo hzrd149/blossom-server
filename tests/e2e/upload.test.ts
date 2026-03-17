@@ -145,16 +145,30 @@ Deno.test({
 Deno.test({
   name: "PUT /upload: Content-Length exceeds maxSize returns 413",
   async fn() {
-    const res = await fetchNoAuth("/upload", {
-      method: "PUT",
-      headers: {
-        "Content-Length": String(200 * 1024 * 1024), // 200MB > default 100MB
-        "Content-Type": "application/octet-stream",
-      },
-      body: new Uint8Array(0),
+    // Build a one-off app with a tiny maxSize (100 bytes) so a 1 KB body triggers 413.
+    const smallDb = await initDb({ path: join(tmpDir, "small-maxsize.db") });
+    const smallStorage = new LocalStorage(join(tmpDir, "blobs-small-maxsize"));
+    await smallStorage.setup();
+    const smallConfig = ConfigSchema.parse({
+      publicDomain: "http://localhost",
+      storage: { rules: [] },
+      upload: { requireAuth: false, enabled: true, maxSize: 100 },
     });
+    const smallApp = buildApp(smallDb, smallStorage, smallConfig);
+
+    const res = await smallApp.fetch(
+      new Request("http://localhost/upload", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(1024), // 1 KB > 100 bytes
+          "Content-Type": "application/octet-stream",
+        },
+        body: new Uint8Array(0),
+      }),
+    );
     assertEquals(res.status, 413);
     await res.body?.cancel();
+    smallDb.close();
   },
   ...testOpts,
 });
@@ -169,6 +183,8 @@ Deno.test({
     await restrictedStorage.setup();
     const restrictedConfig = ConfigSchema.parse({
       publicDomain: "http://localhost",
+      // Disable storage.rules so that allowedTypes is the active MIME gate.
+      storage: { rules: [] },
       upload: { requireAuth: false, enabled: true, allowedTypes: ["image/*"] },
     });
     // Note: getPool() singleton is reused here — same pool, different config
@@ -482,11 +498,25 @@ Deno.test({
 Deno.test({
   name: "HEAD /upload: X-Content-Length exceeds maxSize returns 413",
   async fn() {
-    const res = await fetchNoAuth("/upload", {
-      method: "HEAD",
-      headers: { "X-Content-Length": String(200 * 1024 * 1024) },
+    // Build a one-off app with a tiny maxSize (100 bytes) so a 1 KB X-Content-Length triggers 413.
+    const smallDb = await initDb({ path: join(tmpDir, "small-maxsize-head.db") });
+    const smallStorage = new LocalStorage(join(tmpDir, "blobs-small-maxsize-head"));
+    await smallStorage.setup();
+    const smallConfig = ConfigSchema.parse({
+      publicDomain: "http://localhost",
+      storage: { rules: [] },
+      upload: { requireAuth: false, enabled: true, maxSize: 100 },
     });
+    const smallApp = buildApp(smallDb, smallStorage, smallConfig);
+
+    const res = await smallApp.fetch(
+      new Request("http://localhost/upload", {
+        method: "HEAD",
+        headers: { "X-Content-Length": String(1024) }, // 1 KB > 100 bytes
+      }),
+    );
     assertEquals(res.status, 413);
+    smallDb.close();
   },
   ...testOpts,
 });
