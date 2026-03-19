@@ -50,6 +50,9 @@ FROM denoland/deno:debian
 
 WORKDIR /app
 
+# Install ffmpeg for video optimization / transcoding
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 # Copy Deno server source + lockfile
 COPY deno.json deno.lock ./
 COPY main.ts ./
