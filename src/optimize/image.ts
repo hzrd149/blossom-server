@@ -1,9 +1,11 @@
 /**
  * Image optimization using npm:sharp.
  * Handles JPEG, PNG, WebP (static) and animated GIF → animated WebP.
+ *
+ * sharp is loaded lazily via dynamic import so it is never required when the
+ * media endpoint is disabled.
  */
 
-import sharp from "sharp";
 import type { ImageOptimizeConfig } from "../config/schema.ts";
 
 export type { ImageOptimizeConfig as ImageOptimizeOptions };
@@ -17,6 +19,7 @@ export async function optimizeImage(
   inputPath: string,
   opts: ImageOptimizeConfig,
 ): Promise<string> {
+  const { default: sharp } = await import("sharp");
   const outputPath = await Deno.makeTempFile({
     suffix: `.${opts.outputFormat}`,
   });
@@ -69,6 +72,7 @@ export async function optimizeGif(
   inputPath: string,
   opts: ImageOptimizeConfig,
 ): Promise<string> {
+  const { default: sharp } = await import("sharp");
   const outputPath = await Deno.makeTempFile({
     suffix: `.${opts.outputFormat}`,
   });

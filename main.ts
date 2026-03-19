@@ -133,7 +133,8 @@ if (config.dashboard.enabled) {
     // Generate a random 20-char alphanumeric password
     const bytes = new Uint8Array(15);
     crypto.getRandomValues(bytes);
-    adminPassword = btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "")
+    adminPassword = btoa(String.fromCharCode(...bytes))
+      .replace(/[+/=]/g, "")
       .slice(0, 20);
     console.log(`  Admin:    password auto-generated: ${adminPassword}`);
   }
@@ -176,18 +177,27 @@ async function runViteBuild(
   const pad = label.padEnd(8);
 
   // Stale-check: compare mtime of dist/index.html against newest file in src/
+  // If src/ is absent (e.g. Docker image — only dist/ is copied in), skip
+  // unconditionally so we never attempt a build without vite configs present.
   let needsBuild = true;
   try {
-    const distMtime = (await Deno.stat(distIndex)).mtime?.getTime() ?? 0;
-    let srcNewest = 0;
-    for await (const entry of Deno.readDir(srcDir)) {
-      const mtime =
-        (await Deno.stat(`${srcDir}/${entry.name}`)).mtime?.getTime() ?? 0;
-      if (mtime > srcNewest) srcNewest = mtime;
+    await Deno.stat(srcDir);
+    // src/ exists — compare newest src file against dist/index.html mtime.
+    try {
+      const distMtime = (await Deno.stat(distIndex)).mtime?.getTime() ?? 0;
+      let srcNewest = 0;
+      for await (const entry of Deno.readDir(srcDir)) {
+        const mtime =
+          (await Deno.stat(`${srcDir}/${entry.name}`)).mtime?.getTime() ?? 0;
+        if (mtime > srcNewest) srcNewest = mtime;
+      }
+      if (distMtime >= srcNewest) needsBuild = false;
+    } catch {
+      // dist doesn't exist yet — must build
     }
-    if (distMtime >= srcNewest) needsBuild = false;
   } catch {
-    // dist doesn't exist yet — must build
+    // src/ is absent — pre-built dist (Docker). Skip.
+    needsBuild = false;
   }
 
   if (!needsBuild) {
@@ -212,7 +222,10 @@ async function runViteBuild(
     console.error(`  ${pad}  build FAILED:\n` + dec.decode(stderr));
     console.error(`  ${pad}  ${unavailableMsg}`);
   } else {
-    const summary = dec.decode(stdout).trim().split("\n")
+    const summary = dec
+      .decode(stdout)
+      .trim()
+      .split("\n")
       .findLast((l: string) => l.includes("built in"));
     console.log(
       `  ${pad}  build complete${summary ? " — " + summary.trim() : ""}`,

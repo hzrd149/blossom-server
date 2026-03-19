@@ -6,14 +6,20 @@
 # Installs all frontend npm deps once at the project root and runs both Vite
 # builds. The runtime image gets only the compiled dist/ outputs — no
 # node_modules, no Node.js, no pnpm.
+#
+# Uses the Debian (glibc) image because several native npm packages (Vite 8's
+# rolldown bundler, sharp) ship glibc-linked binaries that require libc.so,
+# which is absent on Alpine/musl.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM denoland/deno:alpine AS builder
+FROM denoland/deno:debian AS builder
 
 WORKDIR /app
 
 # Copy root dependency manifests first so Docker layer caching skips the slow
 # `deno install` step when only source files change.
-COPY package.json deno.lock ./
+# deno.json is required so `deno install` resolves npm: specifiers from the
+# import map and `deno run npm:vite` finds the correct vite version.
+COPY package.json deno.json deno.lock ./
 
 # Install all npm deps (admin + landing) into a single root node_modules/.
 # deno install reads package.json and creates node_modules/ using Deno's npm resolver.
@@ -36,10 +42,11 @@ RUN deno run --allow-all npm:vite build --config vite.config.admin.ts
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — runtime
 #
-# Pure Deno image — no Node, no npm, no node_modules.
+# Debian (glibc) image — matches the builder so native binaries (sharp,
+# @libsql/client) load correctly at runtime.
 # Contains only the Deno server source and the pre-built dist/ directories.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM denoland/deno:alpine
+FROM denoland/deno:debian
 
 WORKDIR /app
 
@@ -59,8 +66,7 @@ COPY --from=builder /app/admin/dist/ ./admin/dist/
 # Step 2: deno run forces @libsql/client to fetch its platform-specific native
 #         binary (.so) — the binary is downloaded lazily on first FFI load, so
 #         deno cache alone does not capture it.
-# --frozen ensures the lockfile is never modified during the image build.
-RUN deno cache --frozen main.ts && \
+RUN deno cache main.ts && \
     deno run --allow-ffi --allow-env --allow-read --allow-sys \
       "data:application/typescript,import 'npm:@libsql/client';"
 

@@ -1,9 +1,11 @@
 /**
  * Video transcoding using npm:fluent-ffmpeg.
  * Requires the `ffmpeg` binary to be installed on the host system.
+ *
+ * fluent-ffmpeg is loaded lazily via dynamic import so it is never required
+ * when the media endpoint is disabled.
  */
 
-import ffmpeg from "fluent-ffmpeg";
 import type { FfprobeData } from "fluent-ffmpeg";
 import type { VideoOptimizeConfig } from "../config/schema.ts";
 
@@ -20,16 +22,19 @@ const FORMAT_EXTRA_ARGS: Partial<Record<"mp4" | "webm" | "mkv", string[]>> = {
  * Probe the source video frame rate using ffprobe.
  * Returns the average FPS as a number, or null on failure.
  */
-function probeFps(inputPath: string): Promise<number | null> {
+function probeFps(
+  ffmpeg: typeof import("fluent-ffmpeg"),
+  inputPath: string,
+): Promise<number | null> {
   return new Promise((resolve) => {
     ffmpeg.ffprobe(inputPath, (err: Error | null, metadata: FfprobeData) => {
       if (err || !metadata) {
         resolve(null);
         return;
       }
-      const videoStream = metadata.streams.find(
-        (s: FfprobeData["streams"][0]) => s.codec_type === "video",
-      );
+      const videoStream = metadata.streams.find((
+        s: FfprobeData["streams"][0],
+      ) => s.codec_type === "video");
       if (!videoStream?.r_frame_rate) {
         resolve(null);
         return;
@@ -61,12 +66,13 @@ export async function optimizeVideo(
   inputPath: string,
   opts: VideoOptimizeConfig,
 ): Promise<string> {
+  const ffmpeg = (await import("fluent-ffmpeg")).default;
   const outputPath = await Deno.makeTempFile({ suffix: `.${opts.format}` });
   const crf = Math.round(51 - (opts.quality / 100) * 51);
   const extraArgs = FORMAT_EXTRA_ARGS[opts.format] ?? [];
 
   // Probe original FPS; clamp to min(originalFps, maxFps)
-  const originalFps = await probeFps(inputPath);
+  const originalFps = await probeFps(ffmpeg, inputPath);
   const targetFps = originalFps !== null
     ? Math.min(originalFps, opts.maxFps)
     : opts.maxFps;
@@ -77,11 +83,7 @@ export async function optimizeVideo(
       .audioCodec(opts.audioCodec)
       // fit-inside: scale to maxHeight, preserve aspect ratio
       .videoFilters(`scale=trunc(oh*a/2)*2:${opts.maxHeight}`)
-      .outputOptions([
-        `-crf ${crf}`,
-        `-r ${targetFps}`,
-        ...extraArgs,
-      ])
+      .outputOptions([`-crf ${crf}`, `-r ${targetFps}`, ...extraArgs])
       .output(outputPath);
 
     cmd.on("end", () => resolve());

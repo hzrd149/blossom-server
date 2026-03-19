@@ -278,11 +278,10 @@ async function signBatch(
     kind: 24242,
     content,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [
-      ["t", authVerb],
-      ...hashes.map((h) => ["x", h]),
-      ["expiration", String(expiration)],
-    ],
+    tags: [["t", authVerb], ...hashes.map((h) => ["x", h]), [
+      "expiration",
+      String(expiration),
+    ]],
   });
   return "Nostr " + btoa(JSON.stringify(authEvent));
 }
@@ -318,14 +317,16 @@ const STATUS_COLOR: Record<string, string> = {
   error: "bg-red-900 text-red-300",
 };
 
-function FileRow(
-  { uf, onRemove, onCopy }: {
-    key?: string;
-    uf: UploadFile;
-    onRemove: (id: string) => void;
-    onCopy: (url: string) => void;
-  },
-) {
+function FileRow({
+  uf,
+  onRemove,
+  onCopy,
+}: {
+  key?: string;
+  uf: UploadFile;
+  onRemove: (id: string) => void;
+  onCopy: (url: string) => void;
+}) {
   const showProgress = uf.status === "uploading" || uf.status === "done";
   const pct = uf.status === "done" ? 100 : uf.progress;
 
@@ -399,14 +400,16 @@ function FileRow(
   );
 }
 
-function MirrorRow(
-  { item, onRemove, onCopy }: {
-    key?: string;
-    item: MirrorItem;
-    onRemove: (id: string) => void;
-    onCopy: (url: string) => void;
-  },
-) {
+function MirrorRow({
+  item,
+  onRemove,
+  onCopy,
+}: {
+  key?: string;
+  item: MirrorItem;
+  onRemove: (id: string) => void;
+  onCopy: (url: string) => void;
+}) {
   return (
     <div class="bg-gray-800 rounded-lg px-4 py-3 space-y-2 min-w-0">
       <div class="flex items-center gap-2 min-w-0">
@@ -466,14 +469,17 @@ function MirrorRow(
 // UploadForm
 // ---------------------------------------------------------------------------
 
-function UploadForm(
-  { requireAuth, mediaEnabled, mediaRequireAuth, onQueueChange }: {
-    requireAuth: boolean;
-    mediaEnabled: boolean;
-    mediaRequireAuth: boolean;
-    onQueueChange: (hasItems: boolean) => void;
-  },
-) {
+function UploadForm({
+  requireAuth,
+  mediaEnabled,
+  mediaRequireAuth,
+  onQueueChange,
+}: {
+  requireAuth: boolean;
+  mediaEnabled: boolean;
+  mediaRequireAuth: boolean;
+  onQueueChange: (hasItems: boolean) => void;
+}) {
   const [queue, setQueue] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [globalOptimize, setGlobalOptimize] = useState(false);
@@ -487,19 +493,36 @@ function UploadForm(
   }, [queue.length, onQueueChange]);
 
   const patchFile = useCallback((id: string, patch: Partial<UploadFile>) => {
-    setQueue((prev) => prev.map((f) => f.id === id ? { ...f, ...patch } : f));
+    setQueue((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   }, []);
 
-  const addFiles = useCallback((files: FileList | File[]) => {
-    const arr = Array.from(files);
-    const newItems: UploadFile[] = arr.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      status: "pending" as FileStatus,
-      progress: 0,
-      optimize: globalOptimize && mediaEnabled && isMediaFile(file),
-    }));
-    setQueue((prev) => [...prev, ...newItems]);
+  const addFiles = useCallback(
+    (files: FileList | File[]) => {
+      const arr = Array.from(files);
+      const newItems: UploadFile[] = arr.map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        status: "pending" as FileStatus,
+        progress: 0,
+        optimize: globalOptimize && mediaEnabled && isMediaFile(file),
+      }));
+      setQueue((prev) => [...prev, ...newItems]);
+    },
+    [globalOptimize, mediaEnabled],
+  );
+
+  // Sync the optimize flag on pending files whenever globalOptimize changes.
+  useEffect(() => {
+    setQueue((prev) =>
+      prev.map((f) =>
+        f.status === "pending"
+          ? {
+            ...f,
+            optimize: globalOptimize && mediaEnabled && isMediaFile(f.file),
+          }
+          : f
+      )
+    );
   }, [globalOptimize, mediaEnabled]);
 
   const removeFile = useCallback(
@@ -517,11 +540,14 @@ function UploadForm(
     navigator.clipboard.writeText(url).catch(() => {});
   }, []);
 
-  const handleDrop = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
-  }, [addFiles]);
+  const handleDrop = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
+    },
+    [addFiles],
+  );
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -530,20 +556,19 @@ function UploadForm(
 
   const handleDragLeave = useCallback(() => setIsDragging(false), []);
 
-  const handleInputChange = useCallback((e: Event) => {
-    const files = (e.target as HTMLInputElement).files;
-    if (files?.length) {
-      addFiles(files);
-      (e.target as HTMLInputElement).value = "";
-    }
-  }, [addFiles]);
+  const handleInputChange = useCallback(
+    (e: Event) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (files?.length) {
+        addFiles(files);
+        (e.target as HTMLInputElement).value = "";
+      }
+    },
+    [addFiles],
+  );
 
   const uploadOne = useCallback(
-    async (
-      uf: UploadFile,
-      authHeader: string | undefined,
-      hash?: string,
-    ) => {
+    async (uf: UploadFile, authHeader: string | undefined, hash?: string) => {
       const endpoint = uf.optimize ? "/media" : "/upload";
       try {
         // Dedup check via HEAD /<sha256> — only for /upload (not /media) and
@@ -596,9 +621,9 @@ function UploadForm(
     const pending = currentQueue.filter((f) => f.status === "pending");
     if (pending.length === 0) return;
 
-    const needsAuth = pending.some((f) =>
-      f.optimize ? mediaRequireAuth : requireAuth
-    );
+    const needsAuth = pending.some((
+      f,
+    ) => (f.optimize ? mediaRequireAuth : requireAuth));
 
     if (!needsAuth) {
       // Hash all files first (enables X-SHA-256 header + HEAD dedup preflight)
@@ -695,9 +720,9 @@ function UploadForm(
   const allDone = queue.length > 0 &&
     queue.every((f) => f.status === "done" || f.status === "error");
   const canUpload = hasPending && !isWorking;
-  const doneUrls = queue
-    .filter((f) => f.status === "done" && f.result)
-    .map((f) => f.result!.url);
+  const doneUrls = queue.filter((f) => f.status === "done" && f.result).map((
+    f,
+  ) => f.result!.url);
 
   const copyAllUrls = useCallback(() => {
     navigator.clipboard.writeText(doneUrls.join("\n")).catch(() => {});
@@ -847,12 +872,13 @@ function UploadForm(
 
 type MirrorPhase = "input" | "list";
 
-function MirrorForm(
-  { requireAuth, onQueueChange }: {
-    requireAuth: boolean;
-    onQueueChange: (hasItems: boolean) => void;
-  },
-) {
+function MirrorForm({
+  requireAuth,
+  onQueueChange,
+}: {
+  requireAuth: boolean;
+  onQueueChange: (hasItems: boolean) => void;
+}) {
   const [phase, setPhase] = useState<MirrorPhase>("input");
   const [inputText, setInputText] = useState("");
   const [parseError, setParseError] = useState<string | null>(null);
@@ -864,14 +890,11 @@ function MirrorForm(
     onQueueChange(phase === "list" && items.length > 0);
   }, [phase, items.length, onQueueChange]);
 
-  const patchItem = useCallback(
-    (id: string, patch: Partial<MirrorItem>) => {
-      setItems((prev) =>
-        prev.map((it) => it.id === id ? { ...it, ...patch } : it)
-      );
-    },
-    [],
-  );
+  const patchItem = useCallback((id: string, patch: Partial<MirrorItem>) => {
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it))
+    );
+  }, []);
 
   /** Parse the textarea and move to the list phase. */
   const handleNext = useCallback(() => {
@@ -932,18 +955,20 @@ function MirrorForm(
 
     if (!requireAuth) {
       // No auth — fire all concurrently (server handles its own limit)
-      await Promise.all(pending.map(async (item) => {
-        patchItem(item.id, { status: "mirroring" });
-        try {
-          const result = await mirrorPut(item.mirrorUrl);
-          patchItem(item.id, { status: "done", result });
-        } catch (err) {
-          patchItem(item.id, {
-            status: "error",
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }));
+      await Promise.all(
+        pending.map(async (item) => {
+          patchItem(item.id, { status: "mirroring" });
+          try {
+            const result = await mirrorPut(item.mirrorUrl);
+            patchItem(item.id, { status: "done", result });
+          } catch (err) {
+            patchItem(item.id, {
+              status: "error",
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }),
+      );
       return;
     }
 
@@ -977,34 +1002,36 @@ function MirrorForm(
         continue;
       }
 
-      await Promise.all(batch.map(async (item) => {
-        patchItem(item.id, { status: "mirroring" });
-        try {
-          const result = await mirrorPut(item.mirrorUrl, authHeader);
-          patchItem(item.id, { status: "done", result });
-        } catch (err) {
-          patchItem(item.id, {
-            status: "error",
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }));
+      await Promise.all(
+        batch.map(async (item) => {
+          patchItem(item.id, { status: "mirroring" });
+          try {
+            const result = await mirrorPut(item.mirrorUrl, authHeader);
+            patchItem(item.id, { status: "done", result });
+          } catch (err) {
+            patchItem(item.id, {
+              status: "error",
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }),
+      );
     }
   }, [requireAuth, patchItem]);
 
-  const isWorking = items.some(
-    (it) => it.status === "signing" || it.status === "mirroring",
+  const isWorking = items.some((it) =>
+    it.status === "signing" || it.status === "mirroring"
   );
   const hasPending = items.some((it) => it.status === "pending");
-  const hasDoneOrError = items.some(
-    (it) => it.status === "done" || it.status === "error",
+  const hasDoneOrError = items.some((it) =>
+    it.status === "done" || it.status === "error"
   );
   const allDone = items.length > 0 &&
     items.every((it) => it.status === "done" || it.status === "error");
   const canMirror = hasPending && !isWorking;
-  const doneUrls = items
-    .filter((it) => it.status === "done" && it.result)
-    .map((it) => it.result!.url);
+  const doneUrls = items.filter((it) => it.status === "done" && it.result).map((
+    it,
+  ) => it.result!.url);
 
   const copyAllUrls = useCallback(() => {
     navigator.clipboard.writeText(doneUrls.join("\n")).catch(() => {});
@@ -1016,9 +1043,8 @@ function MirrorForm(
       <div class="p-6 space-y-4">
         <p class="text-sm text-gray-400">
           Paste Blossom URLs or{" "}
-          <code class="text-gray-300 bg-gray-800 px-1 rounded">
-            blossom://
-          </code>{" "}
+          <code class="text-gray-300 bg-gray-800 px-1 rounded">blossom://</code>
+          {" "}
           URIs below, one per line (or comma-separated).
         </p>
         <textarea
@@ -1055,9 +1081,7 @@ function MirrorForm(
         <p class="text-sm text-gray-400">
           {items.length} blob{items.length === 1 ? "" : "s"} to mirror
           {requireAuth && (
-            <span class="ml-2 text-xs text-gray-500">
-              · auth required
-            </span>
+            <span class="ml-2 text-xs text-gray-500">· auth required</span>
           )}
         </p>
         {!isWorking && (
@@ -1146,21 +1170,19 @@ function MirrorForm(
 
 type Tab = "upload" | "mirror";
 
-function App(
-  {
-    requireAuth,
-    mediaEnabled,
-    mediaRequireAuth,
-    mirrorEnabled,
-    mirrorRequireAuth,
-  }: {
-    requireAuth: boolean;
-    mediaEnabled: boolean;
-    mediaRequireAuth: boolean;
-    mirrorEnabled: boolean;
-    mirrorRequireAuth: boolean;
-  },
-) {
+function App({
+  requireAuth,
+  mediaEnabled,
+  mediaRequireAuth,
+  mirrorEnabled,
+  mirrorRequireAuth,
+}: {
+  requireAuth: boolean;
+  mediaEnabled: boolean;
+  mediaRequireAuth: boolean;
+  mirrorEnabled: boolean;
+  mirrorRequireAuth: boolean;
+}) {
   const [activeTab, setActiveTab] = useState<Tab>("upload");
   // Each tab reports whether it has active items so we can hide server-info
   const [uploadHasItems, setUploadHasItems] = useState(false);

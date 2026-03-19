@@ -14,7 +14,11 @@ import { encodeBase64Url } from "@std/encoding/base64url";
 import { encodeHex } from "@std/encoding/hex";
 import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
-import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+} from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
@@ -32,7 +36,10 @@ const _pk = getPublicKey(sk);
 
 /** Compute SHA-256 of bytes and return lowercase hex. */
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  const buf = await stdCrypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
+  const buf = await stdCrypto.subtle.digest(
+    "SHA-256",
+    data.buffer as ArrayBuffer,
+  );
   return encodeHex(new Uint8Array(buf));
 }
 
@@ -48,12 +55,19 @@ function makeUploadAuth(opts: {
     ["expiration", String(opts.expiration ?? now + 600)],
   ];
   if (opts.hash) tags.push(["x", opts.hash]);
-  return finalizeEvent({ kind: 24242, created_at: now, tags, content: "Upload blob" }, sk);
+  return finalizeEvent({
+    kind: 24242,
+    created_at: now,
+    tags,
+    content: "Upload blob",
+  }, sk);
 }
 
 /** Encode event as Base64url for the Authorization header. */
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
+  return `Nostr ${
+    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
+  }`;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,12 +128,16 @@ Deno.test({
 
 /** Convenience wrapper: send a request to the no-auth app. */
 function fetchNoAuth(path: string, init?: RequestInit): Promise<Response> {
-  return Promise.resolve(appNoAuth.fetch(new Request(`http://localhost${path}`, init)));
+  return Promise.resolve(
+    appNoAuth.fetch(new Request(`http://localhost${path}`, init)),
+  );
 }
 
 /** Convenience wrapper: send a request to the auth-required app. */
 function fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
-  return Promise.resolve(appWithAuth.fetch(new Request(`http://localhost${path}`, init)));
+  return Promise.resolve(
+    appWithAuth.fetch(new Request(`http://localhost${path}`, init)),
+  );
 }
 
 // Test options used for every test — suppress leak detection for the worker pool
@@ -188,17 +206,23 @@ Deno.test({
       upload: { requireAuth: false, enabled: true, allowedTypes: ["image/*"] },
     });
     // Note: getPool() singleton is reused here — same pool, different config
-    const restrictedApp = buildApp(restrictedDb, restrictedStorage, restrictedConfig);
+    const restrictedApp = buildApp(
+      restrictedDb,
+      restrictedStorage,
+      restrictedConfig,
+    );
 
     const body = new Uint8Array([1, 2, 3]);
-    const res = await restrictedApp.fetch(new Request("http://localhost/upload", {
-      method: "PUT",
-      headers: {
-        "Content-Length": String(body.byteLength),
-        "Content-Type": "application/pdf",
-      },
-      body,
-    }));
+    const res = await restrictedApp.fetch(
+      new Request("http://localhost/upload", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(body.byteLength),
+          "Content-Type": "application/pdf",
+        },
+        body,
+      }),
+    );
     assertEquals(res.status, 415);
     await res.body?.cancel();
     restrictedDb.close();
@@ -330,7 +354,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "PUT /upload: mismatched X-SHA-256 returns 400 with hash mismatch message",
+  name:
+    "PUT /upload: mismatched X-SHA-256 returns 400 with hash mismatch message",
   async fn() {
     const body = new TextEncoder().encode("real content");
     const wrongHash = "a".repeat(64);
@@ -391,7 +416,11 @@ Deno.test({
 
     const json = await res.json();
     // Even without X-SHA-256 the server MUST compute and return the correct hash
-    assertEquals(json.sha256, expectedHash, "Computed hash must match actual content hash");
+    assertEquals(
+      json.sha256,
+      expectedHash,
+      "Computed hash must match actual content hash",
+    );
   },
   ...testOpts,
 });
@@ -453,7 +482,8 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "PUT /upload: same content uploaded twice returns same descriptor (dedup)",
+  name:
+    "PUT /upload: same content uploaded twice returns same descriptor (dedup)",
   async fn() {
     const body = new TextEncoder().encode("deduplicated content abc123");
     const hash = await sha256Hex(body);
@@ -499,8 +529,12 @@ Deno.test({
   name: "HEAD /upload: X-Content-Length exceeds maxSize returns 413",
   async fn() {
     // Build a one-off app with a tiny maxSize (100 bytes) so a 1 KB X-Content-Length triggers 413.
-    const smallDb = await initDb({ path: join(tmpDir, "small-maxsize-head.db") });
-    const smallStorage = new LocalStorage(join(tmpDir, "blobs-small-maxsize-head"));
+    const smallDb = await initDb({
+      path: join(tmpDir, "small-maxsize-head.db"),
+    });
+    const smallStorage = new LocalStorage(
+      join(tmpDir, "blobs-small-maxsize-head"),
+    );
     await smallStorage.setup();
     const smallConfig = ConfigSchema.parse({
       publicDomain: "localhost",
@@ -549,7 +583,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "HEAD /upload: existing blob with X-SHA-256 returns 200 with dedup reason",
+  name:
+    "HEAD /upload: existing blob with X-SHA-256 returns 200 with dedup reason",
   async fn() {
     // Upload the blob first
     const body = new TextEncoder().encode("preflight dedup test xyz");

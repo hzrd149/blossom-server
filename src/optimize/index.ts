@@ -5,14 +5,16 @@
  *   1. Extension-based via @std/media-types getType()
  *   2. Magic-byte fallback via npm:file-type fileTypeFromBuffer()
  *   3. Unknown → throw Error("Unsupported file type")
+ *
+ * All media processing modules (image.ts, video.ts) and their native
+ * dependencies (sharp, fluent-ffmpeg, file-type) are loaded lazily via
+ * dynamic import so they are never required when the media endpoint is
+ * disabled.
  */
 
 import { typeByExtension } from "@std/media-types";
 import { extname } from "@std/path";
-import { fileTypeFromBuffer } from "file-type";
 import type { MediaConfig } from "../config/schema.ts";
-import { optimizeGif, optimizeImage } from "./image.ts";
-import { optimizeVideo } from "./video.ts";
 
 /**
  * Detects MIME type of a file on disk.
@@ -26,7 +28,8 @@ async function detectMimeType(filePath: string): Promise<string | null> {
     if (extMime) return extMime;
   }
 
-  // 2. Magic-byte fallback
+  // 2. Magic-byte fallback — load file-type lazily
+  const { fileTypeFromBuffer } = await import("file-type");
   const file = await Deno.open(filePath, { read: true });
   try {
     const buf = new Uint8Array(4096);
@@ -63,14 +66,15 @@ export async function optimizeMedia(
 
   try {
     if (mime === "image/gif") {
+      const { optimizeGif } = await import("./image.ts");
       outputPath = await optimizeGif(inputPath, config.image);
     } else if (
-      mime === "image/jpeg" ||
-      mime === "image/png" ||
-      mime === "image/webp"
+      mime === "image/jpeg" || mime === "image/png" || mime === "image/webp"
     ) {
+      const { optimizeImage } = await import("./image.ts");
       outputPath = await optimizeImage(inputPath, config.image);
     } else if (mime.startsWith("video/")) {
+      const { optimizeVideo } = await import("./video.ts");
       outputPath = await optimizeVideo(inputPath, config.video);
     } else {
       throw new Error(`Unsupported file type: ${mime}`);

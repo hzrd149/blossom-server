@@ -1,19 +1,29 @@
 # Blossom Server
 
-A content-addressed blob storage server implementing the [Blossom](https://github.com/hzrd149/blossom) protocol. Files are stored and retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com), [Hono](https://hono.dev), and [LibSQL](https://turso.tech/libsql).
+A content-addressed blob storage server implementing the
+[Blossom](https://github.com/hzrd149/blossom) protocol. Files are stored and
+retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
+[Hono](https://hono.dev), and [LibSQL](https://turso.tech/libsql).
 
 ## Features
 
-- **BUD-01** — Blob retrieval (`GET`/`HEAD /:sha256`) with range requests, ETag/304, and CORS
-- **BUD-02** — Upload (`PUT /upload`), delete (`DELETE /:sha256`), and list (`GET /list/:pubkey`)
+- **BUD-01** — Blob retrieval (`GET`/`HEAD /:sha256`) with range requests,
+  ETag/304, and CORS
+- **BUD-02** — Upload (`PUT /upload`), delete (`DELETE /:sha256`), and list
+  (`GET /list/:pubkey`)
 - **BUD-04** — Server-side mirror (`PUT /mirror`) with SSRF protection
-- **BUD-05** — Media optimisation (`PUT /media`): image resize/convert via sharp, video transcode via ffmpeg
-- **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool availability before sending the body
+- **BUD-05** — Media optimisation (`PUT /media`): image resize/convert via
+  sharp, video transcode via ffmpeg
+- **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool
+  availability before sending the body
 - **BUD-08** — `nip94` field in all blob descriptor responses
 - **BUD-11** — Nostr-signed event authentication (kind 24242)
-- Zero-copy streaming uploads — no body buffering, SHA-256 computed in a dedicated worker pool
-- Content-addressed deduplication — re-uploading an existing hash skips the write
-- Configurable storage retention rules with MIME-type glob patterns and per-pubkey scoping
+- Zero-copy streaming uploads — no body buffering, SHA-256 computed in a
+  dedicated worker pool
+- Content-addressed deduplication — re-uploading an existing hash skips the
+  write
+- Configurable storage retention rules with MIME-type glob patterns and
+  per-pubkey scoping
 - Automatic prune loop — expired blobs are removed on a configurable timer
 - Local filesystem and S3-compatible storage backends
 - Optional React Admin dashboard at `/admin`
@@ -23,7 +33,8 @@ A content-addressed blob storage server implementing the [Blossom](https://githu
 ## Requirements
 
 - **Docker + Docker Compose** (recommended)
-- **or** [Deno 2.x](https://docs.deno.com/runtime/getting_started/installation/) for running from source
+- **or** [Deno 2.x](https://docs.deno.com/runtime/getting_started/installation/)
+  for running from source
 
 ## Quick Start — Docker
 
@@ -38,7 +49,9 @@ cp config.example.yml config.yml
 docker compose up --build
 ```
 
-The server listens on port `3000` by default. Blob data and the SQLite database are stored in a named Docker volume (`data`). The config file is mounted read-only from the host.
+The server listens on port `3000` by default. Blob data and the SQLite database
+are stored in a named Docker volume (`data`). The config file is mounted
+read-only from the host.
 
 ## Quick Start — From Source
 
@@ -68,7 +81,9 @@ deno task start /etc/blossom/config.yml
 
 ## Configuration
 
-Configuration is loaded from a YAML file (default: `config.yml` in the working directory). Environment variables can be substituted anywhere in the file using `${VAR_NAME}` syntax.
+Configuration is loaded from a YAML file (default: `config.yml` in the working
+directory). Environment variables can be substituted anywhere in the file using
+`${VAR_NAME}` syntax.
 
 ### Key Options
 
@@ -89,7 +104,8 @@ Configuration is loaded from a YAML file (default: `config.yml` in the working d
 | `dashboard.enabled`  | `false`          | Enable the React Admin dashboard at `/admin`                                                                      |
 | `landing.enabled`    | `false`          | Enable the landing page at `/`                                                                                    |
 
-For all options with inline documentation, see [`config.example.yml`](config.example.yml).
+For all options with inline documentation, see
+[`config.example.yml`](config.example.yml).
 
 ### S3 Storage Backend
 
@@ -110,7 +126,9 @@ storage:
 
 ### Storage Retention Rules
 
-Rules serve as both an upload allowlist and a retention policy. The first matching rule governs a blob's expiry. When the list is non-empty, blobs whose MIME type matches no rule are rejected with `415 Unsupported Media Type`.
+Rules serve as both an upload allowlist and a retention policy. The first
+matching rule governs a blob's expiry. When the list is non-empty, blobs whose
+MIME type matches no rule are rejected with `415 Unsupported Media Type`.
 
 ```yaml
 storage:
@@ -123,7 +141,8 @@ storage:
       expiration: 1 week
 ```
 
-Rules can be scoped to specific Nostr pubkeys (hex) to give certain users different retention:
+Rules can be scoped to specific Nostr pubkeys (hex) to give certain users
+different retention:
 
 ```yaml
 storage:
@@ -140,7 +159,8 @@ storage:
 
 ## Authentication (BUD-11)
 
-All authenticated endpoints expect a Nostr-signed event in the `Authorization` header:
+All authenticated endpoints expect a Nostr-signed event in the `Authorization`
+header:
 
 ```
 Authorization: Nostr <base64-encoded-JSON-event>
@@ -196,7 +216,8 @@ Example event (before signing):
 | `PUT`  | `/media` | Required\* | Upload an image or video; the server optimises/transcodes it and returns the optimised blob descriptor. |
 | `HEAD` | `/media` | Required\* | Preflight check for the media endpoint.                                                                 |
 
-_\* Auth requirement is configurable per-endpoint via `requireAuth` in the config._
+_\* Auth requirement is configurable per-endpoint via `requireAuth` in the
+config._
 
 ### Response Format
 
@@ -257,13 +278,16 @@ deno fmt
 
 ## Migrating from the Legacy Node.js Server
 
-If you have an existing database from the original Node.js blossom-server, the migration script imports all blob metadata atomically:
+If you have an existing database from the original Node.js blossom-server, the
+migration script imports all blob metadata atomically:
 
 ```sh
 deno task migrate-from-legacy
 ```
 
-The script reads the legacy SQLite database, imports all records into the Deno server's schema, and performs an atomic file swap. Blob files on disk are left untouched.
+The script reads the legacy SQLite database, imports all records into the Deno
+server's schema, and performs an atomic file swap. Blob files on disk are left
+untouched.
 
 ## License
 
