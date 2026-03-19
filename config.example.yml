@@ -184,6 +184,25 @@ delete:
   requireAuth: true
 
 # ---------------------------------------------------------------------------
+# List  (BUD-02)
+# ---------------------------------------------------------------------------
+
+list:
+  # Enable the GET /list/:pubkey endpoint.
+  # Disabled by default — the BUD-02 spec marks this endpoint as optional
+  # and unrecommended. Enable only if your clients need it.
+  enabled: false
+
+  # Require a valid BUD-11 Nostr auth event to list blobs.
+  # When false, anonymous listing is accepted.
+  requireAuth: false
+
+  # Allow an authenticated user to list blobs belonging to a different pubkey.
+  # When false, a user may only list their own blobs (unauthenticated requests
+  # are rejected with 401 in that case).
+  allowListOthers: true
+
+# ---------------------------------------------------------------------------
 # Media optimisation  (BUD-05)
 # ---------------------------------------------------------------------------
 

@@ -23,17 +23,27 @@ const LocalStorageSchema = z.object({
   dir: z
     .string()
     .default("./data/blobs")
-    .describe("Directory where blob files are stored. Created automatically if it does not exist."),
+    .describe(
+      "Directory where blob files are stored. Created automatically if it does not exist.",
+    ),
 });
 
 const S3StorageSchema = z.object({
   endpoint: z
     .string()
-    .describe('S3-compatible endpoint URL, e.g. "https://s3.amazonaws.com" or "https://nyc3.digitaloceanspaces.com".'),
+    .describe(
+      'S3-compatible endpoint URL, e.g. "https://s3.amazonaws.com" or "https://nyc3.digitaloceanspaces.com".',
+    ),
   bucket: z.string().describe("Name of the S3 bucket to store blobs in."),
-  accessKey: z.string().describe("S3 access key ID. Use ${ENV_VAR} syntax to read from an environment variable."),
-  secretKey: z.string().describe("S3 secret access key. Use ${ENV_VAR} syntax to read from an environment variable."),
-  region: z.string().optional().describe('S3 region, e.g. "us-east-1". Optional for some providers.'),
+  accessKey: z.string().describe(
+    "S3 access key ID. Use ${ENV_VAR} syntax to read from an environment variable.",
+  ),
+  secretKey: z.string().describe(
+    "S3 secret access key. Use ${ENV_VAR} syntax to read from an environment variable.",
+  ),
+  region: z.string().optional().describe(
+    'S3 region, e.g. "us-east-1". Optional for some providers.',
+  ),
   publicURL: z
     .string()
     .optional()
@@ -58,7 +68,9 @@ const StorageSchema = z.object({
   local: LocalStorageSchema.optional().describe(
     'Local filesystem storage settings. Only used when backend is "local".',
   ),
-  s3: S3StorageSchema.optional().describe('S3-compatible object storage settings. Only used when backend is "s3".'),
+  s3: S3StorageSchema.optional().describe(
+    'S3-compatible object storage settings. Only used when backend is "s3".',
+  ),
   rules: z
     .array(StorageRuleSchema)
     .default([
@@ -73,18 +85,24 @@ const StorageSchema = z.object({
   removeWhenNoOwners: z
     .boolean()
     .default(false)
-    .describe("When true, blobs with no owners are deleted during each prune cycle, regardless of expiry rules."),
+    .describe(
+      "When true, blobs with no owners are deleted during each prune cycle, regardless of expiry rules.",
+    ),
 });
 
 const UploadSchema = z.object({
   enabled: z
     .boolean()
     .default(true)
-    .describe("Enable the PUT /upload endpoint (BUD-02). Set to false to make the server read-only."),
+    .describe(
+      "Enable the PUT /upload endpoint (BUD-02). Set to false to make the server read-only.",
+    ),
   requireAuth: z
     .boolean()
     .default(true)
-    .describe("Require a valid BUD-11 Nostr auth event for uploads. When false, anonymous uploads are accepted."),
+    .describe(
+      "Require a valid BUD-11 Nostr auth event for uploads. When false, anonymous uploads are accepted.",
+    ),
   maxSize: z
     .number()
     .int()
@@ -139,7 +157,9 @@ const ImageOptimizeSchema = z.object({
     .min(0)
     .max(100)
     .default(90)
-    .describe("Output image quality, 0–100. Higher is better quality and larger file size."),
+    .describe(
+      "Output image quality, 0–100. Higher is better quality and larger file size.",
+    ),
   progressive: z
     .boolean()
     .default(true)
@@ -151,21 +171,29 @@ const ImageOptimizeSchema = z.object({
     .int()
     .positive()
     .default(1920)
-    .describe("Maximum output width in pixels. Images wider than this are scaled down, preserving aspect ratio."),
+    .describe(
+      "Maximum output width in pixels. Images wider than this are scaled down, preserving aspect ratio.",
+    ),
   maxHeight: z
     .number()
     .int()
     .positive()
     .default(1080)
-    .describe("Maximum output height in pixels. Images taller than this are scaled down, preserving aspect ratio."),
+    .describe(
+      "Maximum output height in pixels. Images taller than this are scaled down, preserving aspect ratio.",
+    ),
   outputFormat: z
     .enum(["webp", "jpeg", "png"])
     .default("webp")
-    .describe('Output image format. "webp" offers the best compression for web delivery.'),
+    .describe(
+      'Output image format. "webp" offers the best compression for web delivery.',
+    ),
   maintainAspectRatio: z
     .boolean()
     .default(true)
-    .describe("Preserve aspect ratio when resizing. When false, images are stretched to exactly maxWidth×maxHeight."),
+    .describe(
+      "Preserve aspect ratio when resizing. When false, images are stretched to exactly maxWidth×maxHeight.",
+    ),
   keepExif: z
     .boolean()
     .default(false)
@@ -177,7 +205,9 @@ const ImageOptimizeSchema = z.object({
     .int()
     .positive()
     .default(30)
-    .describe("Maximum frame rate for animated GIF output. Frames exceeding this rate are dropped."),
+    .describe(
+      "Maximum frame rate for animated GIF output. Frames exceeding this rate are dropped.",
+    ),
 });
 
 /** Valid codec combinations keyed by container format. */
@@ -209,17 +239,23 @@ const VideoOptimizeSchema = z
       .int()
       .positive()
       .default(1080)
-      .describe("Maximum output height in pixels. Width is scaled proportionally. Uses ffmpeg fit-inside scaling."),
+      .describe(
+        "Maximum output height in pixels. Width is scaled proportionally. Uses ffmpeg fit-inside scaling.",
+      ),
     maxFps: z
       .number()
       .int()
       .positive()
       .default(30)
-      .describe("Maximum output frame rate. Frames above this threshold are dropped."),
+      .describe(
+        "Maximum output frame rate. Frames above this threshold are dropped.",
+      ),
     format: z
       .enum(["mp4", "webm", "mkv"])
       .default("mp4")
-      .describe('Output container format. "mp4" is the most widely compatible; "webm" is preferred for web delivery.'),
+      .describe(
+        'Output container format. "mp4" is the most widely compatible; "webm" is preferred for web delivery.',
+      ),
     audioCodec: z
       .enum(["aac", "mp3", "vorbis", "opus"])
       .default("aac")
@@ -239,7 +275,12 @@ const VideoOptimizeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["videoCodec"],
-        message: `videoCodec "${v.videoCodec}" is not compatible with format "${v.format}". Valid codecs: ${validVideo.join(", ")}.`,
+        message:
+          `videoCodec "${v.videoCodec}" is not compatible with format "${v.format}". Valid codecs: ${
+            validVideo.join(
+              ", ",
+            )
+          }.`,
       });
     }
     const validAudio = AUDIO_CODEC_FOR_FORMAT[v.format] as readonly string[];
@@ -247,7 +288,12 @@ const VideoOptimizeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["audioCodec"],
-        message: `audioCodec "${v.audioCodec}" is not compatible with format "${v.format}". Valid codecs: ${validAudio.join(", ")}.`,
+        message:
+          `audioCodec "${v.audioCodec}" is not compatible with format "${v.format}". Valid codecs: ${
+            validAudio.join(
+              ", ",
+            )
+          }.`,
       });
     }
   });
@@ -259,13 +305,17 @@ const MediaSchema = z.object({
     .describe(
       "Enable the PUT /media endpoint (BUD-05). Clients upload an image or video; the server optimises it, stores the result, and returns the optimised blob's hash and URL. Requires ffmpeg on the host for video.",
     ),
-  requireAuth: z.boolean().default(true).describe("Require a valid BUD-11 Nostr auth event for media uploads."),
+  requireAuth: z.boolean().default(true).describe(
+    "Require a valid BUD-11 Nostr auth event for media uploads.",
+  ),
   maxSize: z
     .number()
     .int()
     .positive()
     .default(1024 * 1024 * 1024)
-    .describe("Maximum input file size in bytes before reading the body. Default: 1 GB."),
+    .describe(
+      "Maximum input file size in bytes before reading the body. Default: 1 GB.",
+    ),
   image: ImageOptimizeSchema.optional()
     .transform((v) => v ?? ImageOptimizeSchema.parse({}))
     .describe("Image optimisation settings."),
@@ -282,12 +332,16 @@ const MirrorSchema = z
       .describe(
         "Enable the PUT /mirror endpoint (BUD-04). Allows clients to request the server fetch and store a blob from a remote URL.",
       ),
-    requireAuth: z.boolean().default(true).describe("Require a valid BUD-11 Nostr auth event for mirror requests."),
+    requireAuth: z.boolean().default(true).describe(
+      "Require a valid BUD-11 Nostr auth event for mirror requests.",
+    ),
     /**
      * @deprecated Use connectTimeout instead. Kept for backwards compatibility
      * — if present and connectTimeout is absent, its value seeds connectTimeout.
      */
-    fetchTimeout: z.number().int().min(0).optional().describe("Deprecated. Use connectTimeout instead."),
+    fetchTimeout: z.number().int().min(0).optional().describe(
+      "Deprecated. Use connectTimeout instead.",
+    ),
     connectTimeout: z
       .number()
       .int()
@@ -319,27 +373,60 @@ const DeleteSchema = z.object({
   requireAuth: z
     .boolean()
     .default(true)
-    .describe("Require a valid BUD-11 Nostr auth event to delete blobs. When false, any client may delete any blob."),
+    .describe(
+      "Require a valid BUD-11 Nostr auth event to delete blobs. When false, any client may delete any blob.",
+    ),
+});
+
+const ListSchema = z.object({
+  enabled: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Enable the GET /list/:pubkey endpoint (BUD-02). Disabled by default — the BUD-02 spec marks this endpoint as optional and unrecommended.",
+    ),
+  requireAuth: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Require a valid BUD-11 Nostr auth event to list blobs. When false, anonymous listing is accepted.",
+    ),
+  allowListOthers: z
+    .boolean()
+    .default(true)
+    .describe(
+      "Allow an authenticated user to list blobs belonging to a different pubkey. When false, a user may only list their own blobs.",
+    ),
 });
 
 const LandingSchema = z.object({
   enabled: z
     .boolean()
     .default(true)
-    .describe("Enable the server-rendered landing page at GET /. Shows server info and stats."),
-  title: z.string().default("Blossom Server").describe("Page title displayed in <title> and <h1> on the landing page."),
+    .describe(
+      "Enable the server-rendered landing page at GET /. Shows server info and stats.",
+    ),
+  title: z.string().default("Blossom Server").describe(
+    "Page title displayed in <title> and <h1> on the landing page.",
+  ),
 });
 
 const DashboardSchema = z.object({
   enabled: z
     .boolean()
     .default(false)
-    .describe("Enable the admin dashboard at /admin and the admin API at /api. Protected by HTTP Basic Auth."),
-  username: z.string().default("admin").describe("HTTP Basic Auth username for the admin dashboard."),
+    .describe(
+      "Enable the admin dashboard at /admin and the admin API at /api. Protected by HTTP Basic Auth.",
+    ),
+  username: z.string().default("admin").describe(
+    "HTTP Basic Auth username for the admin dashboard.",
+  ),
   password: z
     .string()
     .default("")
-    .describe("HTTP Basic Auth password. If blank, a random password is generated on startup and logged to stdout."),
+    .describe(
+      "HTTP Basic Auth password. If blank, a random password is generated on startup and logged to stdout.",
+    ),
 });
 
 const PruneSchema = z.object({
@@ -348,7 +435,9 @@ const PruneSchema = z.object({
     .int()
     .min(0)
     .default(60_000)
-    .describe("Delay in milliseconds before the first prune run after server startup. Default: 60 seconds."),
+    .describe(
+      "Delay in milliseconds before the first prune run after server startup. Default: 60 seconds.",
+    ),
   intervalMs: z
     .number()
     .int()
@@ -363,14 +452,18 @@ export const DatabaseSchema = z.object({
   path: z
     .string()
     .default("data/sqlite.db")
-    .describe("Path to the local SQLite database file. Ignored when url is set."),
+    .describe(
+      "Path to the local SQLite database file. Ignored when url is set.",
+    ),
   url: z
     .string()
     .optional()
     .describe(
       'Remote libSQL / Turso URL, e.g. "libsql://your-db.turso.io" for Turso cloud or "http://localhost:8080" for a local sqld container. When set, path is ignored.',
     ),
-  authToken: z.string().optional().describe("Auth token for Turso cloud. Not required for a local sqld container."),
+  authToken: z.string().optional().describe(
+    "Auth token for Turso cloud. Not required for a local sqld container.",
+  ),
 });
 
 export type DatabaseConfig = z.infer<typeof DatabaseSchema>;
@@ -388,15 +481,21 @@ export const ConfigSchema = z
       ),
     // Deprecated: use the "database" section instead.
     // If "database" is absent this value seeds database.path.
-    databasePath: z.string().optional().describe("Deprecated. Use the database.path field instead."),
-    database: DatabaseSchema.optional().describe("Database connection settings."),
+    databasePath: z.string().optional().describe(
+      "Deprecated. Use the database.path field instead.",
+    ),
+    database: DatabaseSchema.optional().describe(
+      "Database connection settings.",
+    ),
     host: z
       .string()
       .default("0.0.0.0")
       .describe(
         'Interface/hostname to bind the HTTP server to. Use "0.0.0.0" to accept connections on all IPv4 interfaces.',
       ),
-    port: z.number().int().min(1).max(65535).default(3000).describe("TCP port to listen on."),
+    port: z.number().int().min(1).max(65535).default(3000).describe(
+      "TCP port to listen on.",
+    ),
     storage: StorageSchema.optional()
       .transform((v) => v ?? StorageSchema.parse({}))
       .describe("Blob storage configuration."),
@@ -409,6 +508,9 @@ export const ConfigSchema = z
     delete: DeleteSchema.optional()
       .transform((v) => v ?? DeleteSchema.parse({}))
       .describe("Delete endpoint settings (BUD-02)."),
+    list: ListSchema.optional()
+      .transform((v) => v ?? ListSchema.parse({}))
+      .describe("List endpoint settings (BUD-02). Disabled by default."),
     landing: LandingSchema.optional()
       .transform((v) => v ?? LandingSchema.parse({}))
       .describe("Landing page settings."),
@@ -417,7 +519,9 @@ export const ConfigSchema = z
       .describe("Media optimisation endpoint settings (BUD-05)."),
     prune: PruneSchema.optional()
       .transform((v) => v ?? PruneSchema.parse({}))
-      .describe("Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules."),
+      .describe(
+        "Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules.",
+      ),
     dashboard: DashboardSchema.optional()
       .transform((v) => v ?? DashboardSchema.parse({}))
       .describe("Admin dashboard and API settings."),
@@ -427,7 +531,9 @@ export const ConfigSchema = z
     // Priority: database.path > databasePath > default "data/sqlite.db"
     const database = DatabaseSchema.parse({
       ...raw.database,
-      ...(raw.database?.path === undefined && raw.databasePath !== undefined ? { path: raw.databasePath } : {}),
+      ...(raw.database?.path === undefined && raw.databasePath !== undefined
+        ? { path: raw.databasePath }
+        : {}),
     });
     const { databasePath: _dropped, ...rest } = raw;
     return { ...rest, database };

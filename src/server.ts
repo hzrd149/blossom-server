@@ -18,6 +18,7 @@ import { buildUploadRouter } from "./routes/upload.ts";
 import { buildMirrorRouter } from "./routes/mirror.ts";
 import { buildMediaRouter } from "./routes/media.ts";
 import { buildDeleteRouter } from "./routes/delete.ts";
+import { buildListRouter } from "./routes/list.ts";
 import { buildLandingRouter } from "./routes/landing.ts";
 import { buildAdminRouter } from "./routes/admin.ts";
 
@@ -103,10 +104,7 @@ export function buildApp(
         const html = await Deno.readTextFile("./admin/dist/index.html");
         return c.html(html);
       } catch {
-        return c.text(
-          "Admin UI not found. Run: deno task build-admin",
-          503,
-        );
+        return c.text("Admin UI not found. Run: deno task build-admin", 503);
       }
     });
   }
@@ -125,8 +123,12 @@ export function buildApp(
   // BUD-02: DELETE /:sha256
   app.route("/", buildDeleteRouter(db, storage, config));
 
+  // BUD-02: GET /list/:pubkey (disabled by default — spec marks it unrecommended)
+  // Mounted before the blob route so /list/:pubkey is not caught by GET /:filename.
+  app.route("/", buildListRouter(db, config));
+
   // BUD-01: GET/HEAD /:sha256[.ext]
-  // Mounted after /upload, /mirror, /delete so those exact paths take priority.
+  // Mounted after /upload, /mirror, /delete, /list so those exact paths take priority.
   app.route("/", buildBlobsRouter(db, storage, config));
 
   return app;

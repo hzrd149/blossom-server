@@ -36,6 +36,7 @@ import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
+import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 
 /** BUD-02 Blob Descriptor */
@@ -45,15 +46,6 @@ interface BlobDescriptor {
   size: number;
   type: string;
   uploaded: number;
-}
-
-function getBlobUrl(
-  hash: string,
-  mimeType: string | null,
-  baseUrl: string,
-): string {
-  const ext = mimeToExt(mimeType);
-  return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
 }
 
 export function buildUploadRouter(
@@ -149,7 +141,7 @@ export function buildUploadRouter(
     }
 
     // If hash provided and blob already exists, signal upload can be skipped
-    if (xSha256 && await hasBlob(db, xSha256)) {
+    if (xSha256 && (await hasBlob(db, xSha256))) {
       return ctx.body(null, 200, { "X-Reason": "Blob already exists (dedup)" });
     }
 
@@ -290,7 +282,7 @@ export function buildUploadRouter(
     const ext = mimeToExt(mimeType);
 
     // --- 6. Dedup: if blob already exists, skip the whole write ---
-    if (xSha256 && await hasBlob(db, xSha256)) {
+    if (xSha256 && (await hasBlob(db, xSha256))) {
       await ctx.req.raw.body?.cancel();
       const existing = await getBlob(db, xSha256);
       if (existing) {
@@ -299,7 +291,7 @@ export function buildUploadRouter(
           `dedup hit — returning existing blob ${xSha256.slice(0, 8)}`,
         );
         // Register this pubkey as an owner if they aren't already
-        if (auth && !await isOwner(db, xSha256, auth.pubkey)) {
+        if (auth && !(await isOwner(db, xSha256, auth.pubkey))) {
           await insertBlob(db, existing, auth.pubkey);
         }
         const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
@@ -465,15 +457,4 @@ function isAllowedType(mimeType: string, allowedTypes: string[]): boolean {
     if (allowed.endsWith("/*")) return allowed.slice(0, -2) === mainType;
     return allowed === mimeType;
   });
-}
-
-/** Derive the base URL for blob descriptors. */
-function getBaseUrl(request: Request, publicDomain: string): string {
-  if (publicDomain) {
-    // publicDomain is a bare hostname (e.g. "cdn.example.com").
-    // Strip any accidental trailing slash and prepend https://.
-    return `https://${publicDomain.replace(/\/$/, "")}`;
-  }
-  const url = new URL(request.url);
-  return `${url.protocol}//${url.host}`;
 }
