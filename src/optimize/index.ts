@@ -7,7 +7,7 @@
  *   3. Unknown → throw Error("Unsupported file type")
  *
  * All media processing modules (image.ts, video.ts) and their native
- * dependencies (sharp, fluent-ffmpeg, file-type) are loaded lazily via
+ * dependencies (sharp, file-type) are loaded lazily via
  * dynamic import so they are never required when the media endpoint is
  * disabled.
  */

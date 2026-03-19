@@ -245,14 +245,21 @@ media:
     format: mp4
 
     # Audio codec. Must be compatible with the chosen format.
+    # Codec and format must be changed together — mismatched combinations are
+    # rejected at startup.
     #   mp4 / mkv: "aac" (default), "mp3"
-    #   webm:      "opus" (default for webm), "vorbis"
+    #   webm:      "opus", "vorbis"
     audioCodec: aac
 
     # Video codec. Must be compatible with the chosen format.
     #   mp4 / mkv: "libx264" (default), "libx265"
-    #   webm:      "vp9" (default for webm), "vp8"
+    #   webm:      "vp9", "vp8"
     videoCodec: libx264
+
+    # Example: webm output (all three fields must be changed together)
+    # format: webm
+    # videoCodec: vp9
+    # audioCodec: opus
 
 # ---------------------------------------------------------------------------
 # Prune loop
