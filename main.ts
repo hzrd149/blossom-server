@@ -17,7 +17,6 @@ import type { IBlobStorage } from "./src/storage/interface.ts";
 import { LocalStorage } from "./src/storage/local.ts";
 import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
-import { installDbBridge } from "./src/db/bridge.ts";
 import { buildApp } from "./src/server.ts";
 import { pruneStorage } from "./src/prune/prune.ts";
 
@@ -99,29 +98,6 @@ if (config.landing.enabled) {
     "./landing",
     "Landing page client JS will be unavailable. Fix build errors and restart.",
   );
-}
-
-// Init landing page worker (optional — off by default)
-let landingWorker: Worker | undefined;
-if (config.landing.enabled) {
-  const { port1, port2 } = new MessageChannel();
-  landingWorker = new Worker(
-    new URL("./src/workers/landing-worker.tsx", import.meta.url),
-    { type: "module" },
-  );
-  // Install DB bridge on port1 (main thread) before the worker needs it
-  installDbBridge(db, port1);
-  // Set handler BEFORE posting init so the ready signal is never missed
-  const readyPromise = new Promise<void>((resolve) => {
-    landingWorker!.onmessage = (e) => {
-      if (e.data?.type === "ready") resolve();
-    };
-  });
-  // Transfer port2 to the worker along with config
-  landingWorker.postMessage({ type: "init", dbPort: port2, config }, [port2]);
-  await readyPromise;
-  // onmessage is taken over by buildLandingRouter after buildApp() runs
-  console.log("  Landing:  ready");
 }
 
 // Resolve admin dashboard password (auto-generate if blank).
@@ -224,7 +200,7 @@ async function runViteBuild(
 }
 
 // Build Hono app
-const app = buildApp(db, storage, config, landingWorker);
+const app = buildApp(db, storage, config);
 
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the
@@ -311,7 +287,6 @@ const shutdown = () => {
   console.log("\nShutting down...");
   if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
   pool.shutdown();
-  landingWorker?.terminate();
   server.shutdown().then(() => {
     console.log("Server stopped.");
     db.close();

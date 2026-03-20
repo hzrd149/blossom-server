@@ -1,13 +1,13 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 import type { Config } from "../config/schema.ts";
-import type { DbProxy } from "../db/proxy.ts";
+import type { IDbHandle } from "../db/handle.ts";
 import { Layout } from "./layout.tsx";
 import { StatsBar } from "./stats-bar.tsx";
 import { ServerInfo } from "./server-info.tsx";
 import { UploadIsland } from "./upload-island.tsx";
 
-export const LandingPage: FC<{ db: DbProxy; config: Config }> = async (
+export const LandingPage: FC<{ db: IDbHandle; config: Config }> = async (
   { db, config },
 ) => {
   const stats = await db.getStats();
