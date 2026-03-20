@@ -1,4 +1,6 @@
 {
+  "name": "@hzrd149/blossom-server",
+  "version": "6.0.0",
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
