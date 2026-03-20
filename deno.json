@@ -9,9 +9,8 @@
     "dev": "deno run --env-file=.env --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "start": "deno run --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
     "test": "deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/",
-    "build-admin": "deno run --allow-all npm:vite build --config vite.config.admin.ts",
     "build-landing": "deno run --allow-all npm:vite build --config vite.config.landing.ts",
-    "build": "deno task build-landing && deno task build-admin",
+    "build": "deno task build-landing",
     "clean": "deno run --env-file=.env --allow-read --allow-write scripts/clean.ts"
   },
   "imports": {

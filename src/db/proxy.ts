@@ -11,7 +11,8 @@
 
 import type { DbRequest, DbResponse } from "./bridge.ts";
 import type { IDbHandle } from "./handle.ts";
-import type { BlobRecord, BlobStats } from "./blobs.ts";
+import type { BlobRecord, BlobStats, AdminBlobRecord, AdminUserRecord } from "./blobs.ts";
+import type { ReportRecord } from "./reports.ts";
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -49,7 +50,7 @@ export class DbProxy implements IDbHandle {
   }
 
   // ---------------------------------------------------------------------------
-  // Public API — identical signatures to src/db/blobs.ts named exports
+  // Core blob ops
   // ---------------------------------------------------------------------------
 
   hasBlob(sha256: string): Promise<boolean> {
@@ -70,5 +71,53 @@ export class DbProxy implements IDbHandle {
 
   getStats(): Promise<BlobStats> {
     return this.call<BlobStats>("getStats", []);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Admin blob ops
+  // ---------------------------------------------------------------------------
+
+  listAllBlobs(opts?: Parameters<IDbHandle["listAllBlobs"]>[0]): Promise<AdminBlobRecord[]> {
+    return this.call<AdminBlobRecord[]>("listAllBlobs", [opts]);
+  }
+
+  countBlobs(filter?: Parameters<IDbHandle["countBlobs"]>[0]): Promise<number> {
+    return this.call<number>("countBlobs", [filter]);
+  }
+
+  listAllUsers(opts?: Parameters<IDbHandle["listAllUsers"]>[0]): Promise<AdminUserRecord[]> {
+    return this.call<AdminUserRecord[]>("listAllUsers", [opts]);
+  }
+
+  countUsers(filter?: Parameters<IDbHandle["countUsers"]>[0]): Promise<number> {
+    return this.call<number>("countUsers", [filter]);
+  }
+
+  deleteBlob(sha256: string): Promise<boolean> {
+    return this.call<boolean>("deleteBlob", [sha256]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Admin report ops
+  // ---------------------------------------------------------------------------
+
+  listAllReports(opts?: Parameters<IDbHandle["listAllReports"]>[0]): Promise<ReportRecord[]> {
+    return this.call<ReportRecord[]>("listAllReports", [opts]);
+  }
+
+  countReports(filter?: Parameters<IDbHandle["countReports"]>[0]): Promise<number> {
+    return this.call<number>("countReports", [filter]);
+  }
+
+  getReport(id: number): Promise<ReportRecord | null> {
+    return this.call<ReportRecord | null>("getReport", [id]);
+  }
+
+  deleteReport(id: number): Promise<boolean> {
+    return this.call<boolean>("deleteReport", [id]);
+  }
+
+  deleteReportsByBlob(blob: string): Promise<void> {
+    return this.call<void>("deleteReportsByBlob", [blob]);
   }
 }

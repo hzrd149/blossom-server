@@ -116,29 +116,37 @@ if (config.landing.enabled) {
 }
 
 // Resolve admin dashboard password (auto-generate if blank)
-let adminPassword: string | undefined;
+// The password is embedded in the config passed to the admin worker and
+// used directly by Hono's basicAuth middleware inside the worker.
+let adminWorker: Worker | undefined;
 if (config.dashboard.enabled) {
-  if (config.dashboard.password) {
-    adminPassword = config.dashboard.password;
-  } else {
-    // Generate a random 20-char alphanumeric password
+  if (!config.dashboard.password) {
+    // Generate a random 20-char alphanumeric password and patch config in memory
     const bytes = new Uint8Array(15);
     crypto.getRandomValues(bytes);
-    adminPassword = btoa(String.fromCharCode(...bytes))
+    const generated = btoa(String.fromCharCode(...bytes))
       .replace(/[+/=]/g, "")
       .slice(0, 20);
-    console.log(`  Admin:    password auto-generated: ${adminPassword}`);
+    // Patch config so the worker receives the generated password
+    (config.dashboard as { password: string }).password = generated;
+    console.log(`  Admin:    password auto-generated: ${generated}`);
   }
 
-  // Build the admin dashboard if dist is missing or source is newer than dist.
-  // This ensures the React Admin SPA is always up-to-date on startup without
-  // requiring a separate manual build step.
-  await runViteBuild(
-    "Admin",
-    "./vite.config.admin.ts",
-    "./admin",
-    "Dashboard will be unavailable. Fix build errors and restart.",
-  );
+  const { port1, port2 } = new MessageChannel();
+  adminWorker = new Worker(new URL("./src/workers/admin-worker.tsx", import.meta.url), { type: "module" });
+  // Install DB bridge on port1 (main thread) before the worker needs it
+  installDbBridge(db, port1);
+  // Set handler BEFORE posting init so the ready signal is never missed
+  const adminReadyPromise = new Promise<void>((resolve) => {
+    adminWorker!.onmessage = (e) => {
+      if (e.data?.type === "ready") resolve();
+    };
+  });
+  // Transfer port2 to the worker along with config (config.dashboard.password is now set)
+  adminWorker.postMessage({ type: "init", dbPort: port2, config }, [port2]);
+  await adminReadyPromise;
+  // onmessage is taken over by buildAdminRouter after buildApp() runs
+  console.log("  Admin:    ready");
 }
 
 /**
@@ -222,7 +230,7 @@ async function runViteBuild(
 }
 
 // Build Hono app
-const app = buildApp(db, storage, config, landingWorker, adminPassword);
+const app = buildApp(db, storage, config, landingWorker, adminWorker);
 
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the
@@ -282,6 +290,7 @@ const shutdown = () => {
   if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
   pool.shutdown();
   landingWorker?.terminate();
+  adminWorker?.terminate();
   server.shutdown().then(() => {
     console.log("Server stopped.");
     db.close();

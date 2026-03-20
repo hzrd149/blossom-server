@@ -20,7 +20,7 @@ import { buildMediaRouter } from "./routes/media.ts";
 import { buildDeleteRouter } from "./routes/delete.ts";
 import { buildListRouter } from "./routes/list.ts";
 import { buildLandingRouter } from "./routes/landing.ts";
-import { buildAdminRouter } from "./routes/admin.ts";
+import { buildAdminRouter } from "./routes/admin-router.ts";
 import { buildReportRouter } from "./routes/report.ts";
 
 export function buildApp(
@@ -28,7 +28,7 @@ export function buildApp(
   storage: IBlobStorage,
   config: Config,
   landingWorker?: Worker,
-  adminPassword?: string,
+  adminWorker?: Worker,
 ): Hono {
   const app = new Hono();
 
@@ -64,50 +64,11 @@ export function buildApp(
     app.route("/", buildLandingRouter(landingWorker));
   }
 
-  // Admin dashboard API + static SPA (disabled by default)
-  // Mounted first so /api/* and /admin/* are claimed before blob routes.
-  if (config.dashboard.enabled && adminPassword) {
-    app.route("/", buildAdminRouter(db, storage, config, adminPassword));
-
-    // Serve the pre-built React Admin SPA and its assets.
-    // The bundle's index.html references assets at /admin/assets/<file>.
-    // We handle three cases:
-    //   1. /admin/assets/* — serve the hashed JS bundle
-    //   2. /admin          — redirect to /admin/ so relative asset paths resolve
-    //   3. /admin/*        — serve index.html (SPA catch-all for client-side routing)
-    app.get("/admin/assets/:filename", async (c) => {
-      const filename = c.req.param("filename");
-      // Basic path safety — no directory traversal
-      if (filename.includes("/") || filename.includes("..")) {
-        return c.text("Not found", 404);
-      }
-      try {
-        const file = await Deno.readFile(`./admin/dist/assets/${filename}`);
-        const ext = filename.split(".").pop()?.toLowerCase();
-        const contentType = ext === "js"
-          ? "application/javascript"
-          : ext === "css"
-          ? "text/css"
-          : "application/octet-stream";
-        return c.body(file, 200, {
-          "Content-Type": contentType,
-          "Cache-Control": "public, max-age=31536000, immutable",
-        });
-      } catch {
-        return c.text("Not found", 404);
-      }
-    });
-
-    app.get("/admin", (c) => c.redirect("/admin/", 301));
-
-    app.get("/admin/*", async (c) => {
-      try {
-        const html = await Deno.readTextFile("./admin/dist/index.html");
-        return c.html(html);
-      } catch {
-        return c.text("Admin UI not found. Run: deno task build-admin", 503);
-      }
-    });
+  // Admin dashboard — server-rendered Hono JSX (disabled by default).
+  // Mounted before blob routes so /admin/* is claimed before /:sha256[.ext].
+  // All SSR rendering, Basic Auth, and action endpoints live in the admin worker.
+  if (config.dashboard.enabled && adminWorker) {
+    app.route("/", buildAdminRouter(adminWorker));
   }
 
   // BUD-09: PUT /report — blob reports (enabled by default, gated by config.report.enabled)
