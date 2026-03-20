@@ -118,8 +118,8 @@ Deno.test({
       upload: { requireAuth: true, enabled: true },
     });
 
-    appNoAuth = buildApp(db, storage, configNoAuth);
-    appWithAuth = buildApp(db, storage, configWithAuth);
+    appNoAuth = await buildApp(db, storage, configNoAuth);
+    appWithAuth = await buildApp(db, storage, configWithAuth);
 
     cleanup = async () => {
       pool.shutdown();
@@ -177,7 +177,7 @@ Deno.test({
       storage: { rules: [] },
       upload: { requireAuth: false, enabled: true, maxSize: 100 },
     });
-    const smallApp = buildApp(smallDb, smallStorage, smallConfig);
+    const smallApp = await buildApp(smallDb, smallStorage, smallConfig);
 
     const res = await smallApp.fetch(
       new Request("http://localhost/upload", {
@@ -210,7 +210,7 @@ Deno.test({
       upload: { requireAuth: false, enabled: true },
     });
     // Note: getPool() singleton is reused here — same pool, different config
-    const restrictedApp = buildApp(
+    const restrictedApp = await buildApp(
       restrictedDb,
       restrictedStorage,
       restrictedConfig,
@@ -222,7 +222,7 @@ Deno.test({
         method: "PUT",
         headers: {
           "Content-Length": String(body.byteLength),
-          "Content-Type": "application/pdf",
+          "Content-Type": "application/octet-stream", // not image/* → 415
         },
         body,
       }),
@@ -545,7 +545,7 @@ Deno.test({
       storage: { rules: [] },
       upload: { requireAuth: false, enabled: true, maxSize: 100 },
     });
-    const smallApp = buildApp(smallDb, smallStorage, smallConfig);
+    const smallApp = await buildApp(smallDb, smallStorage, smallConfig);
 
     const res = await smallApp.fetch(
       new Request("http://localhost/upload", {

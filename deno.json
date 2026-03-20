@@ -6,10 +6,10 @@
   },
   "exclude": ["tests/stress/"],
   "tasks": {
-    "dev": "deno run --env-file=.env --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
-    "start": "deno run --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run main.ts",
+    "dev": "deno run --env-file=.env --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run --unstable-bundle main.ts",
+    "start": "deno run --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run --unstable-bundle main.ts",
     "test": "deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/",
-    "build-landing": "deno run --allow-all npm:vite build --config vite.config.landing.ts",
+    "build-landing": "deno bundle --minify --platform browser -o landing/dist/assets/client.js landing/src/client.tsx",
     "build": "deno task build-landing",
     "clean": "deno run --env-file=.env --allow-read --allow-write scripts/clean.ts"
   },
@@ -28,12 +28,11 @@
     "nostr-tools": "npm:nostr-tools@^2.23.3",
     "sharp": "npm:sharp@^0.34.5",
     "file-type": "npm:file-type@^19.6.0",
-    "vite": "npm:vite@^8.0.0",
     "zod": "npm:zod@^4.3.6",
     "hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
     "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
     "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime",
     "@hono/hono/basic-auth": "jsr:@hono/hono@^4.12.7/basic-auth"
   },
-  "allowScripts": ["npm:esbuild@0.21.5", "npm:sharp@0.34.5"]
+  "allowScripts": ["npm:sharp@0.34.5"]
 }

@@ -90,16 +90,6 @@ const pool = initPool(
 );
 console.log(`  Workers:  ${pool.size} upload workers`);
 
-// Build landing page client if enabled and dist is stale
-if (config.landing.enabled) {
-  await runViteBuild(
-    "Landing",
-    "./vite.config.landing.ts",
-    "./landing",
-    "Landing page client JS will be unavailable. Fix build errors and restart.",
-  );
-}
-
 // Resolve admin dashboard password (auto-generate if blank).
 // The password is used directly by Hono's basicAuth middleware in the admin router.
 if (config.dashboard.enabled) {
@@ -116,91 +106,8 @@ if (config.dashboard.enabled) {
   console.log("  Admin:    ready");
 }
 
-/**
- * Run a Vite build using Deno's npm: specifier support.
- * Equivalent to `deno run --allow-all npm:vite build --config <configFile>`.
- *
- * Both landing and admin use root-level vite configs (vite.config.landing.ts
- * and vite.config.admin.ts) with a shared root-level node_modules — no
- * per-project package.json needed.
- *
- * Skips the build if `<projectDir>/dist/index.html` already exists and is
- * newer than any file in `<projectDir>/src/` — rebuild only on source changes.
- *
- * @param label      Short label for console output (e.g. "Admin", "Landing")
- * @param configFile Path to the vite config file (relative to CWD)
- * @param projectDir Path to the project source directory (for stale-check)
- * @param unavailableMsg Message to show when the build fails
- */
-async function runViteBuild(
-  label: string,
-  configFile: string,
-  projectDir: string,
-  unavailableMsg: string,
-): Promise<void> {
-  const distIndex = `${projectDir}/dist/index.html`;
-  const srcDir = `${projectDir}/src`;
-  const pad = label.padEnd(8);
-
-  // Stale-check: compare mtime of dist/index.html against newest file in src/
-  // If src/ is absent (e.g. Docker image — only dist/ is copied in), skip
-  // unconditionally so we never attempt a build without vite configs present.
-  let needsBuild = true;
-  try {
-    await Deno.stat(srcDir);
-    // src/ exists — compare newest src file against dist/index.html mtime.
-    try {
-      const distMtime = (await Deno.stat(distIndex)).mtime?.getTime() ?? 0;
-      let srcNewest = 0;
-      for await (const entry of Deno.readDir(srcDir)) {
-        const mtime =
-          (await Deno.stat(`${srcDir}/${entry.name}`)).mtime?.getTime() ?? 0;
-        if (mtime > srcNewest) srcNewest = mtime;
-      }
-      if (distMtime >= srcNewest) needsBuild = false;
-    } catch {
-      // dist doesn't exist yet — must build
-    }
-  } catch {
-    // src/ is absent — pre-built dist (Docker). Skip.
-    needsBuild = false;
-  }
-
-  if (!needsBuild) {
-    console.log(`  ${pad}  dist is up-to-date, skipping build`);
-    return;
-  }
-
-  console.log(`  ${pad}  building (vite)...`);
-
-  // Uses Deno's own npm: resolver — no Node.js installation required.
-  // The root-level node_modules/ is shared between both projects.
-  const cmd = new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-all", "npm:vite", "build", "--config", configFile],
-    stdout: "piped",
-    stderr: "piped",
-  });
-
-  const { code, stdout, stderr } = await cmd.output();
-  const dec = new TextDecoder();
-
-  if (code !== 0) {
-    console.error(`  ${pad}  build FAILED:\n` + dec.decode(stderr));
-    console.error(`  ${pad}  ${unavailableMsg}`);
-  } else {
-    const summary = dec
-      .decode(stdout)
-      .trim()
-      .split("\n")
-      .findLast((l: string) => l.includes("built in"));
-    console.log(
-      `  ${pad}  build complete${summary ? " — " + summary.trim() : ""}`,
-    );
-  }
-}
-
-// Build Hono app
-const app = buildApp(db, storage, config);
+// Build Hono app (async — landing router bundles client JS at startup when enabled)
+const app = await buildApp(db, storage, config);
 
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the

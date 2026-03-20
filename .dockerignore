@@ -24,14 +24,6 @@ blossom/
 # Top-level node_modules (none should exist, but guard against accidental copy)
 /node_modules/
 
-# Frontend build outputs — built inside the Docker builder stage, not copied in
-# from the host. Excluding these keeps the build context lean and ensures the
-# image always contains a clean build.
-admin/dist/
-admin/node_modules/
-landing/dist/
-landing/node_modules/
-
 # public/ — static assets served differently; admin/landing serve their own dist
 public/
 

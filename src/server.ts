@@ -23,11 +23,11 @@ import { buildLandingRouter } from "./routes/landing.tsx";
 import { buildAdminRouter } from "./routes/admin-router.tsx";
 import { buildReportRouter } from "./routes/report.ts";
 
-export function buildApp(
+export async function buildApp(
   db: Client,
   storage: IBlobStorage,
   config: Config,
-): Hono {
+): Promise<Hono> {
   const app = new Hono();
 
   // Global error handler
@@ -58,8 +58,9 @@ export function buildApp(
 
   // Landing page: GET / and GET /assets/client.js (disabled by default)
   // Mounted first so GET / is claimed before the blob regex route.
+  // buildLandingRouter is async — it bundles (or loads) the client JS at startup.
   if (config.landing.enabled) {
-    app.route("/", buildLandingRouter(db, config));
+    app.route("/", await buildLandingRouter(db, config));
   }
 
   // Admin dashboard — server-rendered Hono JSX (disabled by default).

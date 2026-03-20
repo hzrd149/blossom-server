@@ -44,12 +44,15 @@ function makeUploadAuth(hash?: string): NostrEvent {
     ["expiration", String(now + 600)],
   ];
   if (hash) tags.push(["x", hash]);
-  return finalizeEvent({
-    kind: 24242,
-    created_at: now,
-    tags,
-    content: "Upload blob",
-  }, sk);
+  return finalizeEvent(
+    {
+      kind: 24242,
+      created_at: now,
+      tags,
+      content: "Upload blob",
+    },
+    sk,
+  );
 }
 
 function encodeAuth(event: NostrEvent): string {
@@ -116,7 +119,7 @@ Deno.test({
       upload: { requireAuth: false, enabled: true },
     });
 
-    app = buildApp(db, storage, config);
+    app = await buildApp(db, storage, config);
 
     // Upload the test blob
     blobHash = await sha256Hex(BLOB_DATA);
@@ -129,7 +132,7 @@ Deno.test({
           "Content-Length": String(BLOB_SIZE),
           "Content-Type": "application/octet-stream",
           "X-SHA-256": blobHash,
-          "Authorization": encodeAuth(auth),
+          Authorization: encodeAuth(auth),
         },
         body: BLOB_DATA,
       }),
@@ -175,7 +178,7 @@ Deno.test({
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
         method: "HEAD",
-        headers: { "Range": "bytes=0-9" },
+        headers: { Range: "bytes=0-9" },
       }),
     );
     assertEquals(res.status, 200);
@@ -194,7 +197,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=0-3" },
+        headers: { Range: "bytes=0-3" },
       }),
     );
     assertEquals(res.status, 206);
@@ -212,7 +215,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=16-19" },
+        headers: { Range: "bytes=16-19" },
       }),
     );
     assertEquals(res.status, 206);
@@ -230,7 +233,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=0-0" },
+        headers: { Range: "bytes=0-0" },
       }),
     );
     assertEquals(res.status, 206);
@@ -248,7 +251,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=-5" },
+        headers: { Range: "bytes=-5" },
       }),
     );
     assertEquals(res.status, 206);
@@ -266,7 +269,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=10-" },
+        headers: { Range: "bytes=10-" },
       }),
     );
     assertEquals(res.status, 206);
@@ -284,7 +287,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=5-14" },
+        headers: { Range: "bytes=5-14" },
       }),
     );
     assertEquals(res.status, 206);
@@ -306,7 +309,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=10-5" },
+        headers: { Range: "bytes=10-5" },
       }),
     );
     assertEquals(res.status, 416);
@@ -321,7 +324,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": `bytes=0-${BLOB_SIZE}` },
+        headers: { Range: `bytes=0-${BLOB_SIZE}` },
       }),
     );
     assertEquals(res.status, 416);
@@ -335,7 +338,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": `bytes=${BLOB_SIZE}-${BLOB_SIZE + 10}` },
+        headers: { Range: `bytes=${BLOB_SIZE}-${BLOB_SIZE + 10}` },
       }),
     );
     assertEquals(res.status, 416);
@@ -349,7 +352,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=foobar" },
+        headers: { Range: "bytes=foobar" },
       }),
     );
     assertEquals(res.status, 416);
@@ -363,7 +366,7 @@ Deno.test({
   async fn() {
     const res = await app.fetch(
       new Request(`http://localhost${blobUrl}`, {
-        headers: { "Range": "bytes=0-4, 10-14" },
+        headers: { Range: "bytes=0-4, 10-14" },
       }),
     );
     assertEquals(res.status, 416);
