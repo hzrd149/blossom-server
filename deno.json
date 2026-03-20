@@ -10,9 +10,9 @@
     "start": "deno run --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run --unstable-bundle main.ts",
     "test": "deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/ tests/e2e/",
     "build-landing": "deno bundle --minify --platform browser -o public/client.js src/landing/client/index.tsx",
-    "build": "deno task build-landing",
-    "clean": "deno run --env-file=.env --allow-read --allow-write scripts/clean.ts"
+    "build": "deno task build-landing"
   },
+
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
     "@hono/hono": "jsr:@hono/hono@^4.12.7",

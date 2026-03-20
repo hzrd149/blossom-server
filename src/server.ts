@@ -23,7 +23,11 @@ import { buildLandingRouter } from "./routes/landing.tsx";
 import { buildAdminRouter } from "./routes/admin-router.tsx";
 import { buildReportRouter } from "./routes/report.ts";
 
-export async function buildApp(db: Client, storage: IBlobStorage, config: Config): Promise<Hono> {
+export async function buildApp(
+  db: Client,
+  storage: IBlobStorage,
+  config: Config,
+): Promise<Hono> {
   const app = new Hono();
 
   // Global error handler

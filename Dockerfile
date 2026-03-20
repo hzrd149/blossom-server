@@ -24,7 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 COPY deno.json deno.lock ./
 COPY main.ts ./
 COPY src/ ./src/
-COPY scripts/ ./scripts/
 
 # Warm the Deno module cache so first startup is instant.
 #

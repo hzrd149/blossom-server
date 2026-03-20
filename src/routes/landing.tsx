@@ -46,9 +46,13 @@ async function buildClientBundle(): Promise<string> {
     );
   }
 
-  console.log("[landing] public/client.js not found — building from source via Deno.bundle()...");
+  console.log(
+    "[landing] public/client.js not found — building from source via Deno.bundle()...",
+  );
 
-  const bundleFn = denoBundle as (opts: unknown) => Promise<{ outputFiles?: { text(): string }[] }>;
+  const bundleFn = denoBundle as (
+    opts: unknown,
+  ) => Promise<{ outputFiles?: { text(): string }[] }>;
 
   const result = await bundleFn({
     entrypoints: ["./src/landing/client/index.tsx"],
@@ -58,7 +62,9 @@ async function buildClientBundle(): Promise<string> {
   });
 
   const file = result.outputFiles?.[0];
-  if (!file) throw new Error("[landing] Deno.bundle() returned no output files");
+  if (!file) {
+    throw new Error("[landing] Deno.bundle() returned no output files");
+  }
 
   const bundle = file.text();
 
@@ -68,13 +74,19 @@ async function buildClientBundle(): Promise<string> {
     console.log("[landing] client bundle written to public/client.js");
   } catch (err) {
     // Non-fatal — the bundle is already in memory; serve it regardless.
-    console.warn("[landing] could not write public/client.js:", err instanceof Error ? err.message : String(err));
+    console.warn(
+      "[landing] could not write public/client.js:",
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   return bundle;
 }
 
-export async function buildLandingRouter(db: Client, config: Config): Promise<Hono> {
+export async function buildLandingRouter(
+  db: Client,
+  config: Config,
+): Promise<Hono> {
   const handle = new DirectDbHandle(db);
 
   // Resolve the client bundle once at startup and hold it in memory.
