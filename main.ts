@@ -1,3 +1,5 @@
+#!/usr/bin/env deno
+
 /**
  * Blossom Server — Deno entry point.
  *

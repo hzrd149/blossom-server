@@ -1,12 +1,12 @@
 {
   "name": "@hzrd149/blossom-server",
   "version": "6.0.0",
+  "exports": "./main.ts",
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
   },
-  "exclude": ["tests/stress/"],
   "tasks": {
     "dev": "deno run --env-file=.env --watch --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run --unstable-bundle main.ts",
     "start": "deno run --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys --allow-run --unstable-bundle main.ts",
@@ -14,7 +14,6 @@
     "build-landing": "deno bundle --minify --platform browser -o public/client.js src/landing/client/index.tsx",
     "build": "deno task build-landing"
   },
-
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
     "@hono/hono": "jsr:@hono/hono@^4.12.7",
@@ -28,16 +27,8 @@
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
     "applesauce-common": "npm:applesauce-common@^5.1.0",
-    "applesauce-common/casts": "npm:applesauce-common@^5.1.0/casts",
-    "applesauce-common/observable": "npm:applesauce-common@^5.1.0/observable",
-    "applesauce-common/helpers": "npm:applesauce-common@^5.1.0/helpers",
     "applesauce-core": "npm:applesauce-core@^5.1.0",
-    "applesauce-core/event-store": "npm:applesauce-core@^5.1.0/event-store",
-    "applesauce-core/helpers": "npm:applesauce-core@^5.1.0/helpers",
-    "applesauce-core/observable": "npm:applesauce-core@^5.1.0/observable",
     "applesauce-loaders": "npm:applesauce-loaders@^5.1.0",
-    "applesauce-loaders/loaders": "npm:applesauce-loaders@^5.1.0/loaders",
-    "applesauce-loaders/helpers": "npm:applesauce-loaders@^5.1.0/helpers",
     "applesauce-relay": "npm:applesauce-relay@^5.1.0",
     "rxjs": "npm:rxjs@^7.8.0",
     "nostr-tools": "npm:nostr-tools@^2.23.3",
@@ -46,8 +37,7 @@
     "zod": "npm:zod@^4.3.6",
     "hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
     "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
-    "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime",
-    "@hono/hono/basic-auth": "jsr:@hono/hono@^4.12.7/basic-auth"
+    "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime"
   },
   "allowScripts": ["npm:sharp@0.34.5"]
 }
