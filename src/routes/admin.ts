@@ -12,6 +12,9 @@
  *   GET    /api/users         — list pubkeys with blob lists
  *   GET    /api/rules         — list storage rules from config
  *   GET    /api/rules/:id     — single storage rule
+ *   GET    /api/reports       — paginated blob report list
+ *   GET    /api/reports/:id   — single blob report
+ *   DELETE /api/reports/:id   — dismiss a report
  *
  * Query parameter encoding (ra-data-simple-rest protocol):
  *   sort   = JSON([field, "ASC"|"DESC"])
@@ -39,6 +42,13 @@ import {
   listAllBlobs,
   listAllUsers,
 } from "../db/blobs.ts";
+import {
+  countReports,
+  deleteReport,
+  deleteReportsByBlob,
+  getReport,
+  listAllReports,
+} from "../db/reports.ts";
 import { mimeToExt } from "../utils/mime.ts";
 
 // ── Wire-protocol helpers ────────────────────────────────────────────────────
@@ -58,7 +68,9 @@ function parseListQuery(query: Record<string, string>): {
 
   try {
     if (query.filter) filter = JSON.parse(query.filter);
-  } catch { /* ignore malformed filter */ }
+  } catch {
+    /* ignore malformed filter */
+  }
 
   try {
     if (query.sort) {
@@ -67,7 +79,9 @@ function parseListQuery(query: Record<string, string>): {
         sort = [String(parsed[0]), String(parsed[1])];
       }
     }
-  } catch { /* ignore malformed sort */ }
+  } catch {
+    /* ignore malformed sort */
+  }
 
   try {
     if (query.range) {
@@ -76,7 +90,9 @@ function parseListQuery(query: Record<string, string>): {
         range = [Number(parsed[0]), Number(parsed[1])];
       }
     }
-  } catch { /* ignore malformed range */ }
+  } catch {
+    /* ignore malformed range */
+  }
 
   return { filter, sort, range };
 }
@@ -203,12 +219,15 @@ export function buildAdminRouter(
     const owners = withOwners?.sha256 === hash ? withOwners.owners : [];
 
     const host = c.req.header("host") ?? "localhost";
-    return c.json({
-      ...blob,
-      owners,
-      id: blob.sha256,
-      url: buildBlobUrl(blob.sha256, blob.type, config.publicDomain, host),
-    }, 200);
+    return c.json(
+      {
+        ...blob,
+        owners,
+        id: blob.sha256,
+        url: buildBlobUrl(blob.sha256, blob.type, config.publicDomain, host),
+      },
+      200,
+    );
   });
 
   // ── DELETE /api/blobs/:id — admin force-delete ────────────────────────────
@@ -222,9 +241,11 @@ export function buildAdminRouter(
     await deleteBlob(db, hash);
 
     // Remove physical file — best-effort, don't fail the response if missing
-    await storage.remove(hash, ext).catch((err) =>
-      console.warn(`[admin] Failed to remove blob ${hash} from storage:`, err)
-    );
+    await storage
+      .remove(hash, ext)
+      .catch((err) =>
+        console.warn(`[admin] Failed to remove blob ${hash} from storage:`, err)
+      );
 
     return c.json({ success: true }, 200);
   });
@@ -311,6 +332,87 @@ export function buildAdminRouter(
       return c.json({ error: "Rule not found" }, 404);
     }
     return c.json({ ...rule, id: idx }, 200);
+  });
+
+  // ── GET /api/reports — paginated report list ───────────────────────────────
+  app.get("/api/reports", async (c) => {
+    const { filter, sort, range } = parseListQuery(
+      c.req.query() as Record<string, string>,
+    );
+
+    const reportFilter: { q?: string; blob?: string; type?: string } = {};
+    if (typeof filter.q === "string") reportFilter.q = filter.q;
+    if (typeof filter.blob === "string") reportFilter.blob = filter.blob;
+    if (typeof filter.type === "string") reportFilter.type = filter.type;
+
+    const { limit, offset } = range
+      ? rangeToLimitOffset(range)
+      : { limit: undefined, offset: undefined };
+
+    const [reports, total] = await Promise.all([
+      listAllReports(db, { filter: reportFilter, sort, limit, offset }),
+      countReports(db, reportFilter),
+    ]);
+
+    const body = reports.map((r) => ({ ...r, id: r.id }));
+
+    return c.json(body, 200, {
+      "Content-Range": contentRange("reports", range, total),
+    });
+  });
+
+  // ── GET /api/reports/:id — single report ──────────────────────────────────
+  app.get("/api/reports/:id", async (c) => {
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: "Invalid report id" }, 400);
+
+    const report = await getReport(db, id);
+    if (!report) return c.json({ error: "Report not found" }, 404);
+
+    return c.json({ ...report, id: report.id }, 200);
+  });
+
+  // ── DELETE /api/reports/:id — dismiss a report ────────────────────────────
+  // Removes only the report row. Does NOT delete the blob.
+  app.delete("/api/reports/:id", async (c) => {
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: "Invalid report id" }, 400);
+
+    await deleteReport(db, id);
+    return c.json({ success: true }, 200);
+  });
+
+  // ── DELETE /api/reports/:id/blob — delete the reported blob and dismiss ────
+  // Admin shortcut: delete the blob from storage + DB, then dismiss all reports
+  // for that blob in a single action.
+  app.delete("/api/reports/:id/blob", async (c) => {
+    const id = parseInt(c.req.param("id"), 10);
+    if (isNaN(id)) return c.json({ error: "Invalid report id" }, 400);
+
+    const report = await getReport(db, id);
+    if (!report) return c.json({ error: "Report not found" }, 404);
+
+    const blobHash = report.blob;
+    const blob = await getBlob(db, blobHash);
+    const ext = blob ? mimeToExt(blob.type) : "";
+
+    // Delete blob from DB (cascade removes owners + accessed rows)
+    await deleteBlob(db, blobHash);
+
+    // Remove physical file — best-effort
+    await storage
+      .remove(blobHash, ext)
+      .catch((err) =>
+        console.warn(
+          `[admin] Failed to remove blob ${blobHash} from storage:`,
+          err,
+        )
+      );
+
+    // Dismiss all reports that referenced this blob
+    await deleteReportsByBlob(db, blobHash);
+
+    return c.json({ success: true }, 200);
   });
 
   return app;

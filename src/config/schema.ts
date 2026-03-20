@@ -411,6 +411,21 @@ const LandingSchema = z.object({
   ),
 });
 
+const ReportSchema = z.object({
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      "Enable the PUT /report endpoint (BUD-09). Clients submit NIP-56 kind:1984 report events to flag blobs for operator review.",
+    ),
+  requireAuth: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Require a valid BUD-11 Nostr auth event to submit a report. When false (default), anonymous reports are accepted.",
+    ),
+});
+
 const DashboardSchema = z.object({
   enabled: z
     .boolean()
@@ -525,6 +540,9 @@ export const ConfigSchema = z
     dashboard: DashboardSchema.optional()
       .transform((v) => v ?? DashboardSchema.parse({}))
       .describe("Admin dashboard and API settings."),
+    report: ReportSchema.optional()
+      .transform((v) => v ?? ReportSchema.parse({}))
+      .describe("Blob report endpoint settings (BUD-09)."),
   })
   .transform((raw) => {
     // Merge deprecated databasePath into the database section.
@@ -541,6 +559,7 @@ export const ConfigSchema = z
 
 export type Config = z.infer<typeof ConfigSchema>;
 export type StorageRule = z.infer<typeof StorageRuleSchema>;
+export type ReportConfig = z.infer<typeof ReportSchema>;
 export type ImageOptimizeConfig = z.infer<typeof ImageOptimizeSchema>;
 export type VideoOptimizeConfig = z.infer<typeof VideoOptimizeSchema>;
 export type MediaConfig = z.infer<typeof MediaSchema>;

@@ -303,3 +303,18 @@ landing:
 
   # Page title shown in <title> and <h1>.
   title: "Blossom Server"
+
+# ---------------------------------------------------------------------------
+# Blob reports (BUD-09)
+# ---------------------------------------------------------------------------
+
+report:
+  # Enable the PUT /report endpoint (BUD-09).
+  # Clients submit NIP-56 kind:1984 report events to flag blobs for review.
+  # Reported blobs are stored in the database for operator review via the admin dashboard.
+  enabled: true
+
+  # Require a valid BUD-11 Nostr auth event to submit a report.
+  # When false (default), anonymous reports are accepted — this is the recommended
+  # setting since report submission is meant to be low-friction for clients.
+  requireAuth: false

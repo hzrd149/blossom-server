@@ -21,6 +21,7 @@ import { buildDeleteRouter } from "./routes/delete.ts";
 import { buildListRouter } from "./routes/list.ts";
 import { buildLandingRouter } from "./routes/landing.ts";
 import { buildAdminRouter } from "./routes/admin.ts";
+import { buildReportRouter } from "./routes/report.ts";
 
 export function buildApp(
   db: Client,
@@ -107,6 +108,12 @@ export function buildApp(
         return c.text("Admin UI not found. Run: deno task build-admin", 503);
       }
     });
+  }
+
+  // BUD-09: PUT /report — blob reports (enabled by default, gated by config.report.enabled)
+  // Mounted before blob routes so /report is not caught by /:filename.
+  if (config.report.enabled) {
+    app.route("/", buildReportRouter(db, config));
   }
 
   // BUD-02 + BUD-06: PUT /upload, HEAD /upload

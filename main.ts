@@ -56,9 +56,7 @@ if (config.storage.backend === "local") {
 } else {
   const s3Config = config.storage.s3;
   if (!s3Config) {
-    console.error(
-      "S3 storage backend selected but no [storage.s3] config section found.",
-    );
+    console.error("S3 storage backend selected but no [storage.s3] config section found.");
     Deno.exit(1);
   }
   const s3 = new S3Storage({
@@ -70,14 +68,10 @@ if (config.storage.backend === "local") {
     publicURL: s3Config.publicURL,
     tmpDir: s3Config.tmpDir,
   });
-  console.log(
-    `  Storage:  s3 — verifying bucket access (${s3Config.bucket} @ ${s3Config.endpoint})...`,
-  );
+  console.log(`  Storage:  s3 — verifying bucket access (${s3Config.bucket} @ ${s3Config.endpoint})...`);
   await s3.setup();
   storage = s3;
-  console.log(
-    `  Storage:  s3 ready (bucket=${s3Config.bucket} endpoint=${s3Config.endpoint})`,
-  );
+  console.log(`  Storage:  s3 ready (bucket=${s3Config.bucket} endpoint=${s3Config.endpoint})`);
 }
 
 // Init upload worker pool — dbConfig determines whether workers use MessageChannel
@@ -105,10 +99,7 @@ if (config.landing.enabled) {
 let landingWorker: Worker | undefined;
 if (config.landing.enabled) {
   const { port1, port2 } = new MessageChannel();
-  landingWorker = new Worker(
-    new URL("./src/workers/landing-worker.tsx", import.meta.url),
-    { type: "module" },
-  );
+  landingWorker = new Worker(new URL("./src/workers/landing-worker.tsx", import.meta.url), { type: "module" });
   // Install DB bridge on port1 (main thread) before the worker needs it
   installDbBridge(db, port1);
   // Set handler BEFORE posting init so the ready signal is never missed
@@ -187,8 +178,7 @@ async function runViteBuild(
       const distMtime = (await Deno.stat(distIndex)).mtime?.getTime() ?? 0;
       let srcNewest = 0;
       for await (const entry of Deno.readDir(srcDir)) {
-        const mtime =
-          (await Deno.stat(`${srcDir}/${entry.name}`)).mtime?.getTime() ?? 0;
+        const mtime = (await Deno.stat(`${srcDir}/${entry.name}`)).mtime?.getTime() ?? 0;
         if (mtime > srcNewest) srcNewest = mtime;
       }
       if (distMtime >= srcNewest) needsBuild = false;
@@ -227,9 +217,7 @@ async function runViteBuild(
       .trim()
       .split("\n")
       .findLast((l: string) => l.includes("built in"));
-    console.log(
-      `  ${pad}  build complete${summary ? " — " + summary.trim() : ""}`,
-    );
+    console.log(`  ${pad}  build complete${summary ? " — " + summary.trim() : ""}`);
   }
 }
 
@@ -239,22 +227,14 @@ const app = buildApp(db, storage, config, landingWorker, adminPassword);
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the
 // current one fully completes, preventing overlapping runs under slow I/O.
-const pruneEnabled = config.storage.rules.length > 0 ||
-  config.storage.removeWhenNoOwners;
+const pruneEnabled = config.storage.rules.length > 0 || config.storage.removeWhenNoOwners;
 let pruneTimeout: ReturnType<typeof setTimeout> | undefined;
 if (pruneEnabled) {
   const runPrune = async () => {
     try {
-      const result = await pruneStorage(
-        db,
-        storage,
-        config.storage.rules,
-        config.storage.removeWhenNoOwners,
-      );
+      const result = await pruneStorage(db, storage, config.storage.rules, config.storage.removeWhenNoOwners);
       if (result.deleted > 0 || result.errors > 0) {
-        console.log(
-          `[prune] deleted=${result.deleted} errors=${result.errors}`,
-        );
+        console.log(`[prune] deleted=${result.deleted} errors=${result.errors}`);
       }
     } catch (err) {
       console.error("[prune] Unexpected error in prune loop:", err);
@@ -272,33 +252,17 @@ const server = Deno.serve(
     onListen({ port, hostname }) {
       console.log(`\nBlossom Server listening on http://${hostname}:${port}`);
       console.log("  BUD-01: GET/HEAD /:sha256       ready");
-      console.log(
-        "  BUD-02: PUT /upload             " +
-          (config.upload.enabled ? "ready" : "disabled"),
-      );
+      console.log("  BUD-02: PUT /upload             " + (config.upload.enabled ? "ready" : "disabled"));
       console.log("  BUD-02: DELETE /:sha256         ready");
-      console.log(
-        "  BUD-04: PUT /mirror             " +
-          (config.mirror.enabled ? "ready" : "disabled"),
-      );
-      console.log(
-        "  BUD-06: HEAD /upload            " +
-          (config.upload.enabled ? "ready" : "disabled"),
-      );
-      console.log(
-        "  BUD-11: Auth                    " +
-          (config.upload.requireAuth ? "required" : "optional"),
-      );
-      console.log(
-        "  Landing: GET /                  " +
-          (config.landing.enabled ? "ready" : "disabled"),
-      );
+      console.log("  BUD-04: PUT /mirror             " + (config.mirror.enabled ? "ready" : "disabled"));
+      console.log("  BUD-06: HEAD /upload            " + (config.upload.enabled ? "ready" : "disabled"));
+      console.log("  BUD-09: PUT /report             " + (config.report.enabled ? "ready" : "disabled"));
+      console.log("  BUD-11: Auth                    " + (config.upload.requireAuth ? "required" : "optional"));
+      console.log("  Landing: GET /                  " + (config.landing.enabled ? "ready" : "disabled"));
       console.log(
         "  Prune:   storage rules          " +
           (pruneEnabled
-            ? `active (${config.storage.rules.length} rules, first run in ${
-              config.prune.initialDelayMs / 1000
-            }s)`
+            ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
             : "disabled (no rules configured)"),
       );
       console.log(
