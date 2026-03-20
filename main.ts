@@ -194,10 +194,10 @@ const shutdown = () => {
   console.log("\nShutting down...");
   if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
   pool.shutdown();
-  server.shutdown().then(() => {
-    console.log("Server stopped.");
-    db.close();
-  });
+  server.shutdown();
+  db.close();
+
+  Deno.exit(0);
 };
 
 Deno.addSignalListener("SIGINT", shutdown);
