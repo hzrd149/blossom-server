@@ -5,7 +5,7 @@
  * Owns all /admin/* SSR pages and JSON action endpoints.
  * HTTP Basic Auth gates the entire /admin/* namespace.
  *
- * Routes:
+ * Mounted at /admin in the parent app. Internal paths are relative to that prefix:
  *   GET  /admin                              → redirect to /admin/blobs
  *   GET  /admin/blobs                        → BlobsPage SSR
  *   GET  /admin/blobs/:sha256                → BlobDetailPage SSR
@@ -45,9 +45,10 @@ export function buildAdminRouter(
   const dbHandle = new DirectDbHandle(db);
   const app = new Hono();
 
-  // HTTP Basic Auth gate on all /admin/* routes
+  // HTTP Basic Auth gate — covers all routes on this sub-app.
+  // The "*" pattern matches everything because this router is mounted at /admin.
   app.use(
-    "/admin/*",
+    "*",
     basicAuth({
       username: config.dashboard.username,
       password: config.dashboard.password,
@@ -56,9 +57,9 @@ export function buildAdminRouter(
 
   // ── SSR pages ───────────────────────────────────────────────────────────────
 
-  app.get("/admin", (c) => c.redirect("/admin/blobs", 301));
+  app.get("/", (c) => c.redirect("/admin/blobs", 301));
 
-  app.get("/admin/blobs", (c) => {
+  app.get("/blobs", (c) => {
     const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
     const q = c.req.query("q") ?? "";
     const host = c.req.header("host") ?? "localhost";
@@ -67,7 +68,7 @@ export function buildAdminRouter(
     );
   });
 
-  app.get("/admin/blobs/:sha256", (c) => {
+  app.get("/blobs/:sha256", (c) => {
     const sha256 = c.req.param("sha256");
     const host = c.req.header("host") ?? "localhost";
     return c.html(
@@ -80,23 +81,23 @@ export function buildAdminRouter(
     );
   });
 
-  app.get("/admin/users", (c) => {
+  app.get("/users", (c) => {
     const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
     const q = c.req.query("q") ?? "";
     return c.html(<UsersPage db={dbHandle} page={page} q={q} />);
   });
 
-  app.get("/admin/users/:pubkey", (c) => {
+  app.get("/users/:pubkey", (c) => {
     const pubkey = c.req.param("pubkey");
     const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
     return c.html(<UserDetailPage db={dbHandle} pubkey={pubkey} page={page} />);
   });
 
-  app.get("/admin/rules", (c) => {
+  app.get("/rules", (c) => {
     return c.html(<RulesPage config={config} />);
   });
 
-  app.get("/admin/reports", (c) => {
+  app.get("/reports", (c) => {
     const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
     const typeFilter = c.req.query("type") ?? "";
     return c.html(
@@ -104,7 +105,7 @@ export function buildAdminRouter(
     );
   });
 
-  app.get("/admin/reports/:id", (c) => {
+  app.get("/reports/:id", (c) => {
     const id = parseInt(c.req.param("id"), 10);
     if (isNaN(id)) return c.json({ error: "Invalid report id" }, 400);
     return c.html(<ReportDetailPage db={dbHandle} reportId={id} />);
@@ -112,8 +113,8 @@ export function buildAdminRouter(
 
   // ── JSON action endpoints ───────────────────────────────────────────────────
 
-  // DELETE /admin/api/blobs/:sha256 — force-delete a blob and its file
-  app.delete("/admin/api/blobs/:sha256", async (c) => {
+  // DELETE /api/blobs/:sha256 — force-delete a blob and its file
+  app.delete("/api/blobs/:sha256", async (c) => {
     const sha256 = c.req.param("sha256");
     const blob = await getBlob(db, sha256);
     const ext = blob ? mimeToExt(blob.type) : "";
@@ -132,8 +133,8 @@ export function buildAdminRouter(
     return c.json({ success: true }, 200);
   });
 
-  // DELETE /admin/api/users/:pubkey — delete all blobs owned by a pubkey
-  app.delete("/admin/api/users/:pubkey", async (c) => {
+  // DELETE /api/users/:pubkey — delete all blobs owned by a pubkey
+  app.delete("/api/users/:pubkey", async (c) => {
     const pubkey = c.req.param("pubkey");
 
     // Fetch all blobs for this pubkey (large limit — admin operation)
@@ -157,8 +158,8 @@ export function buildAdminRouter(
     return c.json({ success: true, deleted }, 200);
   });
 
-  // POST /admin/api/reports/:id/dismiss — dismiss report only (keep blob)
-  app.post("/admin/api/reports/:id/dismiss", async (c) => {
+  // POST /api/reports/:id/dismiss — dismiss report only (keep blob)
+  app.post("/api/reports/:id/dismiss", async (c) => {
     const id = parseInt(c.req.param("id"), 10);
     if (isNaN(id)) return c.json({ error: "Invalid report id" }, 400);
 
@@ -168,8 +169,8 @@ export function buildAdminRouter(
     return c.json({ success: true }, 200);
   });
 
-  // POST /admin/api/reports/:id/delete-blob — delete blob + dismiss all its reports
-  app.post("/admin/api/reports/:id/delete-blob", async (c) => {
+  // POST /api/reports/:id/delete-blob — delete blob + dismiss all its reports
+  app.post("/api/reports/:id/delete-blob", async (c) => {
     const id = parseInt(c.req.param("id"), 10);
     if (isNaN(id)) return c.json({ error: "Invalid report id" }, 400);
 

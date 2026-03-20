@@ -16,20 +16,29 @@ export function errorResponse(
 }
 
 /**
- * Global error handler for Hono — catches HTTPException and unhandled errors.
+ * Global fallback error handler for Hono (app.onError).
+ *
+ * This is a last-resort handler for errors that escape all middleware and
+ * sub-app onError handlers. It preserves pre-built responses on HTTPException
+ * (e.g. basicAuth's WWW-Authenticate header) rather than replacing them.
+ *
+ * Blossom-specific X-Reason formatting lives in the Blossom sub-app's own
+ * onError — see src/routes/blossom-router.ts.
  */
 export function onError(err: Error, ctx: Context): Response {
   if (err instanceof HTTPException) {
-    const reason = err.message || "An error occurred";
-    return ctx.body(reason, err.status, {
-      "X-Reason": reason,
+    // Honour a pre-built response attached to the exception (e.g. the 401
+    // response from Hono's basicAuth middleware that carries WWW-Authenticate).
+    if (err.res) {
+      return err.res;
+    }
+    return ctx.body(err.message || "An error occurred", err.status, {
       "Content-Type": "text/plain",
     });
   }
 
   console.error("Unhandled error:", err);
   return ctx.body("Internal server error", 500, {
-    "X-Reason": "Internal server error",
     "Content-Type": "text/plain",
   });
 }

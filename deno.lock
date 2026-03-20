@@ -15,6 +15,7 @@
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@std/ulid@1": "1.0.0",
     "jsr:@std/yaml@^1.0.12": "1.0.12",
+    "npm:@libsql/client@*": "0.17.0",
     "npm:@libsql/client@0.17": "0.17.0",
     "npm:file-type@^19.6.0": "19.6.0",
     "npm:nostr-tools@^2.23.3": "2.23.3_typescript@5.9.3",
