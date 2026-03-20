@@ -3,12 +3,12 @@
 /**
  * Landing page router — runs on the main thread.
  *
- * Renders GET / via Hono JSX SSR and serves the client bundle at GET /assets/client.js.
+ * Renders GET / via Hono JSX SSR and serves the client bundle at GET /client.js.
  *
  * Bundle resolution strategy (in priority order):
  *  1. Deno.bundle() runtime API — builds from source in memory at startup, no disk file needed.
  *     Requires --unstable-bundle flag.
- *  2. Pre-built file fallback — reads landing/dist/assets/client.js from disk.
+ *  2. Pre-built file fallback — reads public/client.js from disk.
  *     Used when --unstable-bundle is not set, or in Docker/CI where the file is pre-built.
  */
 
@@ -25,20 +25,16 @@ async function buildClientBundle(): Promise<string> {
   const denoBundle = (Deno as unknown as Record<string, unknown>)["bundle"];
   if (typeof denoBundle === "function") {
     try {
-      const bundleFn = denoBundle as (
-        opts: unknown,
-      ) => Promise<{ outputFiles?: { text(): string }[] }>;
+      const bundleFn = denoBundle as (opts: unknown) => Promise<{ outputFiles?: { text(): string }[] }>;
       const result = await bundleFn({
-        entrypoints: ["./landing/src/client.tsx"],
+        entrypoints: ["./src/landing/client/index.tsx"],
         platform: "browser",
         minify: true,
         write: false,
       });
       const file = result.outputFiles?.[0];
       if (file) {
-        console.log(
-          "[landing] client bundle built in memory via Deno.bundle()",
-        );
+        console.log("[landing] client bundle built in memory via Deno.bundle()");
         return file.text();
       }
     } catch (err) {
@@ -50,17 +46,12 @@ async function buildClientBundle(): Promise<string> {
   }
 
   // Fall back to the pre-built artifact from `deno task build-landing`.
-  const bundle = await Deno.readTextFile("./landing/dist/assets/client.js");
-  console.log(
-    "[landing] client bundle loaded from landing/dist/assets/client.js",
-  );
+  const bundle = await Deno.readTextFile("./public/client.js");
+  console.log("[landing] client bundle loaded from public/client.js");
   return bundle;
 }
 
-export async function buildLandingRouter(
-  db: Client,
-  config: Config,
-): Promise<Hono> {
+export async function buildLandingRouter(db: Client, config: Config): Promise<Hono> {
   const handle = new DirectDbHandle(db);
 
   // Build (or load) the client bundle once at startup and hold it in memory.
@@ -72,7 +63,7 @@ export async function buildLandingRouter(
     return c.html(<LandingPage db={handle} config={config} />);
   });
 
-  app.get("/assets/client.js", (c) => {
+  app.get("/client.js", (c) => {
     return c.text(clientBundle, 200, {
       "Content-Type": "application/javascript",
       "Cache-Control": "public, max-age=3600",

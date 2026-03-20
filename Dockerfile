@@ -19,13 +19,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
 # Copy Deno server source + lockfile
+# src/landing/client/ is the landing page client source — Deno.bundle() builds
+# it at startup so no separate build step or node_modules is required.
 COPY deno.json deno.lock ./
 COPY main.ts ./
 COPY src/ ./src/
 COPY scripts/ ./scripts/
-
-# Copy landing page source so Deno.bundle() can build it at startup.
-COPY landing/src/ ./landing/src/
 
 # Warm the Deno module cache so first startup is instant.
 #

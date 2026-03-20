@@ -2,18 +2,18 @@
  * clean.ts — Remove all build artifacts so a fresh build is triggered on next startup.
  *
  * Removes:
- *   landing/dist/   — Landing page client JS (rebuilt by `deno task build-landing`)
+ *   public/client.js   — Landing page client JS (pre-built by `deno task build-landing`)
  *
  * Run via: deno task clean
  */
 
-const targets = [{ path: "./landing/dist", label: "landing/dist" }];
+const targets = [{ path: "./public/client.js", label: "public/client.js" }];
 
 let cleaned = 0;
 
 for (const { path, label } of targets) {
   try {
-    await Deno.remove(path, { recursive: true });
+    await Deno.remove(path);
     console.log(`  removed  ${label}`);
     cleaned++;
   } catch (err) {
@@ -25,9 +25,5 @@ for (const { path, label } of targets) {
   }
 }
 
-console.log(
-  `\nClean complete. ${cleaned} director${
-    cleaned === 1 ? "y" : "ies"
-  } removed.`,
-);
+console.log(`\nClean complete. ${cleaned} file${cleaned === 1 ? "" : "s"} removed.`);
 console.log("Run `deno task build` or start the server to rebuild.");
