@@ -411,12 +411,6 @@ const ReportSchema = z.object({
     .describe(
       "Enable the PUT /report endpoint (BUD-09). Clients submit NIP-56 kind:1984 report events to flag blobs for operator review.",
     ),
-  requireAuth: z
-    .boolean()
-    .default(false)
-    .describe(
-      "Require a valid BUD-11 Nostr auth event to submit a report. When false (default), anonymous reports are accepted.",
-    ),
 });
 
 const DashboardSchema = z.object({

@@ -310,11 +310,6 @@ report:
   # Reported blobs are stored in the database for operator review via the admin dashboard.
   enabled: true
 
-  # Require a valid BUD-11 Nostr auth event to submit a report.
-  # When false (default), anonymous reports are accepted — this is the recommended
-  # setting since report submission is meant to be low-friction for clients.
-  requireAuth: false
-
 # ---------------------------------------------------------------------------
 # Admin dashboard  (disabled by default)
 # ---------------------------------------------------------------------------

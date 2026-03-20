@@ -7,19 +7,17 @@
  * One database row is written per (event_id, blob) pair, so a single report
  * event covering multiple blobs produces multiple rows.
  *
- * Authentication is optional by default (config.report.requireAuth).
- * When requireAuth is true, a valid BUD-11 Authorization header is required
- * (verb "upload" — the closest BUD-11 verb for a write operation).
+ * No BUD-11 authentication is required — the report itself is a signed Nostr
+ * event (kind:1984), so the submitter's identity is already cryptographically
+ * established by the event signature.
  */
 
 import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
 import type { NostrEvent } from "nostr-tools";
 import { verifyEvent } from "nostr-tools/pure";
-import { requireAuth } from "../middleware/auth.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
-import type { Config } from "../config/schema.ts";
 import { insertReport, REPORT_TYPES } from "../db/reports.ts";
 import type { ReportType } from "../db/reports.ts";
 
@@ -28,18 +26,12 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 
 export function buildReportRouter(
   db: Client,
-  config: Config,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
   // ── PUT /report ─────────────────────────────────────────────────────────────
   app.put("/report", async (ctx) => {
-    // ── 1. Auth gate ───────────────────────────────────────────────────────────
-    if (config.report.requireAuth) {
-      requireAuth(ctx, "upload");
-    }
-
-    // ── 2. Parse body as JSON ─────────────────────────────────────────────────
+    // ── 1. Parse body as JSON ─────────────────────────────────────────────────
     let body: unknown;
     try {
       body = await ctx.req.json();
