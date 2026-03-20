@@ -128,7 +128,8 @@ blossom-server/
 
 ### TypeScript
 
-- **Strict mode** is on by default in Deno 2 — no explicit `strict: true` needed.
+- **Strict mode** is on by default in Deno 2 — no explicit `strict: true`
+  needed.
 - **ESM only.** All local imports must carry explicit `.ts` / `.tsx` extensions:
   ```ts
   import { requireAuth } from "../middleware/auth.ts"; // correct
@@ -141,7 +142,8 @@ blossom-server/
 
 ### Import Map
 
-Bare specifiers are declared in `deno.json`. Use them — do not inline full JSR/npm URLs:
+Bare specifiers are declared in `deno.json`. Use them — do not inline full
+JSR/npm URLs:
 
 ```ts
 import { Hono, HTTPException } from "@hono/hono";
@@ -172,10 +174,14 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 
 ### Types and Interfaces
 
-- Prefer **interfaces** for domain shapes (`BlobRecord`, `WriteSession`, `AuthState`).
-- **Zod schemas** are the source of truth for config/input types; derive TS types with `z.infer<typeof MySchema>`.
-- Use **discriminated unions** for MessageChannel wire types (see `src/db/bridge.ts`).
-- Extend Hono context variables via module augmentation (see `src/middleware/auth.ts`).
+- Prefer **interfaces** for domain shapes (`BlobRecord`, `WriteSession`,
+  `AuthState`).
+- **Zod schemas** are the source of truth for config/input types; derive TS
+  types with `z.infer<typeof MySchema>`.
+- Use **discriminated unions** for MessageChannel wire types (see
+  `src/db/bridge.ts`).
+- Extend Hono context variables via module augmentation (see
+  `src/middleware/auth.ts`).
 - Use the **`satisfies`** operator on `postMessage` payloads:
   ```ts
   worker.postMessage({ id, hash, size } satisfies JobRequest);
@@ -185,7 +191,8 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 
 ## Hono JSX (Admin Dashboard Pages)
 
-All admin dashboard pages live in `src/admin/` and are `.tsx` files rendered server-side using `hono/jsx`.
+All admin dashboard pages live in `src/admin/` and are `.tsx` files rendered
+server-side using `hono/jsx`.
 
 ### Required pragma
 
@@ -195,7 +202,9 @@ Every `.tsx` file must have this pragma as the **first line**:
 /** @jsxImportSource hono/jsx */
 ```
 
-This overrides the `deno.json` global `jsxImportSource` at the file level. Do not omit it — without it, JSX will not compile in worker contexts or may resolve to the wrong runtime.
+This overrides the `deno.json` global `jsxImportSource` at the file level. Do
+not omit it — without it, JSX will not compile in worker contexts or may resolve
+to the wrong runtime.
 
 ### Component typing
 
@@ -213,7 +222,8 @@ export const MyComponent: FC<MyProps> = ({ title }) => <div>{title}</div>;
 
 ### Async components
 
-`hono/jsx` supports async components natively — no wrappers needed. `c.html()` awaits them automatically:
+`hono/jsx` supports async components natively — no wrappers needed. `c.html()`
+awaits them automatically:
 
 ```tsx
 export const MyPage: FC<Props> = async ({ db, id }) => {
@@ -242,48 +252,73 @@ const List = () => (
 
 ### Admin page conventions
 
-- All pages import shared UI primitives from `./layout.tsx` (`AdminLayout`, `Table`, `Badge`, `PageHeader`, `Pagination`, etc.)
-- `AdminLayout` takes `section: "blobs" | "users" | "rules" | "reports"` to highlight the active nav item
-- DB access is via `IDbHandle` (passed as a prop); the router builds a `DirectDbHandle` wrapping the raw `Client`
-- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client` Client and implements every `IDbHandle` method
-- New admin DB operations must be added to: `src/db/blobs.ts` (SQL), `src/db/handle.ts` (interface), `src/db/direct.ts` (direct impl), `src/db/proxy.ts` (proxy for upload workers), and `src/db/bridge.ts` (bridge discriminated union + switch case)
+- All pages import shared UI primitives from `./layout.tsx` (`AdminLayout`,
+  `Table`, `Badge`, `PageHeader`, `Pagination`, etc.)
+- `AdminLayout` takes `section: "blobs" | "users" | "rules" | "reports"` to
+  highlight the active nav item
+- DB access is via `IDbHandle` (passed as a prop); the router builds a
+  `DirectDbHandle` wrapping the raw `Client`
+- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client`
+  Client and implements every `IDbHandle` method
+- New admin DB operations must be added to: `src/db/blobs.ts` (SQL),
+  `src/db/handle.ts` (interface), `src/db/direct.ts` (direct impl),
+  `src/db/proxy.ts` (proxy for upload workers), and `src/db/bridge.ts` (bridge
+  discriminated union + switch case)
 
 ---
 
 ## Error Handling
 
-- **HTTP errors from route handlers:** `throw new HTTPException(status, { message })` — caught by `onError` in `server.ts`.
-- **Route error responses:** `return errorResponse(ctx, status, reason)` — routes always return, never throw.
-- **Auth middleware is parse-only** — never throws, always calls `next()`. **Every route must explicitly call `requireAuth()` or `optionalAuth()`** — omitting this leaves a route silently unprotected.
-- **Body cancellation:** Routes that reject a streaming upload must cancel the body first:
+- **HTTP errors from route handlers:**
+  `throw new HTTPException(status, { message })` — caught by `onError` in
+  `server.ts`.
+- **Route error responses:** `return errorResponse(ctx, status, reason)` —
+  routes always return, never throw.
+- **Auth middleware is parse-only** — never throws, always calls `next()`.
+  **Every route must explicitly call `requireAuth()` or `optionalAuth()`** —
+  omitting this leaves a route silently unprotected.
+- **Body cancellation:** Routes that reject a streaming upload must cancel the
+  body first:
   ```ts
   await ctx.req.raw.body?.cancel();
   return errorResponse(ctx, 400, "reason");
   ```
-- **Fire-and-forget async:** use `.catch(() => {})` or `.catch((err) => console.error(...))` for non-critical side effects.
-- **Worker errors:** normalize with `err instanceof Error ? err.message : String(err)`.
-- **Exhaustive switch:** `const _exhaustive: never = value` in the default branch.
+- **Fire-and-forget async:** use `.catch(() => {})` or
+  `.catch((err) => console.error(...))` for non-critical side effects.
+- **Worker errors:** normalize with
+  `err instanceof Error ? err.message : String(err)`.
+- **Exhaustive switch:** `const _exhaustive: never = value` in the default
+  branch.
 
 ---
 
 ## Async Patterns
 
 - **`async/await` throughout** — no raw `.then()` chains except fire-and-forget.
-- **Web Streams** (`ReadableStream`, `WritableStream`, `tee()`, `pipeTo()`) for upload handling — never buffer large request bodies.
-- **Worker pool:** `pool.dispatch()` returns `null` when all workers are busy → respond 503 immediately.
-- **DB singleton:** `getDb()` and `getPool()` throw if called before `initDb()` / `initPool()`. Both are initialized in `main.ts`.
+- **Web Streams** (`ReadableStream`, `WritableStream`, `tee()`, `pipeTo()`) for
+  upload handling — never buffer large request bodies.
+- **Worker pool:** `pool.dispatch()` returns `null` when all workers are busy →
+  respond 503 immediately.
+- **DB singleton:** `getDb()` and `getPool()` throw if called before `initDb()`
+  / `initPool()`. Both are initialized in `main.ts`.
 
 ---
 
 ## Architecture Constraints
 
-1. **No body buffering on rejection.** Cancel the request body before returning any error if streaming may have started.
+1. **No body buffering on rejection.** Cancel the request body before returning
+   any error if streaming may have started.
 2. **Worker pool has no queue.** Handle `null` from `dispatch()` as a 503.
-3. **Auth middleware never blocks.** Add explicit enforcement in every new route handler.
-4. **JSX files** require `.tsx` extension and the `hono/jsx` import source (set globally in `deno.json`).
-5. **Config uses YAML + Zod**, not `.env`. Env vars inject via `${VAR_NAME}` syntax in `config.yml`.
-6. **S3 storage** buffers to a local `tmpDir` before committing — the S3 bucket only ever receives hash-verified blobs.
-7. **`fluent-ffmpeg` requires a host `ffmpeg` binary** — not bundled. Video optimization silently fails without it.
+3. **Auth middleware never blocks.** Add explicit enforcement in every new route
+   handler.
+4. **JSX files** require `.tsx` extension and the `hono/jsx` import source (set
+   globally in `deno.json`).
+5. **Config uses YAML + Zod**, not `.env`. Env vars inject via `${VAR_NAME}`
+   syntax in `config.yml`.
+6. **S3 storage** buffers to a local `tmpDir` before committing — the S3 bucket
+   only ever receives hash-verified blobs.
+7. **`fluent-ffmpeg` requires a host `ffmpeg` binary** — not bundled. Video
+   optimization silently fails without it.
 
 ---
 
@@ -303,13 +338,17 @@ import { buildApp } from "../../src/server.ts";
 
 Deno.test("PUT /upload returns 200", async () => {
   const app = buildApp(db, storage, config, undefined, undefined);
-  const res = await app.fetch(new Request("http://localhost/upload", { method: "PUT" }));
+  const res = await app.fetch(
+    new Request("http://localhost/upload", { method: "PUT" }),
+  );
   assertEquals(res.status, 200);
 });
 ```
 
 - Use `createClient({ url: ":memory:" })` for in-memory DB in unit/e2e tests.
 - Use `Deno.makeTempDir()` for filesystem tests; clean up in a `finally` block.
-- Generate real Nostr signed events with `generateSecretKey` + `finalizeEvent` from `nostr-tools/pure`.
-- Disable `sanitizeOps`/`sanitizeResources` for tests that use the worker pool (ports outlive individual tests by design).
+- Generate real Nostr signed events with `generateSecretKey` + `finalizeEvent`
+  from `nostr-tools/pure`.
+- Disable `sanitizeOps`/`sanitizeResources` for tests that use the worker pool
+  (ports outlive individual tests by design).
 - See `TESTING.md` for the full planned test matrix and helper patterns.

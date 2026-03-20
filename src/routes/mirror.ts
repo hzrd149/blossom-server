@@ -74,7 +74,7 @@ function isPrivateIPv4(ip: string): boolean {
     (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 RFC-1918
     (a === 192 && b === 168) || // 192.168.0.0/16 RFC-1918
     (a === 169 && b === 254) || // 169.254.0.0/16 link-local
-    (a === 0) // 0.0.0.0/8
+    a === 0 // 0.0.0.0/8
   );
 }
 
@@ -114,15 +114,6 @@ function getBlobUrl(
 ): string {
   const ext = mimeToExt(mimeType);
   return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
-}
-
-function isAllowedType(mimeType: string, allowedTypes: string[]): boolean {
-  const [mainType] = mimeType.split("/");
-  return allowedTypes.some((allowed) => {
-    if (allowed === "*" || allowed === "*/*") return true;
-    if (allowed.endsWith("/*")) return allowed.slice(0, -2) === mainType;
-    return allowed === mimeType;
-  });
 }
 
 function getBaseUrl(request: Request, publicDomain: string): string {
@@ -177,7 +168,7 @@ export function buildMirrorRouter(
     // --- 3. Parse JSON body { url } ---
     let mirrorUrl: URL;
     try {
-      const body = await ctx.req.json() as { url?: unknown };
+      const body = (await ctx.req.json()) as { url?: unknown };
       if (!body.url || typeof body.url !== "string") {
         debug(debugPrefix, "rejected: missing url field in body");
         return errorResponse(
@@ -290,7 +281,7 @@ export function buildMirrorRouter(
       const t1 = Date.now();
       // Normalise error message — DOMException.message can be empty.
       const reason = err instanceof Error
-        ? (err.message || `Fetch aborted (${err.name})`)
+        ? err.message || `Fetch aborted (${err.name})`
         : `Failed to fetch from origin: ${String(err)}`;
       debug(debugPrefix, `fetch failed elapsed=${t1 - t0}ms — ${reason}`);
       return errorResponse(ctx, 502, reason);
@@ -345,39 +336,29 @@ export function buildMirrorRouter(
       }`,
     );
 
-    if (config.storage.rules.length > 0) {
-      // When storage.rules is non-empty, rules are the single upload gate (legacy behavior).
-      const rule = getFileRule(
-        { mimeType, pubkey: auth?.pubkey },
-        config.storage.rules,
-        config.upload.requirePubkeyInRule,
+    const mimeRule = getFileRule(
+      { mimeType, pubkey: auth?.pubkey },
+      config.storage.rules,
+      config.upload.requirePubkeyInRule,
+    );
+    if (!mimeRule) {
+      await originResponse.body?.cancel();
+      debug(
+        debugPrefix,
+        `rejected: no storage rule matches — mime=${mimeType}`,
       );
-      if (!rule) {
-        await originResponse.body?.cancel();
-        debug(
-          debugPrefix,
-          `rejected: no storage rule matches — mime=${mimeType}`,
-        );
-        if (config.upload.requirePubkeyInRule) {
-          return errorResponse(
-            ctx,
-            401,
-            "Pubkey not authorized by any storage rule",
-          );
-        }
+      if (config.upload.requirePubkeyInRule) {
         return errorResponse(
           ctx,
-          415,
-          `Server does not accept ${mimeType} blobs`,
+          401,
+          "Pubkey not authorized by any storage rule",
         );
       }
-    } else if (
-      config.upload.allowedTypes.length > 0 &&
-      !isAllowedType(mimeType, config.upload.allowedTypes)
-    ) {
-      await originResponse.body?.cancel();
-      debug(debugPrefix, `rejected: unsupported media type — ${mimeType}`);
-      return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
+      return errorResponse(
+        ctx,
+        415,
+        `Server does not accept ${mimeType} blobs`,
+      );
     }
 
     // --- 11. Begin write session + dispatch to upload worker ---
@@ -471,7 +452,7 @@ export function buildMirrorRouter(
       // .name but may have an empty .message — use name as fallback.
       const errName = err instanceof Error ? err.name : "";
       const errMsg = err instanceof Error
-        ? (err.message || err.name)
+        ? err.message || err.name
         : String(err);
       const isBodyTimeout = errName === "TimeoutError" &&
         config.mirror.bodyTimeout > 0;
@@ -529,7 +510,7 @@ export function buildMirrorRouter(
           debugPrefix,
           `dedup hit — returning existing blob ${hash.slice(0, 8)}`,
         );
-        if (auth && !await isOwner(db, hash, auth.pubkey)) {
+        if (auth && !(await isOwner(db, hash, auth.pubkey))) {
           await insertBlob(db, existing, auth.pubkey);
         }
         const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);

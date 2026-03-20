@@ -44,23 +44,28 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
 }
 
 /** Build a BUD-11 kind 24242 upload auth event. */
-function makeUploadAuth(opts: {
-  hash?: string; // x tag value — omit for open token
-  expiration?: number;
-  tTag?: string;
-} = {}): NostrEvent {
+function makeUploadAuth(
+  opts: {
+    hash?: string; // x tag value — omit for open token
+    expiration?: number;
+    tTag?: string;
+  } = {},
+): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
   const tags: string[][] = [
     ["t", opts.tTag ?? "upload"],
     ["expiration", String(opts.expiration ?? now + 600)],
   ];
   if (opts.hash) tags.push(["x", opts.hash]);
-  return finalizeEvent({
-    kind: 24242,
-    created_at: now,
-    tags,
-    content: "Upload blob",
-  }, sk);
+  return finalizeEvent(
+    {
+      kind: 24242,
+      created_at: now,
+      tags,
+      content: "Upload blob",
+    },
+    sk,
+  );
 }
 
 /** Encode event as Base64url for the Authorization header. */
@@ -194,16 +199,15 @@ Deno.test({
 Deno.test({
   name: "PUT /upload: disallowed MIME type returns 415",
   async fn() {
-    // Build a one-off app with restricted MIME types
+    // Build a one-off app that only accepts images via storage rules
     const restrictedStorageDir = join(tmpDir, "blobs-restricted");
     const restrictedDb = await initDb({ path: join(tmpDir, "restricted.db") });
     const restrictedStorage = new LocalStorage(restrictedStorageDir);
     await restrictedStorage.setup();
     const restrictedConfig = ConfigSchema.parse({
       publicDomain: "localhost",
-      // Disable storage.rules so that allowedTypes is the active MIME gate.
-      storage: { rules: [] },
-      upload: { requireAuth: false, enabled: true, allowedTypes: ["image/*"] },
+      storage: { rules: [{ type: "image/*", expiration: "1 month" }] },
+      upload: { requireAuth: false, enabled: true },
     });
     // Note: getPool() singleton is reused here — same pool, different config
     const restrictedApp = buildApp(
@@ -262,7 +266,7 @@ Deno.test({
       headers: {
         "Content-Length": String(body.byteLength),
         "Content-Type": "application/octet-stream",
-        "Authorization": encodeAuth(auth),
+        Authorization: encodeAuth(auth),
       },
       body,
     });
@@ -314,7 +318,7 @@ Deno.test({
       headers: {
         "Content-Length": String(body.byteLength),
         "Content-Type": "text/plain",
-        "Authorization": encodeAuth(auth),
+        Authorization: encodeAuth(auth),
       },
       body,
     });
@@ -442,7 +446,7 @@ Deno.test({
         "Content-Length": String(body.byteLength),
         "Content-Type": "application/octet-stream",
         "X-SHA-256": hash,
-        "Authorization": encodeAuth(auth),
+        Authorization: encodeAuth(auth),
       },
       body,
     });
@@ -467,7 +471,7 @@ Deno.test({
         "Content-Length": String(body.byteLength),
         "Content-Type": "application/octet-stream",
         "X-SHA-256": actualHash,
-        "Authorization": encodeAuth(auth),
+        Authorization: encodeAuth(auth),
       },
       body,
     });

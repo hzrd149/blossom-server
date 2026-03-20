@@ -48,18 +48,18 @@ export const AdminLayout: FC<LayoutProps> = ({ title, section, children }) => (
         {/* Sidebar */}
         <nav class="w-52 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
           <div class="px-4 py-5 border-b border-gray-800">
-            <span class="text-sm font-bold tracking-widest text-gray-400 uppercase">Blossom Admin</span>
+            <span class="text-sm font-bold tracking-widest text-gray-400 uppercase">
+              Blossom Admin
+            </span>
           </div>
           <ul class="flex-1 py-3">
             {NAV_ITEMS.map((item) => (
               <li key={item.id}>
                 <a
                   href={item.href}
-                  class={
-                    item.id === section
-                      ? "flex items-center px-4 py-2.5 text-sm font-medium bg-gray-800 text-white border-l-2 border-purple-500"
-                      : "flex items-center px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-l-2 border-transparent"
-                  }
+                  class={item.id === section
+                    ? "flex items-center px-4 py-2.5 text-sm font-medium bg-gray-800 text-white border-l-2 border-purple-500"
+                    : "flex items-center px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors border-l-2 border-transparent"}
                 >
                   {item.label}
                 </a>
@@ -82,7 +82,9 @@ export const AdminLayout: FC<LayoutProps> = ({ title, section, children }) => (
 
 // ── Shared UI primitives ─────────────────────────────────────────────────────
 
-export const PageHeader: FC<{ title: string; subtitle?: string }> = ({ title, subtitle }) => (
+export const PageHeader: FC<{ title: string; subtitle?: string }> = (
+  { title, subtitle },
+) => (
   <div class="mb-6">
     <h1 class="text-2xl font-bold text-white">{title}</h1>
     {subtitle && <p class="mt-1 text-sm text-gray-400">{subtitle}</p>}
@@ -91,12 +93,16 @@ export const PageHeader: FC<{ title: string; subtitle?: string }> = ({ title, su
 
 export const Table: FC<{ children?: Child }> = ({ children }) => (
   <div class="overflow-x-auto rounded-lg border border-gray-800">
-    <table class="min-w-full divide-y divide-gray-800 text-sm">{children}</table>
+    <table class="min-w-full divide-y divide-gray-800 text-sm">
+      {children}
+    </table>
   </div>
 );
 
 export const Thead: FC<{ children?: Child }> = ({ children }) => (
-  <thead class="bg-gray-900 text-xs text-gray-400 uppercase tracking-wider">{children}</thead>
+  <thead class="bg-gray-900 text-xs text-gray-400 uppercase tracking-wider">
+    {children}
+  </thead>
 );
 
 export const Tbody: FC<{ children?: Child }> = ({ children }) => (
@@ -107,11 +113,17 @@ export const Th: FC<{ children?: Child }> = ({ children }) => (
   <th class="px-4 py-3 text-left font-medium">{children}</th>
 );
 
-export const Td: FC<{ children?: Child; mono?: boolean }> = ({ children, mono }) => (
-  <td class={`px-4 py-3 text-gray-300 ${mono ? "font-mono text-xs" : ""}`}>{children}</td>
+export const Td: FC<{ children?: Child; mono?: boolean }> = (
+  { children, mono },
+) => (
+  <td class={`px-4 py-3 text-gray-300 ${mono ? "font-mono text-xs" : ""}`}>
+    {children}
+  </td>
 );
 
-export const Badge: FC<{ children?: Child; color?: string }> = ({ children, color = "gray" }) => {
+export const Badge: FC<{ children?: Child; color?: string }> = (
+  { children, color = "gray" },
+) => {
   const colors: Record<string, string> = {
     gray: "bg-gray-800 text-gray-300",
     red: "bg-red-950 text-red-400",
@@ -121,7 +133,11 @@ export const Badge: FC<{ children?: Child; color?: string }> = ({ children, colo
     blue: "bg-blue-950 text-blue-400",
   };
   return (
-    <span class={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[color] ?? colors.gray}`}>
+    <span
+      class={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+        colors[color] ?? colors.gray
+      }`}
+    >
       {children}
     </span>
   );
@@ -166,13 +182,17 @@ export interface PaginationProps {
   baseUrl: string; // e.g. "/admin/blobs?q=foo"
 }
 
-export const Pagination: FC<PaginationProps> = ({ page, total, pageSize, baseUrl }) => {
+export const Pagination: FC<PaginationProps> = (
+  { page, total, pageSize, baseUrl },
+) => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (totalPages <= 1) return null;
 
   const sep = baseUrl.includes("?") ? "&" : "?";
   const prevHref = page > 1 ? `${baseUrl}${sep}page=${page - 1}` : null;
-  const nextHref = page < totalPages ? `${baseUrl}${sep}page=${page + 1}` : null;
+  const nextHref = page < totalPages
+    ? `${baseUrl}${sep}page=${page + 1}`
+    : null;
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 
@@ -182,29 +202,37 @@ export const Pagination: FC<PaginationProps> = ({ page, total, pageSize, baseUrl
         {start}–{end} of {total}
       </span>
       <div class="flex gap-2">
-        {prevHref ? (
-          <a
-            href={prevHref}
-            class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-          >
-            ← Prev
-          </a>
-        ) : (
-          <span class="px-3 py-1 rounded bg-gray-900 text-gray-600 cursor-not-allowed">← Prev</span>
-        )}
+        {prevHref
+          ? (
+            <a
+              href={prevHref}
+              class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+            >
+              ← Prev
+            </a>
+          )
+          : (
+            <span class="px-3 py-1 rounded bg-gray-900 text-gray-600 cursor-not-allowed">
+              ← Prev
+            </span>
+          )}
         <span class="px-3 py-1">
           {page} / {totalPages}
         </span>
-        {nextHref ? (
-          <a
-            href={nextHref}
-            class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-          >
-            Next →
-          </a>
-        ) : (
-          <span class="px-3 py-1 rounded bg-gray-900 text-gray-600 cursor-not-allowed">Next →</span>
-        )}
+        {nextHref
+          ? (
+            <a
+              href={nextHref}
+              class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+            >
+              Next →
+            </a>
+          )
+          : (
+            <span class="px-3 py-1 rounded bg-gray-900 text-gray-600 cursor-not-allowed">
+              Next →
+            </span>
+          )}
       </div>
     </div>
   );
@@ -226,5 +254,6 @@ export function truncateHash(hash: string): string {
 }
 
 export function formatDate(unixSec: number): string {
-  return new Date(unixSec * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
+  return new Date(unixSec * 1000).toISOString().replace("T", " ").slice(0, 19) +
+    " UTC";
 }

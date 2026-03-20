@@ -24,7 +24,8 @@ host: 0.0.0.0
 # Override the domain used in blob descriptor "url" fields.
 # Defaults to the Host header of each incoming request.
 # Set this when running behind a reverse proxy that rewrites the Host header.
-# publicDomain: "https://blobs.example.com"
+# IMPORTANT: bare hostname only — do NOT include a protocol scheme (https://).
+# publicDomain: "blobs.example.com"
 
 # ---------------------------------------------------------------------------
 # Database
@@ -141,11 +142,6 @@ upload:
   # The pool routes new uploads to the least-loaded worker.
   # Lower = more responsive routing; higher = less overhead.
   throughputWindowMs: 1000
-
-  # Simple MIME type allowlist. Empty = all types accepted.
-  # Supports wildcards: "image/*", "video/*".
-  # NOTE: ignored when storage.rules is non-empty — rules act as the upload gate.
-  allowedTypes: []
 
   # When true, uploads are rejected unless the uploader's Nostr pubkey appears
   # in at least one storage rule's "pubkeys" list.
@@ -299,7 +295,7 @@ prune:
 landing:
   # Enable the server-rendered landing page at GET /.
   # Shows server info, storage stats, and accepted MIME types.
-  enabled: false
+  enabled: true
 
   # Page title shown in <title> and <h1>.
   title: "Blossom Server"

@@ -11,9 +11,9 @@ function formatBytes(bytes: number): string {
 }
 
 export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
-  const { upload, media } = config;
-  const allowedTypes = upload.allowedTypes.length > 0
-    ? upload.allowedTypes
+  const { upload, storage, media } = config;
+  const allowedTypes = storage.rules.length > 0
+    ? [...new Set(storage.rules.map((r) => r.type))]
     : ["All types accepted"];
 
   return (
@@ -95,8 +95,9 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
             <div class="flex items-center justify-between">
               <span class="text-gray-400 text-sm">Image output</span>
               <span class="font-mono text-gray-300 text-xs">
-                {media.image.outputFormat} · {media.image.maxWidth}×
-                {media.image.maxHeight} · q{media.image.quality}
+                {media.image.outputFormat} ·{" "}
+                {media.image.maxWidth}×{media.image.maxHeight}{" "}
+                · q{media.image.quality}
                 {media.image.progressive ? " · progressive" : ""}
                 {` · ${media.image.fps}fps`}
               </span>

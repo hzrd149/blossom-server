@@ -101,38 +101,27 @@ export function buildUploadRouter(
     }
 
     // --- Storage rule check (preflight) ---
-    // When storage.rules is non-empty, rules are the upload gate.
-    // auth may not be populated yet for HEAD (auth is optional in preflight),
-    // so pass pubkey only when available.
-    const preflightAuth = config.upload.requireAuth
-      ? ctx.get("auth")
-      : ctx.get("auth");
-    const preflightPubkey = preflightAuth?.pubkey;
-    if (config.storage.rules.length > 0) {
-      const rule = getFileRule(
-        { mimeType: xContentType, pubkey: preflightPubkey },
-        config.storage.rules,
-        config.upload.requirePubkeyInRule,
-      );
-      if (!rule) {
-        if (config.upload.requirePubkeyInRule) {
-          return errorResponse(
-            ctx,
-            401,
-            "Pubkey not authorized by any storage rule",
-          );
-        }
+    // storage.rules is the upload gate. auth may not be populated for HEAD
+    // (auth is optional in preflight), so pass pubkey only when available.
+    const preflightPubkey = ctx.get("auth")?.pubkey;
+    const rule = getFileRule(
+      { mimeType: xContentType, pubkey: preflightPubkey },
+      config.storage.rules,
+      config.upload.requirePubkeyInRule,
+    );
+    if (!rule) {
+      if (config.upload.requirePubkeyInRule) {
         return errorResponse(
           ctx,
-          415,
-          `Server does not accept ${xContentType} blobs`,
+          401,
+          "Pubkey not authorized by any storage rule",
         );
       }
-    } else if (
-      config.upload.allowedTypes.length > 0 &&
-      !isAllowedType(xContentType, config.upload.allowedTypes)
-    ) {
-      return errorResponse(ctx, 415, `Unsupported media type: ${xContentType}`);
+      return errorResponse(
+        ctx,
+        415,
+        `Server does not accept ${xContentType} blobs`,
+      );
     }
 
     // Check pool availability
@@ -218,39 +207,29 @@ export function buildUploadRouter(
       "application/octet-stream";
     const mimeType = contentType.split(";")[0].trim();
 
-    if (config.storage.rules.length > 0) {
-      // When storage.rules is non-empty, rules are the single upload gate (legacy behavior).
-      const rule = getFileRule(
-        { mimeType, pubkey: auth?.pubkey },
-        config.storage.rules,
-        config.upload.requirePubkeyInRule,
+    const mimeRule = getFileRule(
+      { mimeType, pubkey: auth?.pubkey },
+      config.storage.rules,
+      config.upload.requirePubkeyInRule,
+    );
+    if (!mimeRule) {
+      await ctx.req.raw.body?.cancel();
+      debug(
+        debugPrefix,
+        `rejected: no storage rule matches — mime=${mimeType}`,
       );
-      if (!rule) {
-        await ctx.req.raw.body?.cancel();
-        debug(
-          debugPrefix,
-          `rejected: no storage rule matches — mime=${mimeType}`,
-        );
-        if (config.upload.requirePubkeyInRule) {
-          return errorResponse(
-            ctx,
-            401,
-            "Pubkey not authorized by any storage rule",
-          );
-        }
+      if (config.upload.requirePubkeyInRule) {
         return errorResponse(
           ctx,
-          415,
-          `Server does not accept ${mimeType} blobs`,
+          401,
+          "Pubkey not authorized by any storage rule",
         );
       }
-    } else if (
-      config.upload.allowedTypes.length > 0 &&
-      !isAllowedType(mimeType, config.upload.allowedTypes)
-    ) {
-      await ctx.req.raw.body?.cancel();
-      debug(debugPrefix, `rejected: unsupported media type — ${mimeType}`);
-      return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
+      return errorResponse(
+        ctx,
+        415,
+        `Server does not accept ${mimeType} blobs`,
+      );
     }
 
     // --- 5. X-SHA-256 validation + auth x-tag check ---
@@ -447,14 +426,4 @@ export function buildUploadRouter(
   });
 
   return app;
-}
-
-/** Check if a MIME type matches an allowlist (supports wildcards like "image/*"). */
-function isAllowedType(mimeType: string, allowedTypes: string[]): boolean {
-  const [mainType] = mimeType.split("/");
-  return allowedTypes.some((allowed) => {
-    if (allowed === "*" || allowed === "*/*") return true;
-    if (allowed.endsWith("/*")) return allowed.slice(0, -2) === mainType;
-    return allowed === mimeType;
-  });
 }

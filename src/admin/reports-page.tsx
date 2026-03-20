@@ -11,11 +11,11 @@ import {
   PageHeader,
   Pagination,
   SecondaryButton,
+  Table,
   Tbody,
   Td,
   Th,
   Thead,
-  Table,
   truncateHash,
 } from "./layout.tsx";
 
@@ -46,33 +46,42 @@ interface ReportsPageProps {
   typeFilter: string;
 }
 
-export const ReportsPage: FC<ReportsPageProps> = async ({ db, page, typeFilter }) => {
+export const ReportsPage: FC<ReportsPageProps> = async (
+  { db, page, typeFilter },
+) => {
   const offset = (page - 1) * PAGE_SIZE;
   const filter = typeFilter ? { type: typeFilter } : undefined;
 
   const [reports, total] = await Promise.all([
-    db.listAllReports({ filter, limit: PAGE_SIZE, offset, sort: ["created", "DESC"] }),
+    db.listAllReports({
+      filter,
+      limit: PAGE_SIZE,
+      offset,
+      sort: ["created", "DESC"],
+    }),
     db.countReports(filter),
   ]);
 
-  const baseUrl = typeFilter ? `/admin/reports?type=${encodeURIComponent(typeFilter)}` : "/admin/reports";
+  const baseUrl = typeFilter
+    ? `/admin/reports?type=${encodeURIComponent(typeFilter)}`
+    : "/admin/reports";
 
   return (
     <AdminLayout title="Reports" section="reports">
       <PageHeader
         title="Reports"
-        subtitle={`${total.toLocaleString()} report${total !== 1 ? "s" : ""}${typeFilter ? ` of type "${typeFilter}"` : ""}`}
+        subtitle={`${total.toLocaleString()} report${total !== 1 ? "s" : ""}${
+          typeFilter ? ` of type "${typeFilter}"` : ""
+        }`}
       />
 
       {/* Type filter tabs */}
       <div class="mb-4 flex flex-wrap gap-2">
         <a
           href="/admin/reports"
-          class={
-            !typeFilter
-              ? "px-3 py-1.5 rounded text-xs font-medium bg-purple-700 text-white"
-              : "px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-          }
+          class={!typeFilter
+            ? "px-3 py-1.5 rounded text-xs font-medium bg-purple-700 text-white"
+            : "px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"}
         >
           All
         </a>
@@ -80,20 +89,16 @@ export const ReportsPage: FC<ReportsPageProps> = async ({ db, page, typeFilter }
           <a
             key={t}
             href={`/admin/reports?type=${t}`}
-            class={
-              typeFilter === t
-                ? "px-3 py-1.5 rounded text-xs font-medium bg-purple-700 text-white"
-                : "px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-            }
+            class={typeFilter === t
+              ? "px-3 py-1.5 rounded text-xs font-medium bg-purple-700 text-white"
+              : "px-3 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"}
           >
             {t}
           </a>
         ))}
       </div>
 
-      {reports.length === 0 ? (
-        <EmptyState message="No reports found." />
-      ) : (
+      {reports.length === 0 ? <EmptyState message="No reports found." /> : (
         <>
           <Table>
             <Thead>
@@ -110,9 +115,13 @@ export const ReportsPage: FC<ReportsPageProps> = async ({ db, page, typeFilter }
             <Tbody>
               {reports.map((report) => {
                 const dismissUrl = `/admin/api/reports/${report.id}/dismiss`;
-                const deleteBlobUrl = `/admin/api/reports/${report.id}/delete-blob`;
+                const deleteBlobUrl =
+                  `/admin/api/reports/${report.id}/delete-blob`;
                 return (
-                  <tr key={report.id} class="hover:bg-gray-900 transition-colors">
+                  <tr
+                    key={report.id}
+                    class="hover:bg-gray-900 transition-colors"
+                  >
                     <Td mono>
                       <a
                         href={`/admin/reports/${report.id}`}
@@ -122,11 +131,13 @@ export const ReportsPage: FC<ReportsPageProps> = async ({ db, page, typeFilter }
                       </a>
                     </Td>
                     <Td>
-                      {report.type ? (
-                        <Badge color={reportTypeColor(report.type)}>{report.type}</Badge>
-                      ) : (
-                        <span class="text-gray-600">—</span>
-                      )}
+                      {report.type
+                        ? (
+                          <Badge color={reportTypeColor(report.type)}>
+                            {report.type}
+                          </Badge>
+                        )
+                        : <span class="text-gray-600">—</span>}
                     </Td>
                     <Td mono>
                       <a
@@ -143,8 +154,13 @@ export const ReportsPage: FC<ReportsPageProps> = async ({ db, page, typeFilter }
                       </span>
                     </Td>
                     <Td>
-                      <span class="text-gray-400 max-w-xs truncate block" title={report.content}>
-                        {report.content || <em class="text-gray-600">no content</em>}
+                      <span
+                        class="text-gray-400 max-w-xs truncate block"
+                        title={report.content}
+                      >
+                        {report.content || (
+                          <em class="text-gray-600">no content</em>
+                        )}
                       </span>
                     </Td>
                     <Td>{formatDate(report.created)}</Td>
@@ -167,7 +183,12 @@ export const ReportsPage: FC<ReportsPageProps> = async ({ db, page, typeFilter }
               })}
             </Tbody>
           </Table>
-          <Pagination page={page} total={total} pageSize={PAGE_SIZE} baseUrl={baseUrl} />
+          <Pagination
+            page={page}
+            total={total}
+            pageSize={PAGE_SIZE}
+            baseUrl={baseUrl}
+          />
         </>
       )}
     </AdminLayout>

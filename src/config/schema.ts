@@ -135,13 +135,6 @@ const UploadSchema = z.object({
     .describe(
       "How often (ms) each worker reports its throughput to the pool. The pool uses this to route new uploads to the least-loaded worker. Lower = more responsive; higher = less overhead.",
     ),
-  allowedTypes: z
-    .array(z.string())
-    .default([])
-    .describe(
-      'Simple MIME type allowlist. Empty = all types accepted. Supports wildcards: "image/*". ' +
-        "NOTE: when storage.rules is non-empty, rules act as the upload gate and allowedTypes is ignored.",
-    ),
   requirePubkeyInRule: z
     .boolean()
     .default(false)

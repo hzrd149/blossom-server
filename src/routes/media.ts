@@ -52,6 +52,7 @@ import { requireAuth } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import { optimizeMedia } from "../optimize/index.ts";
+import { getFileRule } from "../prune/rules.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
@@ -85,15 +86,6 @@ function getBlobUrl(
 ): string {
   const ext = mimeToExt(mimeType);
   return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
-}
-
-function isAllowedType(mimeType: string, allowedTypes: string[]): boolean {
-  const [mainType] = mimeType.split("/");
-  return allowedTypes.some((allowed) => {
-    if (allowed === "*" || allowed === "*/*") return true;
-    if (allowed.endsWith("/*")) return allowed.slice(0, -2) === mainType;
-    return allowed === mimeType;
-  });
 }
 
 function getBaseUrl(request: Request, publicDomain: string): string {
@@ -271,17 +263,33 @@ export function buildMediaRouter(
         );
       }
 
-      // --- 5. MIME allowlist check ---
+      // --- 5. MIME allowlist check via storage rules ---
       const contentType = ctx.req.header("content-type") ??
         "application/octet-stream";
       const mimeType = contentType.split(";")[0].trim();
-      if (
-        config.upload.allowedTypes.length > 0 &&
-        !isAllowedType(mimeType, config.upload.allowedTypes)
-      ) {
+      const mimeRule = getFileRule(
+        { mimeType, pubkey: auth?.pubkey },
+        config.storage.rules,
+        config.upload.requirePubkeyInRule,
+      );
+      if (!mimeRule) {
         await ctx.req.raw.body?.cancel();
-        debug(debugPrefix, `rejected: unsupported media type — ${mimeType}`);
-        return errorResponse(ctx, 415, `Unsupported media type: ${mimeType}`);
+        debug(
+          debugPrefix,
+          `rejected: no storage rule matches — mime=${mimeType}`,
+        );
+        if (config.upload.requirePubkeyInRule) {
+          return errorResponse(
+            ctx,
+            401,
+            "Pubkey not authorized by any storage rule",
+          );
+        }
+        return errorResponse(
+          ctx,
+          415,
+          `Server does not accept ${mimeType} blobs`,
+        );
       }
 
       // --- 6. X-SHA-256 header format ---
@@ -394,7 +402,9 @@ export function buildMediaRouter(
         );
         const existing = await getBlob(db, existingOptimizedHash);
         if (existing) {
-          if (auth && !await isOwner(db, existingOptimizedHash, auth.pubkey)) {
+          if (
+            auth && !(await isOwner(db, existingOptimizedHash, auth.pubkey))
+          ) {
             await insertBlob(db, existing, auth.pubkey);
           }
           const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
@@ -474,7 +484,7 @@ export function buildMediaRouter(
         if (existing) {
           // Record the original→optimized mapping even on dedup
           await insertMediaDerivative(db, originalHash, optimizedHash);
-          if (auth && !await isOwner(db, optimizedHash, auth.pubkey)) {
+          if (auth && !(await isOwner(db, optimizedHash, auth.pubkey))) {
             await insertBlob(db, existing, auth.pubkey);
           }
           const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
