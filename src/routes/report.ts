@@ -17,6 +17,7 @@ import type { Client } from "@libsql/client";
 import type { NostrEvent } from "nostr-tools";
 import { verifyEvent } from "nostr-tools/pure";
 import { requireAuth } from "../middleware/auth.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 import { insertReport, REPORT_TYPES } from "../db/reports.ts";
@@ -25,8 +26,11 @@ import type { ReportType } from "../db/reports.ts";
 /** 64 lowercase hex chars — matches a valid SHA-256 digest. */
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
-export function buildReportRouter(db: Client, config: Config): Hono {
-  const app = new Hono();
+export function buildReportRouter(
+  db: Client,
+  config: Config,
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   // ── PUT /report ─────────────────────────────────────────────────────────────
   app.put("/report", async (ctx) => {

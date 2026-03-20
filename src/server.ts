@@ -10,6 +10,7 @@ import type { Config } from "./config/schema.ts";
 
 import { corsMiddleware } from "./middleware/cors.ts";
 import { authMiddleware } from "./middleware/auth.ts";
+import type { BlossomVariables } from "./middleware/auth.ts";
 import { onError } from "./middleware/errors.ts";
 import { requestLogger } from "./middleware/logger.ts";
 
@@ -20,8 +21,8 @@ export async function buildApp(
   db: Client,
   storage: IBlobStorage,
   config: Config,
-): Promise<Hono> {
-  const app = new Hono();
+): Promise<Hono<{ Variables: BlossomVariables }>> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   // Global fallback error handler — preserves pre-built responses on
   // HTTPException (e.g. basicAuth's WWW-Authenticate header). Blossom-specific

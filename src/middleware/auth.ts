@@ -10,13 +10,15 @@ export interface AuthState {
   authExpiration?: number;
 }
 
-// Hono variable declarations for ctx.get() / ctx.set()
-declare module "@hono/hono" {
-  interface ContextVariableMap {
-    auth: NostrEvent | undefined;
-    authType: string | undefined;
-    authExpiration: number | undefined;
-  }
+/**
+ * Hono typed variable map for auth context variables.
+ * Thread through Hono generics as `Hono<{ Variables: BlossomVariables }>` —
+ * do NOT use `declare module` augmentation (disallowed by JSR publish rules).
+ */
+export interface BlossomVariables {
+  auth: NostrEvent | undefined;
+  authType: string | undefined;
+  authExpiration: number | undefined;
 }
 
 /**
@@ -130,7 +132,9 @@ export function parseAuthEvent(
  * Populates ctx variables: auth, authType, authExpiration.
  * Call requireAuth() or optionalAuth() in route handlers for enforcement.
  */
-export function authMiddleware(publicDomain: string): MiddlewareHandler {
+export function authMiddleware(
+  publicDomain: string,
+): MiddlewareHandler<{ Variables: BlossomVariables }> {
   return async (ctx, next) => {
     const authHeader = ctx.req.header("authorization");
     if (authHeader?.startsWith("Nostr ")) {
@@ -169,7 +173,7 @@ export function authMiddleware(publicDomain: string): MiddlewareHandler {
  * @param verb  Required BUD-11 verb: "get" | "upload" | "list" | "delete" | "media"
  */
 export function requireAuth(
-  ctx: Context,
+  ctx: Context<{ Variables: BlossomVariables }>,
   verb: "get" | "upload" | "list" | "delete" | "media",
 ): NostrEvent {
   const auth = ctx.get("auth");
@@ -190,7 +194,9 @@ export function requireAuth(
  * Get auth if present, without enforcing it.
  * Returns undefined if no auth header or if parsing failed.
  */
-export function optionalAuth(ctx: Context): NostrEvent | undefined {
+export function optionalAuth(
+  ctx: Context<{ Variables: BlossomVariables }>,
+): NostrEvent | undefined {
   return ctx.get("auth");
 }
 

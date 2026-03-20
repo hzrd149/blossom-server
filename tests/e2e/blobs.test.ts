@@ -22,6 +22,7 @@ import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import type { Hono } from "@hono/hono";
+import type { BlossomVariables } from "../../src/middleware/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -90,7 +91,7 @@ const BLOB_DATA = new Uint8Array([
 ]);
 const BLOB_SIZE = BLOB_DATA.byteLength; // 20
 
-let app: Hono;
+let app: Hono<{ Variables: BlossomVariables }>;
 let blobHash: string;
 let blobUrl: string;
 let cleanup: () => Promise<void>;

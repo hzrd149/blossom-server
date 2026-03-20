@@ -23,6 +23,7 @@ import {
   removeOwner,
 } from "../db/blobs.ts";
 import { requireAuth, requireXTag } from "../middleware/auth.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 
@@ -38,8 +39,8 @@ export function buildDeleteRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
-): Hono {
-  const app = new Hono();
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   // Accept both /<sha256> and /<sha256>.<ext> — extract hash from filename segment
   app.delete("/:filename", async (ctx) => {
@@ -67,7 +68,7 @@ export function buildDeleteRouter(
       requireXTag(auth, hash);
 
       // Ownership check — only owners may delete their copy of a blob
-      if (!await isOwner(db, hash, pubkey)) {
+      if (!(await isOwner(db, hash, pubkey))) {
         return errorResponse(ctx, 403, "You are not an owner of this blob");
       }
     }

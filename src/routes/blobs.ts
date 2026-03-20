@@ -15,6 +15,7 @@ import type { Client } from "@libsql/client";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getBlob, touchBlob } from "../db/blobs.ts";
 import { optionalAuth } from "../middleware/auth.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
@@ -25,8 +26,8 @@ export function buildBlobsRouter(
   db: Client,
   storage: IBlobStorage,
   _config: Config,
-): Hono {
-  const app = new Hono();
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   // GET /:sha256 and GET /:sha256.ext
   // HEAD /:sha256 and HEAD /:sha256.ext
@@ -73,7 +74,7 @@ export function buildBlobsRouter(
       "Content-Length": String(blob.size),
       "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=31536000, immutable",
-      "ETag": `"${hash}"`,
+      ETag: `"${hash}"`,
       "Last-Modified": new Date(blob.uploaded * 1000).toUTCString(),
     };
 
@@ -87,7 +88,7 @@ export function buildBlobsRouter(
       );
       if (tags.includes(hash) || tags.includes("*")) {
         return ctx.body(null, 304, {
-          "ETag": headers["ETag"],
+          ETag: headers["ETag"],
           "Cache-Control": headers["Cache-Control"],
           "Last-Modified": headers["Last-Modified"],
         });

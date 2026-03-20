@@ -26,6 +26,7 @@ import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import type { Hono } from "@hono/hono";
+import type { BlossomVariables } from "../../src/middleware/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,8 +86,8 @@ function encodeAuth(event: NostrEvent): string {
 // Both share the same pool singleton (initPool is called once).
 // ---------------------------------------------------------------------------
 
-let appNoAuth: Hono;
-let appWithAuth: Hono;
+let appNoAuth: Hono<{ Variables: BlossomVariables }>;
+let appWithAuth: Hono<{ Variables: BlossomVariables }>;
 let tmpDir: string;
 let cleanup: () => Promise<void>;
 

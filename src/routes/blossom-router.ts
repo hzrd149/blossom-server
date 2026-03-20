@@ -16,6 +16,7 @@ import type { Client } from "@libsql/client";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { IBlobStorage } from "../storage/interface.ts";
 import type { Config } from "../config/schema.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 
 import { buildBlobsRouter } from "./blobs.ts";
 import { buildUploadRouter } from "./upload.ts";
@@ -29,8 +30,8 @@ export function buildBlossomRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
-): Hono {
-  const app = new Hono();
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   // BUD-01-compliant error handler: all errors from Blossom route handlers are
   // returned as text/plain with an X-Reason header. This only fires for routes

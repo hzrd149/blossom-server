@@ -49,6 +49,7 @@ import {
   isOwner,
 } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import { optimizeMedia } from "../optimize/index.ts";
@@ -143,8 +144,8 @@ export function buildMediaRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
-): Hono {
-  const app = new Hono();
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   // -------------------------------------------------------------------------
   // HEAD /media — BUD-06-style preflight

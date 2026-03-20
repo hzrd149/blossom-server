@@ -17,6 +17,7 @@ import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
 import { listBlobsByPubkey } from "../db/blobs.ts";
 import { optionalAuth, requireAuth } from "../middleware/auth.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
@@ -33,8 +34,11 @@ interface BlobDescriptor {
   uploaded: number;
 }
 
-export function buildListRouter(db: Client, config: Config): Hono {
-  const app = new Hono();
+export function buildListRouter(
+  db: Client,
+  config: Config,
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   app.get("/list/:pubkey", async (ctx) => {
     // --- Enabled gate ---

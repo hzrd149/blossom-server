@@ -36,6 +36,7 @@ import type { Client } from "@libsql/client";
 import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
+import type { BlossomVariables } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
@@ -134,8 +135,8 @@ export function buildMirrorRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
-): Hono {
-  const app = new Hono();
+): Hono<{ Variables: BlossomVariables }> {
+  const app = new Hono<{ Variables: BlossomVariables }>();
 
   app.put("/mirror", async (ctx) => {
     const reqId = ulid();
