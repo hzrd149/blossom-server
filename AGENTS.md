@@ -44,16 +44,15 @@ deno fmt --check
 # Format (auto-fix)
 deno fmt
 
-# Build browser bundles (landing page + admin SPA)
+# Pre-build the landing page client bundle (output: public/client.js)
+# Only needed for Docker/CI — the server builds it automatically at startup
+# when public/client.js is missing (requires --unstable-bundle, already in dev/start tasks)
 deno task build
-
-# Build individually
-deno task build-landing
-deno task build-admin
-
-# Remove generated data/temp files
-deno task clean
 ```
+
+> **Before every commit:** run `deno fmt` to auto-format all changed files.
+> Unformatted code will fail CI. Run `deno fmt --check` to verify without
+> modifying files.
 
 > **Read before writing tests:** `TESTING.md` contains the full planned test
 > matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or
@@ -70,6 +69,9 @@ blossom-server/
 ├── config.example.yml        # Annotated reference config (copy to config.yml to run)
 ├── ARCHITECTURE.md           # Architecture docs — read before structural changes
 ├── TESTING.md                # Planned test suite — read before writing tests
+├── public/
+│   ├── favicon.ico
+│   └── client.js             # Landing page bundle — built at startup or via deno task build
 └── src/
     ├── server.ts             # Hono app assembly: middleware + route routers
     ├── config/
@@ -89,8 +91,21 @@ blossom-server/
     │   ├── mirror.ts         # PUT /mirror (BUD-04)
     │   ├── media.ts          # PUT /media, HEAD /media (BUD-05)
     │   ├── report.ts         # PUT /report (BUD-09)
-    │   ├── admin-router.ts   # /admin/* SSR pages + action endpoints (main thread)
-    │   └── landing.ts        # GET / (proxies to landing worker)
+    │   ├── admin-router.tsx  # /admin/* SSR pages + action endpoints (main thread)
+    │   └── landing.tsx       # GET /, GET /client.js
+    ├── admin/                # Admin dashboard SSR components (hono/jsx)
+    ├── landing/
+    │   ├── client/           # Client-side island (hono/jsx/dom, bundled to public/client.js)
+    │   │   ├── index.tsx     # Entry point — hydrates #upload-root
+    │   │   ├── App.tsx
+    │   │   ├── UploadForm.tsx
+    │   │   ├── MirrorForm.tsx
+    │   │   └── ...
+    │   ├── layout.tsx        # HTML shell + Tailwind CDN
+    │   ├── page.tsx          # LandingPage async SSR component
+    │   ├── upload-island.tsx # Island mount point (data-* attrs → client hydration)
+    │   ├── server-info.tsx
+    │   └── stats-bar.tsx
     ├── storage/
     │   ├── interface.ts      # IBlobStorage + WriteSession interfaces
     │   ├── local.ts          # LocalStorage implementation (Deno FS)
@@ -98,7 +113,9 @@ blossom-server/
     ├── db/
     │   ├── client.ts         # initDb() / getDb() singleton
     │   ├── blobs.ts          # All SQL query functions
-    │   ├── bridge.ts         # Main-thread DB bridge over MessageChannel
+    │   ├── handle.ts         # IDbHandle interface
+    │   ├── direct.ts         # DirectDbHandle — wraps @libsql/client Client
+    │   ├── bridge.ts         # MessageChannel bridge (upload workers → main thread DB)
     │   └── proxy.ts          # Worker-side DbProxy
     ├── optimize/
     │   ├── index.ts          # optimizeMedia() dispatcher
@@ -113,8 +130,7 @@ blossom-server/
     │   └── url.ts            # getBaseUrl(), getBlobUrl()
     └── workers/
         ├── pool.ts           # UploadWorkerPool, initPool(), getPool()
-        ├── upload-worker.ts  # Single-pass stream → file write + SHA-256
-        └── landing-worker.tsx
+        └── upload-worker.ts  # Single-pass stream → file write + SHA-256
 ```
 
 > **Route registration order in `server.ts` matters.** `/upload`, `/mirror`,
@@ -264,6 +280,8 @@ const List = () => (
   `src/db/handle.ts` (interface), `src/db/direct.ts` (direct impl),
   `src/db/proxy.ts` (proxy for upload workers), and `src/db/bridge.ts` (bridge
   discriminated union + switch case)
+- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client`
+  Client and implements every `IDbHandle` method
 
 ---
 
@@ -337,7 +355,7 @@ Deno.test("myFunction does X", () => {
 import { buildApp } from "../../src/server.ts";
 
 Deno.test("PUT /upload returns 200", async () => {
-  const app = buildApp(db, storage, config, undefined, undefined);
+  const app = await buildApp(db, storage, config);
   const res = await app.fetch(
     new Request("http://localhost/upload", { method: "PUT" }),
   );
