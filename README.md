@@ -17,6 +17,7 @@ retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
 - **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool
   availability before sending the body
 - **BUD-08** — `nip94` field in all blob descriptor responses
+- **BUD-09** — Blob reports (`PUT /report`) accepting NIP-56 kind:1984 events
 - **BUD-11** — Nostr-signed event authentication (kind 24242)
 - Zero-copy streaming uploads — no body buffering, SHA-256 computed in a
   dedicated worker pool
@@ -26,9 +27,9 @@ retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
   per-pubkey scoping
 - Automatic prune loop — expired blobs are removed on a configurable timer
 - Local filesystem and S3-compatible storage backends
-- Optional React Admin dashboard at `/admin`
+- Optional server-side rendered admin dashboard at `/admin` (Hono JSX)
 - Optional server-rendered landing page at `/`
-- Docker-ready with a two-stage Dockerfile and health check
+- Docker-ready with a single-stage Dockerfile and health check
 
 ## Requirements
 
@@ -57,7 +58,7 @@ read-only from the host.
 
 ```sh
 # 1. Clone the repo
-git clone https://github.com/your-org/blossom-server.git
+git clone https://github.com/hzrd149/blossom-server.git
 cd blossom-server
 
 # 2. Copy and edit the config
@@ -87,22 +88,34 @@ directory). Environment variables can be substituted anywhere in the file using
 
 ### Key Options
 
-| Key                  | Default          | Description                                                                                                       |
-| -------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `port`               | `3000`           | TCP port to listen on                                                                                             |
-| `host`               | `0.0.0.0`        | Bind interface (`127.0.0.1` for loopback-only behind a proxy)                                                     |
-| `publicDomain`       | _(Host header)_  | Full URL used in blob descriptor `url` fields and BUD-11 server-tag validation (e.g. `https://blobs.example.com`) |
-| `database.path`      | `data/sqlite.db` | Local SQLite database path                                                                                        |
-| `database.url`       | —                | Remote libSQL/Turso URL (`libsql://your-db.turso.io` or `http://localhost:8080`)                                  |
-| `storage.backend`    | `local`          | Storage backend: `local` or `s3`                                                                                  |
-| `storage.local.dir`  | `./data/blobs`   | Directory for blob files (local backend)                                                                          |
-| `upload.enabled`     | `true`           | Enable `PUT /upload`                                                                                              |
-| `upload.requireAuth` | `true`           | Require Nostr auth for uploads                                                                                    |
-| `upload.maxSize`     | `2147483648`     | Maximum upload size in bytes (2 GB)                                                                               |
-| `mirror.enabled`     | `true`           | Enable `PUT /mirror` (BUD-04)                                                                                     |
-| `media.enabled`      | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                           |
-| `dashboard.enabled`  | `false`          | Enable the React Admin dashboard at `/admin`                                                                      |
-| `landing.enabled`    | `false`          | Enable the landing page at `/`                                                                                    |
+| Key                          | Default          | Description                                                                                                            |
+| ---------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `port`                       | `3000`           | TCP port to listen on                                                                                                  |
+| `host`                       | `0.0.0.0`        | Bind interface (`127.0.0.1` for loopback-only behind a proxy)                                                          |
+| `publicDomain`               | _(Host header)_  | Bare hostname this server is publicly reachable at, used in blob URLs and BUD-11 server-tag validation (no `https://`) |
+| `database.path`              | `data/sqlite.db` | Local SQLite database path                                                                                             |
+| `database.url`               | —                | Remote libSQL/Turso URL (`libsql://your-db.turso.io` or `http://localhost:8080`)                                       |
+| `storage.backend`            | `local`          | Storage backend: `local` or `s3`                                                                                       |
+| `storage.local.dir`          | `./data/blobs`   | Directory for blob files (local backend)                                                                               |
+| `storage.removeWhenNoOwners` | `false`          | Delete blobs with no owners on each prune cycle, regardless of expiry rules                                            |
+| `upload.enabled`             | `true`           | Enable `PUT /upload`                                                                                                   |
+| `upload.requireAuth`         | `true`           | Require Nostr auth for uploads                                                                                         |
+| `upload.maxSize`             | `2147483648`     | Maximum upload size in bytes (2 GB)                                                                                    |
+| `upload.workers`             | `0`              | Upload worker threads (0 = one per CPU core)                                                                           |
+| `upload.requirePubkeyInRule` | `false`          | Reject uploads unless the uploader's pubkey appears in a storage rule                                                  |
+| `mirror.enabled`             | `true`           | Enable `PUT /mirror` (BUD-04)                                                                                          |
+| `mirror.connectTimeout`      | `30000`          | Timeout (ms) to connect to the origin; 0 = no limit                                                                    |
+| `mirror.bodyTimeout`         | `0`              | Timeout (ms) for full body transfer from origin; 0 = no limit                                                          |
+| `delete.requireAuth`         | `true`           | Require Nostr auth for deletes                                                                                         |
+| `list.enabled`               | `false`          | Enable `GET /list/:pubkey` (BUD-02); disabled by default                                                               |
+| `list.requireAuth`           | `false`          | Require Nostr auth for list requests                                                                                   |
+| `list.allowListOthers`       | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
+| `media.enabled`              | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
+| `report.enabled`             | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
+| `report.requireAuth`         | `false`          | Require Nostr auth to submit a report                                                                                  |
+| `landing.enabled`            | `true`           | Enable the landing page at `/`                                                                                         |
+| `landing.title`              | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
+| `dashboard.enabled`          | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
 
 For all options with inline documentation, see
 [`config.example.yml`](config.example.yml).
@@ -200,8 +213,8 @@ Example event (before signing):
 | `HEAD`   | `/:sha256[.ext]` | Optional   | Same as GET without the body.                                                                                                                         |
 | `PUT`    | `/upload`        | Required\* | Upload a blob. `Content-Length` is required. Returns a `BlobDescriptor`.                                                                              |
 | `HEAD`   | `/upload`        | Required\* | Preflight check (BUD-06). Send `X-Content-Length`, `X-Content-Type`, `X-SHA-256` to verify the server will accept the upload before sending the body. |
-| `DELETE` | `/:sha256`       | Required\* | Delete a blob. Ownership-gated: the file is removed only when the last owner deletes it.                                                              |
-| `GET`    | `/list/:pubkey`  | Required\* | List blobs uploaded by a pubkey.                                                                                                                      |
+| `DELETE` | `/:sha256`       | Required\* | Delete a blob. The file is removed when the last owner deletes it.                                                                                    |
+| `GET`    | `/list/:pubkey`  | Optional\* | List blobs uploaded by a pubkey. Disabled by default (`list.enabled: false`).                                                                         |
 
 ### Mirror Endpoint (BUD-04)
 
@@ -215,6 +228,12 @@ Example event (before signing):
 | ------ | -------- | ---------- | ------------------------------------------------------------------------------------------------------- |
 | `PUT`  | `/media` | Required\* | Upload an image or video; the server optimises/transcodes it and returns the optimised blob descriptor. |
 | `HEAD` | `/media` | Required\* | Preflight check for the media endpoint.                                                                 |
+
+### Report Endpoint (BUD-09)
+
+| Method | Path      | Auth       | Description                                                               |
+| ------ | --------- | ---------- | ------------------------------------------------------------------------- |
+| `PUT`  | `/report` | Optional\* | Submit a NIP-56 kind:1984 Nostr event to flag a blob for operator review. |
 
 _\* Auth requirement is configurable per-endpoint via `requireAuth` in the
 config._
@@ -241,18 +260,35 @@ Successful upload, mirror, and media responses return a `BlobDescriptor`:
 }
 ```
 
+### Error Responses
+
+All error responses use `Content-Type: text/plain`. The reason is included in
+both the response body and an `X-Reason` header.
+
 ## Admin Dashboard
 
-Enable the React Admin dashboard to manage blobs and users through a web UI:
+Enable the server-rendered admin dashboard (Hono JSX, no separate SPA) to manage
+blobs, users, rules, and reports:
 
 ```yaml
 dashboard:
   enabled: true
   username: admin
   password: "" # Auto-generated and logged to stdout on first startup if blank
+  # Nostr relays used to look up kind:0 profiles in the user detail view
+  lookupRelays:
+    - wss://purplepag.es
+    - wss://index.hzrd149.com
+    - wss://indexer.coracle.social
 ```
 
-The dashboard is available at `http://localhost:3000/admin`.
+The dashboard is available at `http://localhost:3000/admin` and is protected by
+HTTP Basic Auth. It provides pages for:
+
+- **Blobs** — browse, search, and force-delete blobs
+- **Users** — list uploaders with Nostr profile metadata lookup
+- **Rules** — view active storage retention rules
+- **Reports** — review and dismiss BUD-09 blob reports
 
 ## Development
 
@@ -264,9 +300,10 @@ deno task dev
 deno task test
 
 # Run a single test file
-deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/auth.test.ts
+deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/auth.test.ts
 
-# Build the frontend bundles (landing page + admin SPA)
+# Build the landing page client bundle (output: public/client.js)
+# The server builds it automatically at startup when the file is missing.
 deno task build
 
 # Lint

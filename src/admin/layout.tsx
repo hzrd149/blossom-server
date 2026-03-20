@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import type { Child, FC } from "@hono/hono/jsx";
 
 // Shared inline JS helpers: confirm → fetch → reload for action buttons.

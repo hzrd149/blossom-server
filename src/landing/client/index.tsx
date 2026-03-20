@@ -1,5 +1,4 @@
-/** @jsxImportSource hono/jsx/dom */
-/** @jsxRuntime automatic */
+/** @jsxImportSource @hono/hono/jsx/dom */
 /**
  * Client-side entry point — runs in the browser.
  *
@@ -10,7 +9,7 @@
  * Nostr signing uses NIP-07 window.nostr (browser extension).
  * SHA-256 is computed via WebCrypto (available in all modern browsers).
  */
-import { render } from "hono/jsx/dom";
+import { render } from "@hono/hono/jsx/dom";
 import { App } from "./App.tsx";
 
 const root = document.getElementById("upload-root");

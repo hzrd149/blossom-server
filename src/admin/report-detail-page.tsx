@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
 import {
@@ -134,7 +133,9 @@ export const ReportDetailPage: FC<ReportDetailPageProps> = async (
           </SecondaryButton>
           <DangerButton
             onclick={`adminAction('${deleteBlobUrl}','POST','Delete blob ${
-              truncateHash(report.blob)
+              truncateHash(
+                report.blob,
+              )
             } and dismiss all its reports? This cannot be undone.')`}
           >
             Delete blob + dismiss all

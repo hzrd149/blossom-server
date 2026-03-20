@@ -1,9 +1,8 @@
-/** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 
 /**
  * SSR island mount point for the client-side upload form.
- * Renders a placeholder div that hono/jsx/dom hydrates at runtime.
+ * Renders a placeholder div that @hono/hono/jsx/dom hydrates at runtime.
  * Server config is passed as data-* attributes so the client bundle
  * can read it without a separate API call.
  */

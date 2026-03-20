@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Shared types for the client-side upload + mirror bundle.
-// ---------------------------------------------------------------------------
-
 export type FileStatus =
   | "pending"
   | "hashing"

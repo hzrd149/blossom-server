@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Nostr signing helpers — BUD-11 kind 24242 auth event construction.
-// ---------------------------------------------------------------------------
-
 import type { FileStatus, UploadFile } from "./types.ts";
 import { sha256Hex } from "./helpers.ts";
 

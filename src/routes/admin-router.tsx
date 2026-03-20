@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 /**
  * Admin dashboard router — runs on the main thread with direct database access.
  *

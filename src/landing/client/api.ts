@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Network calls — XHR upload and PUT /mirror.
-// ---------------------------------------------------------------------------
-
 import type { BlobDescriptor } from "./types.ts";
 
 /** XHR-based PUT upload with real upload progress. */

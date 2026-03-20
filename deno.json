@@ -4,8 +4,8 @@
   "exports": "./main.ts",
   "license": "MIT",
   "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
+    "jsx": "precompile",
+    "jsxImportSource": "@hono/hono/jsx",
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
   },
   "tasks": {
@@ -35,10 +35,8 @@
     "nostr-tools": "npm:nostr-tools@^2.23.3",
     "sharp": "npm:sharp@^0.34.5",
     "file-type": "npm:file-type@^19.6.0",
-    "zod": "npm:zod@^4.3.6",
-    "hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
-    "hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime",
-    "hono/jsx/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/jsx-runtime"
+    "zod": "npm:zod@^4.3.6"
   },
-  "allowScripts": ["npm:sharp@0.34.5"]
+  "allowScripts": ["npm:sharp@0.34.5"],
+  "exclude": ["src/landing/client"]
 }

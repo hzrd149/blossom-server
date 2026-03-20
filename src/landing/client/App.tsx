@@ -1,8 +1,4 @@
-// ---------------------------------------------------------------------------
-// App — top-level tab shell that renders UploadForm and/or MirrorForm.
-// ---------------------------------------------------------------------------
-
-import { useEffect, useState } from "hono/jsx/dom";
+import { useEffect, useState } from "@hono/hono/jsx/dom";
 import type { Tab } from "./types.ts";
 import { UploadForm } from "./UploadForm.tsx";
 import { MirrorForm } from "./MirrorForm.tsx";
@@ -35,9 +31,7 @@ export function App({
 
   const tabClass = (tab: Tab) =>
     `px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-      activeTab === tab
-        ? "border-blue-500 text-white"
-        : "border-transparent text-gray-500 hover:text-gray-300"
+      activeTab === tab ? "border-blue-500 text-white" : "border-transparent text-gray-500 hover:text-gray-300"
     }`;
 
   return (
@@ -45,18 +39,10 @@ export function App({
       {/* Tab bar — only rendered when mirror is enabled */}
       {mirrorEnabled && (
         <div class="flex border-b border-gray-800 px-6 pt-4">
-          <button
-            type="button"
-            class={tabClass("upload")}
-            onClick={() => setActiveTab("upload")}
-          >
+          <button type="button" class={tabClass("upload")} onClick={() => setActiveTab("upload")}>
             Upload
           </button>
-          <button
-            type="button"
-            class={tabClass("mirror")}
-            onClick={() => setActiveTab("mirror")}
-          >
+          <button type="button" class={tabClass("mirror")} onClick={() => setActiveTab("mirror")}>
             Mirror
           </button>
         </div>
@@ -72,10 +58,7 @@ export function App({
         />
       )}
       {activeTab === "mirror" && mirrorEnabled && (
-        <MirrorForm
-          requireAuth={mirrorRequireAuth}
-          onQueueChange={setMirrorHasItems}
-        />
+        <MirrorForm requireAuth={mirrorRequireAuth} onQueueChange={setMirrorHasItems} />
       )}
     </div>
   );

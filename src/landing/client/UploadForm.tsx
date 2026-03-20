@@ -1,8 +1,4 @@
-// ---------------------------------------------------------------------------
-// UploadForm — file-picker, upload queue, and concurrent upload orchestration.
-// ---------------------------------------------------------------------------
-
-import { useCallback, useEffect, useRef, useState } from "hono/jsx/dom";
+import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
 import type { FileStatus, UploadFile } from "./types.ts";
 import { xhrUpload } from "./api.ts";
 import { hashBatch, MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
@@ -59,23 +55,18 @@ export function UploadForm({
       prev.map((f) =>
         f.status === "pending"
           ? {
-            ...f,
-            optimize: globalOptimize && mediaEnabled && isMediaFile(f.file),
-          }
-          : f
-      )
+              ...f,
+              optimize: globalOptimize && mediaEnabled && isMediaFile(f.file),
+            }
+          : f,
+      ),
     );
   }, [globalOptimize, mediaEnabled]);
 
-  const removeFile = useCallback(
-    (id: string) => setQueue((prev) => prev.filter((f) => f.id !== id)),
-    [],
-  );
+  const removeFile = useCallback((id: string) => setQueue((prev) => prev.filter((f) => f.id !== id)), []);
 
   const clearDone = useCallback(() => {
-    setQueue((prev) =>
-      prev.filter((f) => f.status !== "done" && f.status !== "error")
-    );
+    setQueue((prev) => prev.filter((f) => f.status !== "done" && f.status !== "error"));
   }, []);
 
   const copyUrl = useCallback((url: string) => {
@@ -118,12 +109,7 @@ export function UploadForm({
           "Content-Type": uf.file.type || "application/octet-stream",
         };
         if (authHeader) headers["Authorization"] = authHeader;
-        const result = await xhrUpload(
-          endpoint,
-          uf.file,
-          headers,
-          (pct) => patchFile(uf.id, { progress: pct }),
-        );
+        const result = await xhrUpload(endpoint, uf.file, headers, (pct) => patchFile(uf.id, { progress: pct }));
         patchFile(uf.id, { status: "done", progress: 100, result });
       } catch (err) {
         patchFile(uf.id, {
@@ -140,9 +126,7 @@ export function UploadForm({
     const pending = currentQueue?.filter((f) => f.status === "pending") ?? [];
     if (pending.length === 0) return;
 
-    const needsAuth = pending.some((
-      f,
-    ) => (f.optimize ? mediaRequireAuth : requireAuth));
+    const needsAuth = pending.some((f) => (f.optimize ? mediaRequireAuth : requireAuth));
 
     if (!needsAuth) {
       const semSlots = Math.max(0, concurrency - (activeCount.current ?? 0));
@@ -172,18 +156,13 @@ export function UploadForm({
     const regularPending = pending.filter((f) => !f.optimize);
     const mediaPending = pending.filter((f) => f.optimize);
 
-    for (
-      const [group, verb, content] of [
-        [regularPending, "upload", "Upload files"] as const,
-        [mediaPending, "media", "Optimize and upload media"] as const,
-      ]
-    ) {
+    for (const [group, verb, content] of [
+      [regularPending, "upload", "Upload files"] as const,
+      [mediaPending, "media", "Optimize and upload media"] as const,
+    ]) {
       if (group.length === 0) continue;
 
-      const hashes = await hashBatch(
-        group,
-        (id, status) => patchFile(id, { status }),
-      );
+      const hashes = await hashBatch(group, (id, status) => patchFile(id, { status }));
 
       for (let i = 0; i < group.length; i += MAX_X_TAGS_PER_EVENT) {
         const batch = group.slice(i, i + MAX_X_TAGS_PER_EVENT);
@@ -221,21 +200,13 @@ export function UploadForm({
 
   const handleUpload = useCallback(() => runQueue(), [runQueue]);
 
-  const isWorking = queue.some((f) =>
-    f.status === "hashing" || f.status === "signing" || f.status === "uploading"
-  );
-  const hasDoneOrError = queue.some((f) =>
-    f.status === "done" || f.status === "error"
-  );
+  const isWorking = queue.some((f) => f.status === "hashing" || f.status === "signing" || f.status === "uploading");
+  const hasDoneOrError = queue.some((f) => f.status === "done" || f.status === "error");
   const hasPending = queue.some((f) => f.status === "pending");
-  const showOptimizeToggle = mediaEnabled &&
-    queue.some((f) => isMediaFile(f.file));
-  const allDone = queue.length > 0 &&
-    queue.every((f) => f.status === "done" || f.status === "error");
+  const showOptimizeToggle = mediaEnabled && queue.some((f) => isMediaFile(f.file));
+  const allDone = queue.length > 0 && queue.every((f) => f.status === "done" || f.status === "error");
   const canUpload = hasPending && !isWorking;
-  const doneUrls = queue.filter((f) => f.status === "done" && f.result).map((
-    f,
-  ) => f.result!.url);
+  const doneUrls = queue.filter((f) => f.status === "done" && f.result).map((f) => f.result!.url);
 
   const copyAllUrls = useCallback(() => {
     navigator.clipboard.writeText(doneUrls.join("\n")).catch(() => {});
@@ -267,8 +238,7 @@ export function UploadForm({
                 class="w-4 h-4 rounded accent-blue-500"
                 checked={globalOptimize}
                 disabled={isWorking}
-                onChange={(e) =>
-                  setGlobalOptimize((e.target as HTMLInputElement).checked)}
+                onChange={(e) => setGlobalOptimize((e.target as HTMLInputElement).checked)}
               />
               <span>
                 Optimize media
@@ -290,43 +260,29 @@ export function UploadForm({
 
       <label
         class={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-          isDragging
-            ? "border-blue-500 bg-blue-950"
-            : "border-gray-700 hover:border-gray-500"
+          isDragging ? "border-blue-500 bg-blue-950" : "border-gray-700 hover:border-gray-500"
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <input
-          type="file"
-          multiple
-          class="sr-only"
-          onChange={handleInputChange}
-        />
-        {queue.length > 0
-          ? <p class="text-sm text-gray-400">Drop more files or click to add</p>
-          : (
-            <div class="space-y-2">
-              <p class="text-gray-300">Drop files here or click to select</p>
-              <p class="text-xs text-gray-500">
-                {requireAuth
-                  ? "Nostr extension required to sign uploads"
-                  : "No auth required"}
-              </p>
-            </div>
-          )}
+        <input type="file" multiple class="sr-only" onChange={handleInputChange} />
+        {queue.length > 0 ? (
+          <p class="text-sm text-gray-400">Drop more files or click to add</p>
+        ) : (
+          <div class="space-y-2">
+            <p class="text-gray-300">Drop files here or click to select</p>
+            <p class="text-xs text-gray-500">
+              {requireAuth ? "Nostr extension required to sign uploads" : "No auth required"}
+            </p>
+          </div>
+        )}
       </label>
 
       {queue.length > 0 && (
         <div class="space-y-2">
           {queue.map((uf) => (
-            <FileRow
-              key={uf.id}
-              uf={uf}
-              onRemove={removeFile}
-              onCopy={copyUrl}
-            />
+            <FileRow key={uf.id} uf={uf} onRemove={removeFile} onCopy={copyUrl} />
           ))}
         </div>
       )}
@@ -345,16 +301,12 @@ export function UploadForm({
           {isWorking
             ? "Uploading…"
             : canUpload
-            ? `Upload ${
-              queue.filter((f) => f.status === "pending").length
-            } file${
-              queue.filter((f) => f.status === "pending").length === 1
-                ? ""
-                : "s"
-            }`
-            : allDone
-            ? "All done"
-            : "Upload"}
+              ? `Upload ${queue.filter((f) => f.status === "pending").length} file${
+                  queue.filter((f) => f.status === "pending").length === 1 ? "" : "s"
+                }`
+              : allDone
+                ? "All done"
+                : "Upload"}
         </button>
       )}
 

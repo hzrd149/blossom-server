@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// MirrorRow — displays a single mirror queue item with status.
-// ---------------------------------------------------------------------------
-
 import type { MirrorItem } from "./types.ts";
 import { MIRROR_STATUS_LABEL, STATUS_COLOR } from "./status.ts";
 
@@ -18,10 +14,7 @@ export function MirrorRow({
   return (
     <div class="bg-gray-800 rounded-lg px-4 py-3 space-y-2 min-w-0">
       <div class="flex items-center gap-2 min-w-0">
-        <span
-          class="flex-1 text-xs text-gray-400 font-mono truncate min-w-0"
-          title={item.displayUrl}
-        >
+        <span class="flex-1 text-xs text-gray-400 font-mono truncate min-w-0" title={item.displayUrl}>
           {item.displayUrl}
         </span>
         {item.status === "pending" && (
@@ -38,18 +31,12 @@ export function MirrorRow({
 
       {item.status !== "pending" && (
         <div class="flex items-center gap-2 min-w-0">
-          <span
-            class={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded ${
-              STATUS_COLOR[item.status]
-            }`}
-          >
+          <span class={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded ${STATUS_COLOR[item.status]}`}>
             {MIRROR_STATUS_LABEL[item.status]}
           </span>
           {item.status === "done" && item.result && (
             <>
-              <span class="flex-1 text-xs text-gray-500 font-mono truncate min-w-0">
-                {item.result.url}
-              </span>
+              <span class="flex-1 text-xs text-gray-500 font-mono truncate min-w-0">{item.result.url}</span>
               <button
                 type="button"
                 class="shrink-0 text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-2 py-0.5 rounded whitespace-nowrap"
@@ -60,9 +47,7 @@ export function MirrorRow({
             </>
           )}
           {item.status === "error" && item.error && (
-            <span class="flex-1 text-xs text-red-400 min-w-0 break-words">
-              {item.error}
-            </span>
+            <span class="flex-1 text-xs text-red-400 min-w-0 break-words">{item.error}</span>
           )}
         </div>
       )}

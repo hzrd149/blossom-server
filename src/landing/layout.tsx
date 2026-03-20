@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import type { Child, FC } from "@hono/hono/jsx";
 
 export const Layout: FC<{ title: string; children?: Child }> = (

@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 import type { BlobStats } from "../db/blobs.ts";
 

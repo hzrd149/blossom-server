@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// Status display constants shared by FileRow and MirrorRow.
-// ---------------------------------------------------------------------------
-
 import type { FileStatus, MirrorStatus } from "./types.ts";
 
 export const FILE_STATUS_LABEL: Record<FileStatus, string> = {

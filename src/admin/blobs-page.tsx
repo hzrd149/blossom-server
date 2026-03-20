@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
 import type { Config } from "../config/schema.ts";
@@ -174,7 +173,9 @@ export const BlobsPage: FC<BlobsPageProps> = async (
                           </a>
                           <DangerButton
                             onclick={`adminAction('${deleteUrl}','DELETE','Delete blob ${
-                              truncateHash(blob.sha256)
+                              truncateHash(
+                                blob.sha256,
+                              )
                             }? This cannot be undone.')`}
                           >
                             Delete

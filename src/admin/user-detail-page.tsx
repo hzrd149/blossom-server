@@ -1,4 +1,3 @@
-/** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
 import type { BlobRecord } from "../db/handle.ts";

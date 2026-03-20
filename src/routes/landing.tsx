@@ -1,5 +1,3 @@
-/** @jsxImportSource hono/jsx */
-
 /**
  * Landing page router — runs on the main thread.
  *
