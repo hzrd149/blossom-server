@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@hono/hono/jsx/dom",
+    "lib": ["dom", "dom.iterable", "esnext"]
+  },
+  "imports": {
+    "@hono/hono": "jsr:@hono/hono@^4.12.7",
+    "@hono/hono/jsx/dom": "jsr:@hono/hono@^4.12.7/jsx/dom",
+    "@hono/hono/jsx/dom/jsx-runtime": "jsr:@hono/hono@^4.12.7/jsx/dom/jsx-runtime"
+  }
+}

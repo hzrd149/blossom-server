@@ -54,6 +54,7 @@ async function buildClientBundle(): Promise<string> {
 
   const result = await bundleFn({
     entrypoints: ["./src/landing/client/index.tsx"],
+    config: "./src/landing/client/deno.json",
     platform: "browser",
     minify: true,
     write: false,

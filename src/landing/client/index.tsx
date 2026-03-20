@@ -1,4 +1,3 @@
-/** @jsxImportSource @hono/hono/jsx/dom */
 /**
  * Client-side entry point — runs in the browser.
  *
