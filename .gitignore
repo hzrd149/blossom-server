@@ -6,3 +6,4 @@ database.json
 config.yml
 dist
 .netrc
+public/client.js
