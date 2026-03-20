@@ -112,7 +112,6 @@ directory). Environment variables can be substituted anywhere in the file using
 | `list.allowListOthers`       | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
 | `media.enabled`              | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
 | `report.enabled`             | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
-| `report.requireAuth`         | `false`          | Require Nostr auth to submit a report                                                                                  |
 | `landing.enabled`            | `true`           | Enable the landing page at `/`                                                                                         |
 | `landing.title`              | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
 | `dashboard.enabled`          | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
@@ -231,9 +230,9 @@ Example event (before signing):
 
 ### Report Endpoint (BUD-09)
 
-| Method | Path      | Auth       | Description                                                               |
-| ------ | --------- | ---------- | ------------------------------------------------------------------------- |
-| `PUT`  | `/report` | Optional\* | Submit a NIP-56 kind:1984 Nostr event to flag a blob for operator review. |
+| Method | Path      | Auth | Description                                                               |
+| ------ | --------- | ---- | ------------------------------------------------------------------------- |
+| `PUT`  | `/report` | None | Submit a NIP-56 kind:1984 Nostr event to flag a blob for operator review. |
 
 _\* Auth requirement is configurable per-endpoint via `requireAuth` in the
 config._
