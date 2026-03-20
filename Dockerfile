@@ -28,12 +28,12 @@ COPY src/ ./src/
 # Warm the Deno module cache so first startup is instant.
 #
 # Step 1: deno cache downloads all JSR/npm module sources declared in deno.json.
-# Step 2: deno run forces @libsql/client to fetch its platform-specific native
-#         binary (.so) — the binary is downloaded lazily on first FFI load, so
-#         deno cache alone does not capture it.
-RUN deno cache --unstable-bundle main.ts && \
-    deno run --allow-ffi --allow-env --allow-read --allow-sys \
-      "data:application/typescript,import 'npm:@libsql/client';"
+#
+# Note: @libsql/client's native binary is NOT pre-fetched here — attempting to
+# load FFI bindings under QEMU emulation (ARM64 builds on amd64 runners) causes
+# illegal instruction crashes. The .so binary will be fetched automatically on
+# first use at container runtime, which runs natively on the target architecture.
+RUN deno cache --unstable-bundle main.ts
 
 # Data volume — SQLite DB and blob storage. Mounted at runtime.
 VOLUME ["/app/data"]
