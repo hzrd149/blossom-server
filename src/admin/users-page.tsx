@@ -7,11 +7,11 @@ import {
   EmptyState,
   PageHeader,
   Pagination,
+  Table,
   Tbody,
   Td,
   Th,
   Thead,
-  Table,
   truncateHash,
 } from "./layout.tsx";
 
@@ -32,11 +32,18 @@ export const UsersPage: FC<UsersPageProps> = async ({ db, page, q }) => {
     db.countUsers(filter),
   ]);
 
-  const baseUrl = q ? `/admin/users?q=${encodeURIComponent(q)}` : "/admin/users";
+  const baseUrl = q
+    ? `/admin/users?q=${encodeURIComponent(q)}`
+    : "/admin/users";
 
   return (
     <AdminLayout title="Users" section="users">
-      <PageHeader title="Users" subtitle={`${total.toLocaleString()} distinct pubkey${total !== 1 ? "s" : ""}`} />
+      <PageHeader
+        title="Users"
+        subtitle={`${total.toLocaleString()} distinct pubkey${
+          total !== 1 ? "s" : ""
+        }`}
+      />
 
       {/* Search form */}
       <form method="get" action="/admin/users" class="mb-4 flex gap-2">
@@ -63,50 +70,65 @@ export const UsersPage: FC<UsersPageProps> = async ({ db, page, q }) => {
         )}
       </form>
 
-      {users.length === 0 ? (
-        <EmptyState message={q ? `No users matching "${q}"` : "No users yet."} />
-      ) : (
-        <>
-          <Table>
-            <Thead>
-              <tr>
-                <Th>Pubkey</Th>
-                <Th>Blobs</Th>
-                <Th>Total Size</Th>
-                <Th>Actions</Th>
-              </tr>
-            </Thead>
-            <Tbody>
-              {users.map((user) => {
-                const blobCount = user.blobs.length;
-                return (
-                  <tr key={user.pubkey} class="hover:bg-gray-900 transition-colors">
-                    <Td mono>
-                      <span title={user.pubkey} class="text-gray-200">
-                        {truncateHash(user.pubkey)}
-                      </span>
-                      <span class="ml-2 text-gray-600 text-xs select-all hidden group-hover:inline">{user.pubkey}</span>
-                    </Td>
-                    <Td>
-                      <Badge>{blobCount}</Badge>
-                    </Td>
-                    <Td>—</Td>
-                    <Td>
-                      <a
-                        href={`/admin/blobs?q=${encodeURIComponent(user.pubkey)}`}
-                        class="text-xs text-purple-400 hover:text-purple-300 hover:underline"
-                      >
-                        View blobs →
-                      </a>
-                    </Td>
-                  </tr>
-                );
-              })}
-            </Tbody>
-          </Table>
-          <Pagination page={page} total={total} pageSize={PAGE_SIZE} baseUrl={baseUrl} />
-        </>
-      )}
+      {users.length === 0
+        ? (
+          <EmptyState
+            message={q ? `No users matching "${q}"` : "No users yet."}
+          />
+        )
+        : (
+          <>
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>Pubkey</Th>
+                  <Th>Blobs</Th>
+                  <Th>Total Size</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {users.map((user) => {
+                  const blobCount = user.blobs.length;
+                  return (
+                    <tr
+                      key={user.pubkey}
+                      class="hover:bg-gray-900 transition-colors"
+                    >
+                      <Td mono>
+                        <a
+                          href={`/admin/users/${user.pubkey}`}
+                          title={user.pubkey}
+                          class="text-purple-400 hover:text-purple-300 hover:underline"
+                        >
+                          {truncateHash(user.pubkey)}
+                        </a>
+                      </Td>
+                      <Td>
+                        <Badge>{blobCount}</Badge>
+                      </Td>
+                      <Td>—</Td>
+                      <Td>
+                        <a
+                          href={`/admin/users/${user.pubkey}`}
+                          class="text-xs text-purple-400 hover:text-purple-300 hover:underline"
+                        >
+                          View →
+                        </a>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </Tbody>
+            </Table>
+            <Pagination
+              page={page}
+              total={total}
+              pageSize={PAGE_SIZE}
+              baseUrl={baseUrl}
+            />
+          </>
+        )}
     </AdminLayout>
   );
 };

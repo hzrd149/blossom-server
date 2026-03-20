@@ -11,7 +11,12 @@
 
 import type { DbRequest, DbResponse } from "./bridge.ts";
 import type { IDbHandle } from "./handle.ts";
-import type { BlobRecord, BlobStats, AdminBlobRecord, AdminUserRecord } from "./blobs.ts";
+import type {
+  AdminBlobRecord,
+  AdminUserRecord,
+  BlobRecord,
+  BlobStats,
+} from "./blobs.ts";
 import type { ReportRecord } from "./reports.ts";
 
 interface PendingRequest {
@@ -77,7 +82,9 @@ export class DbProxy implements IDbHandle {
   // Admin blob ops
   // ---------------------------------------------------------------------------
 
-  listAllBlobs(opts?: Parameters<IDbHandle["listAllBlobs"]>[0]): Promise<AdminBlobRecord[]> {
+  listAllBlobs(
+    opts?: Parameters<IDbHandle["listAllBlobs"]>[0],
+  ): Promise<AdminBlobRecord[]> {
     return this.call<AdminBlobRecord[]>("listAllBlobs", [opts]);
   }
 
@@ -85,7 +92,9 @@ export class DbProxy implements IDbHandle {
     return this.call<number>("countBlobs", [filter]);
   }
 
-  listAllUsers(opts?: Parameters<IDbHandle["listAllUsers"]>[0]): Promise<AdminUserRecord[]> {
+  listAllUsers(
+    opts?: Parameters<IDbHandle["listAllUsers"]>[0],
+  ): Promise<AdminUserRecord[]> {
     return this.call<AdminUserRecord[]>("listAllUsers", [opts]);
   }
 
@@ -97,15 +106,33 @@ export class DbProxy implements IDbHandle {
     return this.call<boolean>("deleteBlob", [sha256]);
   }
 
+  listBlobsByPubkeyAdmin(
+    pubkey: string,
+    opts?: { limit?: number; offset?: number },
+  ): Promise<import("./blobs.ts").BlobRecord[]> {
+    return this.call<import("./blobs.ts").BlobRecord[]>(
+      "listBlobsByPubkeyAdmin",
+      [pubkey, opts ?? {}],
+    );
+  }
+
+  countBlobsByPubkey(pubkey: string): Promise<number> {
+    return this.call<number>("countBlobsByPubkey", [pubkey]);
+  }
+
   // ---------------------------------------------------------------------------
   // Admin report ops
   // ---------------------------------------------------------------------------
 
-  listAllReports(opts?: Parameters<IDbHandle["listAllReports"]>[0]): Promise<ReportRecord[]> {
+  listAllReports(
+    opts?: Parameters<IDbHandle["listAllReports"]>[0],
+  ): Promise<ReportRecord[]> {
     return this.call<ReportRecord[]>("listAllReports", [opts]);
   }
 
-  countReports(filter?: Parameters<IDbHandle["countReports"]>[0]): Promise<number> {
+  countReports(
+    filter?: Parameters<IDbHandle["countReports"]>[0],
+  ): Promise<number> {
     return this.call<number>("countReports", [filter]);
   }
 

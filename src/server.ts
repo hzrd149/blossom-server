@@ -20,7 +20,7 @@ import { buildMediaRouter } from "./routes/media.ts";
 import { buildDeleteRouter } from "./routes/delete.ts";
 import { buildListRouter } from "./routes/list.ts";
 import { buildLandingRouter } from "./routes/landing.ts";
-import { buildAdminRouter } from "./routes/admin-router.ts";
+import { buildAdminRouter } from "./routes/admin-router.tsx";
 import { buildReportRouter } from "./routes/report.ts";
 
 export function buildApp(
@@ -28,7 +28,6 @@ export function buildApp(
   storage: IBlobStorage,
   config: Config,
   landingWorker?: Worker,
-  adminWorker?: Worker,
 ): Hono {
   const app = new Hono();
 
@@ -66,9 +65,9 @@ export function buildApp(
 
   // Admin dashboard — server-rendered Hono JSX (disabled by default).
   // Mounted before blob routes so /admin/* is claimed before /:sha256[.ext].
-  // All SSR rendering, Basic Auth, and action endpoints live in the admin worker.
-  if (config.dashboard.enabled && adminWorker) {
-    app.route("/", buildAdminRouter(adminWorker));
+  // Runs on the main thread with direct database access — no Worker needed.
+  if (config.dashboard.enabled) {
+    app.route("/", buildAdminRouter(db, storage, config));
   }
 
   // BUD-09: PUT /report — blob reports (enabled by default, gated by config.report.enabled)

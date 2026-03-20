@@ -14,6 +14,7 @@ import type { Client } from "@libsql/client";
 import {
   type BlobRecord,
   countBlobs,
+  countBlobsByPubkey,
   countUsers,
   deleteBlob,
   getBlob,
@@ -23,8 +24,15 @@ import {
   isOwner,
   listAllBlobs,
   listAllUsers,
+  listBlobsByPubkeyAdmin,
 } from "./blobs.ts";
-import { countReports, deleteReport, deleteReportsByBlob, getReport, listAllReports } from "./reports.ts";
+import {
+  countReports,
+  deleteReport,
+  deleteReportsByBlob,
+  getReport,
+  listAllReports,
+} from "./reports.ts";
 
 // ---------------------------------------------------------------------------
 // Wire types (structured-cloned over MessageChannel)
@@ -34,47 +42,53 @@ export type DbRequest =
   | { reqId: number; op: "hasBlob"; args: [sha256: string] }
   | { reqId: number; op: "getBlob"; args: [sha256: string] }
   | {
-      reqId: number;
-      op: "insertBlob";
-      args: [blob: BlobRecord, uploaderPubkey: string];
-    }
+    reqId: number;
+    op: "insertBlob";
+    args: [blob: BlobRecord, uploaderPubkey: string];
+  }
   | { reqId: number; op: "isOwner"; args: [sha256: string, pubkey: string] }
   | { reqId: number; op: "getStats"; args: [] }
   // ── Admin ops ──────────────────────────────────────────────────────────────
   | {
-      reqId: number;
-      op: "listAllBlobs";
-      args: [opts: Parameters<typeof listAllBlobs>[1]];
-    }
+    reqId: number;
+    op: "listAllBlobs";
+    args: [opts: Parameters<typeof listAllBlobs>[1]];
+  }
   | {
-      reqId: number;
-      op: "countBlobs";
-      args: [filter: Parameters<typeof countBlobs>[1]];
-    }
+    reqId: number;
+    op: "countBlobs";
+    args: [filter: Parameters<typeof countBlobs>[1]];
+  }
   | {
-      reqId: number;
-      op: "listAllUsers";
-      args: [opts: Parameters<typeof listAllUsers>[1]];
-    }
+    reqId: number;
+    op: "listAllUsers";
+    args: [opts: Parameters<typeof listAllUsers>[1]];
+  }
   | {
-      reqId: number;
-      op: "countUsers";
-      args: [filter: Parameters<typeof countUsers>[1]];
-    }
+    reqId: number;
+    op: "countUsers";
+    args: [filter: Parameters<typeof countUsers>[1]];
+  }
   | {
-      reqId: number;
-      op: "listAllReports";
-      args: [opts: Parameters<typeof listAllReports>[1]];
-    }
+    reqId: number;
+    op: "listAllReports";
+    args: [opts: Parameters<typeof listAllReports>[1]];
+  }
   | {
-      reqId: number;
-      op: "countReports";
-      args: [filter: Parameters<typeof countReports>[1]];
-    }
+    reqId: number;
+    op: "countReports";
+    args: [filter: Parameters<typeof countReports>[1]];
+  }
   | { reqId: number; op: "getReport"; args: [id: number] }
   | { reqId: number; op: "deleteBlob"; args: [sha256: string] }
   | { reqId: number; op: "deleteReport"; args: [id: number] }
-  | { reqId: number; op: "deleteReportsByBlob"; args: [blob: string] };
+  | { reqId: number; op: "deleteReportsByBlob"; args: [blob: string] }
+  | {
+    reqId: number;
+    op: "listBlobsByPubkeyAdmin";
+    args: [pubkey: string, opts: { limit?: number; offset?: number }];
+  }
+  | { reqId: number; op: "countBlobsByPubkey"; args: [pubkey: string] };
 
 export interface DbResponse {
   reqId: number;
@@ -164,24 +178,36 @@ export function installDbBridge(db: Client, port: MessagePort): void {
           result = await deleteReportsByBlob(db, msg.args[0]);
           break;
 
+        case "listBlobsByPubkeyAdmin":
+          result = await listBlobsByPubkeyAdmin(db, msg.args[0], msg.args[1]);
+          break;
+
+        case "countBlobsByPubkey":
+          result = await countBlobsByPubkey(db, msg.args[0]);
+          break;
+
         default: {
           // Exhaustive check: if a new op is added to DbRequest but not
           // handled above, TypeScript makes this a compile error.
           const _exhaustive: never = msg;
-          port.postMessage({
-            reqId: (_exhaustive as DbRequest).reqId,
-            error: `Unknown DB op`,
-          } satisfies DbResponse);
+          port.postMessage(
+            {
+              reqId: (_exhaustive as DbRequest).reqId,
+              error: `Unknown DB op`,
+            } satisfies DbResponse,
+          );
           return;
         }
       }
 
       port.postMessage({ reqId: msg.reqId, result } satisfies DbResponse);
     } catch (err) {
-      port.postMessage({
-        reqId: msg.reqId,
-        error: err instanceof Error ? err.message : String(err),
-      } satisfies DbResponse);
+      port.postMessage(
+        {
+          reqId: msg.reqId,
+          error: err instanceof Error ? err.message : String(err),
+        } satisfies DbResponse,
+      );
     }
   };
 }

@@ -9,7 +9,10 @@
 
 import type { Client } from "@libsql/client";
 import {
+  type AdminBlobRecord,
+  type AdminUserRecord,
   countBlobs,
+  countBlobsByPubkey,
   countUsers,
   deleteBlob,
   getBlob,
@@ -19,8 +22,7 @@ import {
   isOwner,
   listAllBlobs,
   listAllUsers,
-  type AdminBlobRecord,
-  type AdminUserRecord,
+  listBlobsByPubkeyAdmin,
 } from "./blobs.ts";
 import {
   countReports,
@@ -60,7 +62,9 @@ export class DirectDbHandle implements IDbHandle {
 
   // ── Admin blob ops ─────────────────────────────────────────────────────────
 
-  listAllBlobs(opts?: Parameters<IDbHandle["listAllBlobs"]>[0]): Promise<AdminBlobRecord[]> {
+  listAllBlobs(
+    opts?: Parameters<IDbHandle["listAllBlobs"]>[0],
+  ): Promise<AdminBlobRecord[]> {
     return listAllBlobs(this.client, opts);
   }
 
@@ -68,7 +72,9 @@ export class DirectDbHandle implements IDbHandle {
     return countBlobs(this.client, filter);
   }
 
-  listAllUsers(opts?: Parameters<IDbHandle["listAllUsers"]>[0]): Promise<AdminUserRecord[]> {
+  listAllUsers(
+    opts?: Parameters<IDbHandle["listAllUsers"]>[0],
+  ): Promise<AdminUserRecord[]> {
     return listAllUsers(this.client, opts);
   }
 
@@ -80,13 +86,28 @@ export class DirectDbHandle implements IDbHandle {
     return deleteBlob(this.client, sha256);
   }
 
+  listBlobsByPubkeyAdmin(
+    pubkey: string,
+    opts?: { limit?: number; offset?: number },
+  ): Promise<import("./blobs.ts").BlobRecord[]> {
+    return listBlobsByPubkeyAdmin(this.client, pubkey, opts ?? {});
+  }
+
+  countBlobsByPubkey(pubkey: string): Promise<number> {
+    return countBlobsByPubkey(this.client, pubkey);
+  }
+
   // ── Admin report ops ───────────────────────────────────────────────────────
 
-  listAllReports(opts?: Parameters<IDbHandle["listAllReports"]>[0]): Promise<ReportRecord[]> {
+  listAllReports(
+    opts?: Parameters<IDbHandle["listAllReports"]>[0],
+  ): Promise<ReportRecord[]> {
     return listAllReports(this.client, opts);
   }
 
-  countReports(filter?: Parameters<IDbHandle["countReports"]>[0]): Promise<number> {
+  countReports(
+    filter?: Parameters<IDbHandle["countReports"]>[0],
+  ): Promise<number> {
     return countReports(this.client, filter);
   }
 

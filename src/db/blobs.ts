@@ -44,21 +44,24 @@ export async function insertBlob(
   blob: BlobRecord,
   uploaderPubkey: string,
 ): Promise<void> {
-  await db.batch([
-    {
-      sql:
-        `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded) VALUES (?, ?, ?, ?)`,
-      args: [blob.sha256, blob.size, blob.type, blob.uploaded],
-    },
-    {
-      sql: `INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)`,
-      args: [blob.sha256, uploaderPubkey],
-    },
-    {
-      sql: `INSERT OR REPLACE INTO accessed (blob, timestamp) VALUES (?, ?)`,
-      args: [blob.sha256, blob.uploaded],
-    },
-  ], "write");
+  await db.batch(
+    [
+      {
+        sql:
+          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded) VALUES (?, ?, ?, ?)`,
+        args: [blob.sha256, blob.size, blob.type, blob.uploaded],
+      },
+      {
+        sql: `INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)`,
+        args: [blob.sha256, uploaderPubkey],
+      },
+      {
+        sql: `INSERT OR REPLACE INTO accessed (blob, timestamp) VALUES (?, ?)`,
+        args: [blob.sha256, blob.uploaded],
+      },
+    ],
+    "write",
+  );
 }
 
 export async function deleteBlob(db: Client, sha256: string): Promise<boolean> {
@@ -488,6 +491,48 @@ export async function countUsers(
   const rs = await db.execute({
     sql: `SELECT COUNT(DISTINCT pubkey) FROM owners ${where}`,
     args,
+  });
+  return (rs.rows[0]?.[0] as number) ?? 0;
+}
+
+/**
+ * List blobs owned by a pubkey with offset-based pagination, sorted by upload date desc.
+ * Used by the admin user detail page (unlike listBlobsByPubkey which uses cursor pagination).
+ */
+export async function listBlobsByPubkeyAdmin(
+  db: Client,
+  pubkey: string,
+  opts: { limit?: number; offset?: number } = {},
+): Promise<BlobRecord[]> {
+  const limit = opts.limit ?? 50;
+  const offset = opts.offset ?? 0;
+
+  const rs = await db.execute({
+    sql: `SELECT b.sha256, b.size, b.type, b.uploaded
+          FROM blobs b
+          JOIN owners o ON o.blob = b.sha256
+          WHERE o.pubkey = ?
+          ORDER BY b.uploaded DESC, b.sha256 ASC
+          LIMIT ? OFFSET ?`,
+    args: [pubkey, limit, offset],
+  });
+
+  return rs.rows.map((row) => ({
+    sha256: row[0] as string,
+    size: row[1] as number,
+    type: row[2] as string | null,
+    uploaded: row[3] as number,
+  }));
+}
+
+/** Count blobs owned by a specific pubkey. Used by the admin user detail page. */
+export async function countBlobsByPubkey(
+  db: Client,
+  pubkey: string,
+): Promise<number> {
+  const rs = await db.execute({
+    sql: "SELECT COUNT(*) FROM owners WHERE pubkey = ?",
+    args: [pubkey],
   });
   return (rs.rows[0]?.[0] as number) ?? 0;
 }
