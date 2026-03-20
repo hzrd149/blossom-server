@@ -36,12 +36,18 @@ import { UserDetailPage } from "../admin/user-detail-page.tsx";
 import { RulesPage } from "../admin/rules-page.tsx";
 import { ReportsPage } from "../admin/reports-page.tsx";
 import { ReportDetailPage } from "../admin/report-detail-page.tsx";
+import { lookupRelays$ } from "../admin/nostr-profile.ts";
 
 export function buildAdminRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
 ): Hono {
+  // Push the configured relay list into the subject — the event loader will
+  // immediately start using these relays. Can be updated later by calling
+  // lookupRelays$.next(newRelays) from anywhere that imports this module.
+  lookupRelays$.next(config.dashboard.lookupRelays);
+
   const dbHandle = new DirectDbHandle(db);
   const app = new Hono();
 

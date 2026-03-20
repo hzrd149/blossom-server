@@ -1,7 +1,9 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
+import type { BlobRecord } from "../db/handle.ts";
 import { nip19 } from "nostr-tools";
+import { fetchUserProfile } from "./nostr-profile.ts";
 import {
   AdminLayout,
   Badge,
@@ -53,9 +55,13 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
 
   const offset = (page - 1) * PAGE_SIZE;
 
-  const [blobs, total] = await Promise.all([
+  // Fetch DB data and Nostr profile metadata in parallel.
+  // fetchUserProfile has its own 4 s timeout — a slow relay never blocks
+  // the page render beyond that, and null is the graceful-degradation value.
+  const [blobs, total, profile] = await Promise.all([
     db.listBlobsByPubkeyAdmin(pubkey, { limit: PAGE_SIZE, offset }),
     db.countBlobsByPubkey(pubkey),
+    fetchUserProfile(pubkey),
   ]);
 
   if (total === 0 && page === 1) {
@@ -79,7 +85,10 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
   }
 
   // Compute total size across all blobs on this page (approximation — full total would need a separate SUM query)
-  const pageSize = blobs.reduce((acc, b) => acc + b.size, 0);
+  const pageSize = blobs.reduce(
+    (acc: number, b: BlobRecord) => acc + b.size,
+    0,
+  );
 
   let npub = "";
   try {
@@ -90,6 +99,9 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
 
   const deleteAllUrl = `/admin/api/users/${pubkey}`;
   const baseUrl = `/admin/users/${pubkey}`;
+
+  // Resolved display name — prefer display_name, fall back to name.
+  const displayName = profile?.display_name || profile?.name || null;
 
   return (
     <AdminLayout title={`User ${truncateHash(pubkey)}`} section="users">
@@ -103,7 +115,7 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
       </div>
 
       <PageHeader
-        title={`User ${truncateHash(pubkey)}`}
+        title={displayName ?? `User ${truncateHash(pubkey)}`}
         subtitle={`${total.toLocaleString()} blob${total !== 1 ? "s" : ""}`}
       />
 
@@ -112,6 +124,43 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
         <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">
           Identity
         </h2>
+
+        {/* Profile header — avatar + name + nip05, only when metadata available */}
+        {profile && (
+          <div class="flex items-center gap-4 pb-2 border-b border-gray-800">
+            {profile.picture && (
+              <img
+                src={profile.picture}
+                alt={displayName ?? pubkey}
+                width="48"
+                height="48"
+                class="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-gray-800"
+                loading="lazy"
+              />
+            )}
+            <div class="min-w-0">
+              {displayName && (
+                <p class="text-base font-semibold text-gray-100 truncate">
+                  {displayName}
+                </p>
+              )}
+              {profile.nip05 && (
+                <p class="text-xs text-purple-400 font-mono truncate">
+                  {profile.nip05}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* About / bio */}
+        {profile?.about && (
+          <p class="text-sm text-gray-400 italic leading-relaxed line-clamp-3">
+            {profile.about.length > 280
+              ? profile.about.slice(0, 280) + "…"
+              : profile.about}
+          </p>
+        )}
 
         <dl class="space-y-3">
           <div>
@@ -176,7 +225,7 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
               </tr>
             </Thead>
             <Tbody>
-              {blobs.map((blob) => (
+              {blobs.map((blob: BlobRecord) => (
                 <tr
                   key={blob.sha256}
                   class="hover:bg-gray-900 transition-colors"

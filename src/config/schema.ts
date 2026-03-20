@@ -435,6 +435,18 @@ const DashboardSchema = z.object({
     .describe(
       "HTTP Basic Auth password. If blank, a random password is generated on startup and logged to stdout.",
     ),
+  lookupRelays: z
+    .array(z.string().url())
+    .default([
+      "wss://purplepag.es",
+      "wss://index.hzrd149.com",
+      "wss://indexer.coracle.social",
+    ])
+    .describe(
+      "Nostr relay URLs used to look up kind:0 profile metadata for pubkeys displayed in the admin dashboard. " +
+        "purplepag.es is a NIP-65 outbox directory; index.hzrd149.com is a broad aggregation relay. " +
+        "Set to [] to disable profile metadata lookup entirely.",
+    ),
 });
 
 const PruneSchema = z.object({

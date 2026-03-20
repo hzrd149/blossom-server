@@ -15,7 +15,6 @@ import { requestLogger } from "./middleware/logger.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
 import { buildLandingRouter } from "./routes/landing.tsx";
-import { buildAdminRouter } from "./routes/admin-router.tsx";
 
 export async function buildApp(
   db: Client,
@@ -60,9 +59,10 @@ export async function buildApp(
   }
 
   // Admin dashboard — server-rendered Hono JSX, HTTP Basic Auth protected.
-  // Has its own error handling (basicAuth throws HTTPException with a pre-built
-  // Response carrying WWW-Authenticate; the global onError preserves it).
+  // Dynamically imported so nostr-profile.ts (EventStore, RelayPool, loader)
+  // is only initialised when the dashboard is actually enabled.
   if (config.dashboard.enabled) {
+    const { buildAdminRouter } = await import("./routes/admin-router.tsx");
     app.route("/admin", buildAdminRouter(db, storage, config));
   }
 
