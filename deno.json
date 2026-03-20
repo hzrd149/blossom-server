@@ -2,6 +2,7 @@
   "name": "@hzrd149/blossom-server",
   "version": "6.0.0",
   "exports": "./main.ts",
+  "license": "MIT",
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
