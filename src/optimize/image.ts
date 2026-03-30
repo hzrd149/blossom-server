@@ -24,9 +24,9 @@ export async function optimizeImage(
     suffix: `.${opts.outputFormat}`,
   });
 
-  let pipeline = sharp(inputPath);
+  // rotate() normalizes orientation so we can safely strip EXIF
+  let pipeline = sharp(inputPath).rotate();
 
-  // Strip EXIF unless keepExif is true
   if (opts.keepExif) {
     pipeline = pipeline.withMetadata();
   } else {
@@ -78,7 +78,7 @@ export async function optimizeGif(
   });
 
   // animated: true preserves all frames
-  let pipeline = sharp(inputPath, { animated: true });
+  let pipeline = sharp(inputPath, { animated: true }).rotate();
 
   if (opts.keepExif) {
     pipeline = pipeline.withMetadata();

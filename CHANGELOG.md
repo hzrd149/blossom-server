@@ -1,5 +1,11 @@
 # blossom-server
 
+## 6.0.2
+
+### Patch Changes
+
+ - Correct image rotation in optimization method
+
 ## 6.0.0
 
 Complete rewrite of the server in Deno.
