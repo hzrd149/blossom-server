@@ -33,7 +33,7 @@ import type { BlossomVariables } from "../../src/middleware/auth.ts";
 // ---------------------------------------------------------------------------
 
 const sk = generateSecretKey();
-const _pk = getPublicKey(sk);
+const pk = getPublicKey(sk);
 
 /** Compute SHA-256 of bytes and return lowercase hex. */
 async function sha256Hex(data: Uint8Array): Promise<string> {
@@ -139,10 +139,38 @@ function fetchNoAuth(path: string, init?: RequestInit): Promise<Response> {
   );
 }
 
+function fetchNoAuthAtOrigin(
+  origin: string,
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  return Promise.resolve(
+    appNoAuth.fetch(new Request(`${origin}${path}`, init)),
+  );
+}
+
 /** Convenience wrapper: send a request to the auth-required app. */
 function fetchWithAuth(path: string, init?: RequestInit): Promise<Response> {
   return Promise.resolve(
     appWithAuth.fetch(new Request(`http://localhost${path}`, init)),
+  );
+}
+
+function assertBlobUrl(
+  actualUrl: string,
+  expected: {
+    protocol: string;
+    host: string;
+    hash: string;
+    ext?: string;
+  },
+): void {
+  const url = new URL(actualUrl);
+  assertEquals(url.protocol, expected.protocol);
+  assertEquals(url.host, expected.host);
+  assertEquals(
+    url.pathname,
+    `/${expected.hash}${expected.ext ? `.${expected.ext}` : ""}`,
   );
 }
 
@@ -301,8 +329,39 @@ Deno.test({
     assertEquals(json.sha256, expectedHash);
     assertEquals(json.size, body.byteLength);
     assertEquals(json.type, "text/plain");
-    assertMatch(json.url, /https:\/\/localhost\//);
-    assertMatch(json.url, new RegExp(expectedHash));
+    assertBlobUrl(json.url, {
+      protocol: "http:",
+      host: "localhost",
+      hash: expectedHash,
+      ext: "txt",
+    });
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: https request returns descriptor URL with https scheme",
+  async fn() {
+    const body = new TextEncoder().encode("hello over https");
+    const expectedHash = await sha256Hex(body);
+
+    const res = await fetchNoAuthAtOrigin("https://localhost", "/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": String(body.byteLength),
+        "Content-Type": "text/plain",
+      },
+      body,
+    });
+    assertEquals(res.status, 200);
+
+    const json = await res.json();
+    assertBlobUrl(json.url, {
+      protocol: "https:",
+      host: "localhost",
+      hash: expectedHash,
+      ext: "txt",
+    });
   },
   ...testOpts,
 });
@@ -513,6 +572,56 @@ Deno.test({
     assertEquals(json1.sha256, json2.sha256);
     assertEquals(json1.url, json2.url);
     assertEquals(json1.size, json2.size);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "GET /list/:pubkey returns full valid blob URLs using request scheme",
+  async fn() {
+    const listDb = await initDb({ path: join(tmpDir, "list-url-test.db") });
+    const listStorage = new LocalStorage(join(tmpDir, "blobs-list-url-test"));
+    await listStorage.setup();
+    const listConfig = ConfigSchema.parse({
+      publicDomain: "cdn.example.com",
+      upload: { requireAuth: true, enabled: true },
+      list: { enabled: true, requireAuth: false, allowListOthers: true },
+    });
+    const listApp = await buildApp(listDb, listStorage, listConfig);
+
+    const body = new TextEncoder().encode("list url coverage");
+    const hash = await sha256Hex(body);
+    const auth = makeUploadAuth({});
+
+    const uploadRes = await listApp.fetch(
+      new Request("https://localhost/upload", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(body.byteLength),
+          "Content-Type": "text/plain",
+          Authorization: encodeAuth(auth),
+        },
+        body,
+      }),
+    );
+    assertEquals(uploadRes.status, 200);
+
+    const listRes = await listApp.fetch(
+      new Request(`https://localhost/list/${pk}`),
+    );
+    assertEquals(listRes.status, 200);
+
+    const descriptors = await listRes.json();
+    assertEquals(descriptors.length, 1);
+    assertEquals(descriptors[0].sha256, hash);
+    assertBlobUrl(descriptors[0].url, {
+      protocol: "https:",
+      host: "cdn.example.com",
+      hash,
+      ext: "txt",
+    });
+
+    listDb.close();
   },
   ...testOpts,
 });

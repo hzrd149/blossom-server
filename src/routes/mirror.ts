@@ -43,6 +43,7 @@ import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
+import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 
 // ---------------------------------------------------------------------------
@@ -102,29 +103,6 @@ function checkSsrf(hostname: string): string | null {
     return `Mirror URL points to a loopback IPv6 address: ${hostname}`;
   }
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getBlobUrl(
-  hash: string,
-  mimeType: string | null,
-  baseUrl: string,
-): string {
-  const ext = mimeToExt(mimeType);
-  return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
-}
-
-function getBaseUrl(request: Request, publicDomain: string): string {
-  if (publicDomain) {
-    // publicDomain is a bare hostname (e.g. "cdn.example.com").
-    // Strip any accidental trailing slash and prepend https://.
-    return `https://${publicDomain.replace(/\/$/, "")}`;
-  }
-  const url = new URL(request.url);
-  return `${url.protocol}//${url.host}`;
 }
 
 // ---------------------------------------------------------------------------

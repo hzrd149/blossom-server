@@ -1,10 +1,19 @@
 # blossom-server
 
+## 6.0.3
+
+### Patch Changes
+
+- Return full blob URLs using the incoming request protocol when `publicDomain`
+  is configured
+- Add end-to-end coverage that validates returned blob descriptor URLs are
+  absolute valid URLs
+
 ## 6.0.2
 
 ### Patch Changes
 
- - Correct image rotation in optimization method
+- Correct image rotation in optimization method
 
 ## 6.0.0
 

@@ -55,6 +55,7 @@ import { errorResponse } from "../middleware/errors.ts";
 import { optimizeMedia } from "../optimize/index.ts";
 import { getFileRule } from "../prune/rules.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
+import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getPool } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 
@@ -78,21 +79,6 @@ interface BlobDescriptor {
 function mimeToExt(mime: string | null): string {
   if (!mime || mime === "application/octet-stream") return "";
   return extFromMime(mime) ?? "";
-}
-
-function getBlobUrl(
-  hash: string,
-  mimeType: string | null,
-  baseUrl: string,
-): string {
-  const ext = mimeToExt(mimeType);
-  return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
-}
-
-function getBaseUrl(request: Request, publicDomain: string): string {
-  if (publicDomain) return publicDomain.replace(/\/$/, "");
-  const url = new URL(request.url);
-  return `${url.protocol}//${url.host}`;
 }
 
 /**
