@@ -28,7 +28,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. PUT /upload responds 413, 415, or 507 for oversized, disallowed-type, or storage-full blobs respectively
   4. HEAD /upload responds 200 when the blob is already on the server and 204 when the upload would be accepted
   5. HEAD /upload responds 413 or 415 when the preflight check would be rejected
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Expand errorResponse status union and add structured worker error types
+- [ ] 01-02-PLAN.md — Update PUT/HEAD /upload status codes and E2E tests
 
 ### Phase 2: Read-Side Operations
 **Goal**: GET /<sha256>, HEAD /<sha256>, DELETE /<sha256>, and GET /list/<pubkey> return the exact status codes the spec defines for every outcome
@@ -61,6 +64,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Upload Pipeline | 0/TBD | Not started | - |
+| 1. Upload Pipeline | 0/2 | Not started | - |
 | 2. Read-Side Operations | 0/TBD | Not started | - |
 | 3. Media Endpoints and Error Format | 0/TBD | Not started | - |
