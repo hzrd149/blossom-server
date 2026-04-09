@@ -84,7 +84,7 @@ export function buildDeleteRouter(
 
       if (remaining > 0) {
         // Other owners still hold references — leave the blob in place
-        return ctx.body(null, 200);
+        return ctx.body(null, 204);
       }
     }
 
@@ -96,7 +96,7 @@ export function buildDeleteRouter(
       console.warn(`Failed to remove blob ${hash} from storage:`, err)
     );
 
-    return ctx.body(null, 200);
+    return ctx.body(null, 204);
   });
 
   return app;
