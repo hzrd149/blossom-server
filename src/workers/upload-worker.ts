@@ -96,9 +96,12 @@ interface JobSuccess {
   size: number;
 }
 
+type WorkerErrorType = "HASH_MISMATCH" | "WRITE_ERROR" | "UNKNOWN";
+
 interface JobError {
   id: string;
   error: string;
+  errorType: WorkerErrorType;
 }
 
 interface ThroughputReport {
@@ -201,6 +204,7 @@ async function handleJob(msg: JobMessage): Promise<void> {
         {
           id,
           error: `Hash mismatch: declared ${xSha256}, computed ${hash}`,
+          errorType: "HASH_MISMATCH",
         } satisfies JobError,
       );
       return;
@@ -216,6 +220,7 @@ async function handleJob(msg: JobMessage): Promise<void> {
       {
         id,
         error: err instanceof Error ? err.message : String(err),
+        errorType: "UNKNOWN",
       } satisfies JobError,
     );
   }

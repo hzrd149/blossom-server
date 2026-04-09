@@ -46,6 +46,20 @@ export interface UploadJobResult {
   size: number;
 }
 
+/**
+ * Error subclass for typed worker job failures.
+ * The errorType field carries a discriminant string (e.g. "HASH_MISMATCH")
+ * that route handlers can use to select the appropriate HTTP status code.
+ */
+export class WorkerJobError extends Error {
+  readonly errorType: string;
+  constructor(message: string, errorType: string) {
+    super(message);
+    this.name = "WorkerJobError";
+    this.errorType = errorType;
+  }
+}
+
 interface PendingJob {
   resolve: (result: UploadJobResult) => void;
   reject: (err: Error) => void;
@@ -70,6 +84,7 @@ interface JobResultMessage {
   hash?: string;
   size?: number;
   error?: string;
+  errorType?: string;
 }
 
 type WorkerMessage = ThroughputMessage | JobResultMessage;
@@ -146,7 +161,7 @@ export class UploadWorkerPool {
         state.jobCount--;
 
         if (error !== undefined) {
-          pending.reject(new Error(error));
+          pending.reject(new WorkerJobError(error, msg.errorType ?? "UNKNOWN"));
         } else {
           pending.resolve({ hash: hash!, size: size! });
         }
