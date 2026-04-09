@@ -30,8 +30,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. HEAD /upload responds 413 or 415 when the preflight check would be rejected
 **Plans:** 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — Expand errorResponse status union and add structured worker error types
-- [ ] 01-02-PLAN.md — Update PUT/HEAD /upload status codes and E2E tests
+- [x] 01-01-PLAN.md — Expand errorResponse status union and add structured worker error types
+- [x] 01-02-PLAN.md — Update PUT/HEAD /upload status codes and E2E tests
 
 ### Phase 2: Read-Side Operations
 **Goal**: GET /<sha256>, HEAD /<sha256>, DELETE /<sha256>, and GET /list/<pubkey> return the exact status codes the spec defines for every outcome
