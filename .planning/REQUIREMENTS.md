@@ -88,43 +88,43 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UPLD-01 | Pending | Pending |
-| UPLD-02 | Pending | Pending |
-| UPLD-03 | Pending | Pending |
-| UPLD-04 | Pending | Pending |
-| UPLD-05 | Pending | Pending |
-| UPLD-06 | Pending | Pending |
-| PREF-01 | Pending | Pending |
-| PREF-02 | Pending | Pending |
-| PREF-03 | Pending | Pending |
-| PREF-04 | Pending | Pending |
-| RETR-01 | Pending | Pending |
-| RETR-02 | Pending | Pending |
-| RETR-03 | Pending | Pending |
-| RETR-04 | Pending | Pending |
-| RETR-05 | Pending | Pending |
-| RETR-06 | Pending | Pending |
-| DELT-01 | Pending | Pending |
-| DELT-02 | Pending | Pending |
-| LIST-01 | Pending | Pending |
-| LIST-02 | Pending | Pending |
-| MDIA-01 | Pending | Pending |
-| MDIA-02 | Pending | Pending |
-| MDIA-03 | Pending | Pending |
-| MDIA-04 | Pending | Pending |
-| MDIA-05 | Pending | Pending |
-| MDIA-06 | Pending | Pending |
-| MDPF-01 | Pending | Pending |
-| MDPF-02 | Pending | Pending |
-| MDPF-03 | Pending | Pending |
-| ERRF-01 | Pending | Pending |
-| ERRF-02 | Pending | Pending |
+| UPLD-01 | Phase 1 | Pending |
+| UPLD-02 | Phase 1 | Pending |
+| UPLD-03 | Phase 1 | Pending |
+| UPLD-04 | Phase 1 | Pending |
+| UPLD-05 | Phase 1 | Pending |
+| UPLD-06 | Phase 1 | Pending |
+| PREF-01 | Phase 1 | Pending |
+| PREF-02 | Phase 1 | Pending |
+| PREF-03 | Phase 1 | Pending |
+| PREF-04 | Phase 1 | Pending |
+| RETR-01 | Phase 2 | Pending |
+| RETR-02 | Phase 2 | Pending |
+| RETR-03 | Phase 2 | Pending |
+| RETR-04 | Phase 2 | Pending |
+| RETR-05 | Phase 2 | Pending |
+| RETR-06 | Phase 2 | Pending |
+| DELT-01 | Phase 2 | Pending |
+| DELT-02 | Phase 2 | Pending |
+| LIST-01 | Phase 2 | Pending |
+| LIST-02 | Phase 2 | Pending |
+| MDIA-01 | Phase 3 | Pending |
+| MDIA-02 | Phase 3 | Pending |
+| MDIA-03 | Phase 3 | Pending |
+| MDIA-04 | Phase 3 | Pending |
+| MDIA-05 | Phase 3 | Pending |
+| MDIA-06 | Phase 3 | Pending |
+| MDPF-01 | Phase 3 | Pending |
+| MDPF-02 | Phase 3 | Pending |
+| MDPF-03 | Phase 3 | Pending |
+| ERRF-01 | Phase 3 | Pending |
+| ERRF-02 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 31 total
-- Mapped to phases: 0
-- Unmapped: 31 ⚠️
+- Mapped to phases: 31
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-09*
-*Last updated: 2026-04-09 after initial definition*
+*Last updated: 2026-04-09 after roadmap creation*
