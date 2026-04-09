@@ -34,7 +34,7 @@ import type { BlossomVariables } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
-import { getPool } from "../workers/pool.ts";
+import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
@@ -135,7 +135,7 @@ export function buildUploadRouter(
       return ctx.body(null, 200, { "X-Reason": "Blob already exists (dedup)" });
     }
 
-    return ctx.body(null, 200);
+    return ctx.body(null, 204);
   });
 
   // ---------------------------------------------------------------------------
@@ -359,6 +359,9 @@ export function buildUploadRouter(
       await storage.abortWrite(session).catch(() => {});
       const msg = err instanceof Error ? err.message : "Upload failed";
       debug(debugPrefix, `worker error — ${msg}`);
+      if (err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH") {
+        return errorResponse(ctx, 409, msg);
+      }
       return errorResponse(ctx, 400, msg);
     }
 
@@ -423,6 +426,7 @@ export function buildUploadRouter(
         type: blobRecord.type ?? "application/octet-stream",
         uploaded: now,
       } satisfies BlobDescriptor,
+      201,
     );
   });
 
