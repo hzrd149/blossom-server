@@ -19,15 +19,15 @@ Every endpoint returns the exact HTTP status codes specified in the updated BUD 
 - ✓ BUD-02 GET `/list/<pubkey>` endpoint — existing
 - ✓ BUD-02 DELETE `/<sha256>` endpoint — existing
 - ✓ BUD-11 Authorization — existing
+- ✓ PUT /upload returns 201 Created for new blobs, 200 OK for existing blobs — Validated in Phase 1: Upload Pipeline
+- ✓ HEAD /upload returns 200 OK if blob exists, 204 No Content if upload would be accepted — Validated in Phase 1: Upload Pipeline
+- ✓ PUT /upload returns 409 Conflict when X-SHA-256 doesn't match body — Validated in Phase 1: Upload Pipeline
+- ✓ PUT /upload returns 411 Length Required when Content-Length missing — Validated in Phase 1: Upload Pipeline
+- ✓ PUT /upload returns 413 Content Too Large for oversized blobs — Validated in Phase 1: Upload Pipeline
+- ✓ PUT /upload returns 415 Unsupported Media Type for rejected MIME types — Validated in Phase 1: Upload Pipeline
 
 ### Active
 
-- [ ] PUT /upload returns 201 Created for new blobs, 200 OK for existing blobs
-- [ ] HEAD /upload returns 200 OK if blob exists, 204 No Content if upload would be accepted
-- [ ] PUT /upload returns 409 Conflict when X-SHA-256 doesn't match body
-- [ ] PUT /upload returns 411 Length Required when Content-Length missing
-- [ ] PUT /upload returns 413 Content Too Large for oversized blobs
-- [ ] PUT /upload returns 415 Unsupported Media Type for rejected MIME types
 - [ ] PUT /upload returns 507 Insufficient Storage when server can't store
 - [ ] GET /<sha256> returns correct status codes (200, 206, 307/308, 400, 401, 403, 404, 416, 429, 503)
 - [ ] HEAD /<sha256> returns correct status codes (200, 307/308, 400, 401, 403, 404, 429, 503)
@@ -64,9 +64,9 @@ Every endpoint returns the exact HTTP status codes specified in the updated BUD 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Status code changes only, no route reorganization | Server routes aren't organized by BUD number, so the BUD-02/BUD-12 spec split doesn't map to code structure | — Pending |
-| HEAD /upload 204 for "accepted" | New spec defines 204 No Content instead of 200 OK for "upload would be accepted"; backwards compatible since clients check 2xx | — Pending |
-| PUT /upload 201 for new blobs | New spec distinguishes new (201) vs existing (200) uploads; backwards compatible | — Pending |
+| Status code changes only, no route reorganization | Server routes aren't organized by BUD number, so the BUD-02/BUD-12 spec split doesn't map to code structure | Confirmed |
+| HEAD /upload 204 for "accepted" | New spec defines 204 No Content instead of 200 OK for "upload would be accepted"; backwards compatible since clients check 2xx | Implemented in Phase 1 |
+| PUT /upload 201 for new blobs | New spec distinguishes new (201) vs existing (200) uploads; backwards compatible | Implemented in Phase 1 |
 
 ## Evolution
 
@@ -86,4 +86,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after initialization*
+*Last updated: 2026-04-09 after Phase 1 completion — Upload Pipeline*
