@@ -43,7 +43,10 @@ Plans:
   3. HEAD /<sha256> responds 200 with metadata headers and no body, or 404 when the blob does not exist
   4. DELETE /<sha256> responds 200 (with body) or 204 (without body) on success and 404 when the blob does not exist
   5. GET /list/<pubkey> responds 200 with a blob descriptor array and 400 for malformed query parameters
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 02-01-PLAN.md — DELETE status code change (200 to 204) and E2E tests
+- [ ] 02-02-PLAN.md — Verify GET/HEAD blob retrieval and GET /list status codes with E2E tests
 
 ### Phase 3: Media Endpoints and Error Format
 **Goal**: PUT /media and HEAD /media return exact spec status codes, and all error responses use X-Reason as a diagnostic-only header
@@ -65,5 +68,5 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Upload Pipeline | 0/2 | Not started | - |
-| 2. Read-Side Operations | 0/TBD | Not started | - |
+| 2. Read-Side Operations | 0/2 | Not started | - |
 | 3. Media Endpoints and Error Format | 0/TBD | Not started | - |
