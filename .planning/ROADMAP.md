@@ -58,15 +58,18 @@ Plans:
   3. HEAD /media responds 200 when acceptable, 413 or 415 when rejected
   4. Every error response includes an X-Reason header with a human-readable diagnostic string
   5. No code path uses X-Reason for conditional logic or control flow
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — PUT /media status codes (409, 422) + HEAD /media preflight validation + E2E tests
+- [ ] 03-02-PLAN.md — X-Reason audit and cross-endpoint verification tests
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3
+Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Upload Pipeline | 0/2 | Not started | - |
 | 2. Read-Side Operations | 0/2 | Not started | - |
-| 3. Media Endpoints and Error Format | 0/TBD | Not started | - |
+| 3. Media Endpoints and Error Format | 0/2 | Not started | - |
