@@ -138,7 +138,7 @@ Deno.test({
         body: BLOB_DATA,
       }),
     );
-    assertEquals(uploadRes.status, 200, "Upload should succeed");
+    assertEquals(uploadRes.status, 201, "Upload should succeed");
     const descriptor = await uploadRes.json();
     blobUrl = new URL(descriptor.url).pathname; // e.g. /abc123...
 
@@ -371,6 +371,34 @@ Deno.test({
       }),
     );
     assertEquals(res.status, 416);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+// ---------------------------------------------------------------------------
+// 404 — non-existent blobs
+// ---------------------------------------------------------------------------
+
+Deno.test({
+  name: "GET blob: non-existent hash returns 404",
+  async fn() {
+    const fakeHash = "f".repeat(64);
+    const res = await app.fetch(new Request(`http://localhost/${fakeHash}`));
+    assertEquals(res.status, 404);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD blob: non-existent hash returns 404",
+  async fn() {
+    const fakeHash = "f".repeat(64);
+    const res = await app.fetch(
+      new Request(`http://localhost/${fakeHash}`, { method: "HEAD" }),
+    );
+    assertEquals(res.status, 404);
     await res.body?.cancel();
   },
   ...testOpts,

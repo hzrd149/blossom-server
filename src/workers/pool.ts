@@ -41,6 +41,16 @@ import type { DbConfig } from "../db/client.ts";
 // Types
 // ---------------------------------------------------------------------------
 
+/** Error subclass that preserves the worker's errorType for status code mapping. */
+export class WorkerJobError extends Error {
+  readonly errorType: string;
+  constructor(message: string, errorType: string) {
+    super(message);
+    this.name = "WorkerJobError";
+    this.errorType = errorType;
+  }
+}
+
 export interface UploadJobResult {
   hash: string;
   size: number;
@@ -70,6 +80,7 @@ interface JobResultMessage {
   hash?: string;
   size?: number;
   error?: string;
+  errorType?: string;
 }
 
 type WorkerMessage = ThroughputMessage | JobResultMessage;
@@ -146,7 +157,7 @@ export class UploadWorkerPool {
         state.jobCount--;
 
         if (error !== undefined) {
-          pending.reject(new Error(error));
+          pending.reject(new WorkerJobError(error, msg.errorType ?? "UNKNOWN"));
         } else {
           pending.resolve({ hash: hash!, size: size! });
         }

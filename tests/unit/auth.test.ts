@@ -58,11 +58,6 @@ function encodeEvent(event: NostrEvent): string {
   return encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)));
 }
 
-/** Build the Authorization header value for an event. */
-function authHeader(event: NostrEvent): string {
-  return `Nostr ${encodeEvent(event)}`;
-}
-
 // ---------------------------------------------------------------------------
 // parseAuthEvent — valid event
 // ---------------------------------------------------------------------------

@@ -56,7 +56,7 @@ import { optimizeMedia } from "../optimize/index.ts";
 import { getFileRule } from "../prune/rules.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
-import { getPool } from "../workers/pool.ts";
+import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 
 // ---------------------------------------------------------------------------
@@ -168,6 +168,46 @@ export function buildMediaRouter(
         503,
         "Server busy. All upload workers are occupied. Try again shortly.",
       );
+    }
+
+    // --- 4. Content-Length preflight check ---
+    const xContentLength = ctx.req.header("x-content-length") ??
+      ctx.req.header("content-length");
+    if (xContentLength) {
+      const size = parseInt(xContentLength, 10);
+      if (!isNaN(size) && size > config.media.maxSize) {
+        return errorResponse(
+          ctx,
+          413,
+          `File too large. Maximum allowed size is ${config.media.maxSize} bytes`,
+        );
+      }
+    }
+
+    // --- 5. Content-Type preflight check ---
+    const xContentType = ctx.req.header("x-content-type") ??
+      ctx.req.header("content-type");
+    if (xContentType) {
+      const mimeType = xContentType.split(";")[0].trim();
+      const mimeRule = getFileRule(
+        { mimeType, pubkey: ctx.get("auth")?.pubkey },
+        config.storage.rules,
+        config.upload.requirePubkeyInRule,
+      );
+      if (!mimeRule) {
+        if (config.upload.requirePubkeyInRule) {
+          return errorResponse(
+            ctx,
+            401,
+            "Pubkey not authorized by any storage rule",
+          );
+        }
+        return errorResponse(
+          ctx,
+          415,
+          `Server does not accept ${mimeType} blobs`,
+        );
+      }
     }
 
     return ctx.body(null, 200);
@@ -344,6 +384,11 @@ export function buildMediaRouter(
         tmpPath = null; // worker already cleaned up
         const msg = err instanceof Error ? err.message : "Upload failed";
         debug(debugPrefix, `worker error — ${msg}`);
+        if (
+          err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH"
+        ) {
+          return errorResponse(ctx, 409, msg);
+        }
         return errorResponse(ctx, 400, msg);
       }
 
@@ -422,7 +467,7 @@ export function buildMediaRouter(
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Optimization failed";
         debug(debugPrefix, `optimization error — ${msg}`);
-        return errorResponse(ctx, 500, msg);
+        return errorResponse(ctx, 422, msg);
       }
 
       // --- 13. Remove original temp (no longer needed) ---

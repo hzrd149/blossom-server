@@ -310,7 +310,7 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "PUT /upload: successful upload returns 200 BlobDescriptor",
+  name: "PUT /upload: successful new upload returns 201 BlobDescriptor",
   async fn() {
     const body = new TextEncoder().encode("hello blossom");
     const expectedHash = await sha256Hex(body);
@@ -323,7 +323,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 201);
 
     const json = await res.json();
     assertEquals(json.sha256, expectedHash);
@@ -353,7 +353,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 201);
 
     const json = await res.json();
     assertBlobUrl(json.url, {
@@ -367,7 +367,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "PUT /upload: with correct auth and open x-tag returns 200",
+  name: "PUT /upload: with correct auth and open x-tag returns 201",
   async fn() {
     const body = new TextEncoder().encode("authenticated upload");
     // Open token — no x tags, permits any blob
@@ -382,7 +382,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 201);
     const json = await res.json();
     assertEquals(typeof json.sha256, "string");
     assertEquals(json.sha256.length, 64);
@@ -395,7 +395,7 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "PUT /upload: matching X-SHA-256 returns 200",
+  name: "PUT /upload: matching X-SHA-256 returns 201",
   async fn() {
     const body = new TextEncoder().encode("verifiable content");
     const hash = await sha256Hex(body);
@@ -409,7 +409,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 201);
 
     const json = await res.json();
     assertEquals(json.sha256, hash);
@@ -418,8 +418,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "PUT /upload: mismatched X-SHA-256 returns 400 with hash mismatch message",
+  name: "PUT /upload: mismatched X-SHA-256 returns 409 Conflict",
   async fn() {
     const body = new TextEncoder().encode("real content");
     const wrongHash = "a".repeat(64);
@@ -433,11 +432,35 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 400);
+    assertEquals(res.status, 409);
 
     // X-Reason header should contain mismatch info
     const reason = res.headers.get("X-Reason") ?? "";
     assertMatch(reason, /[Hh]ash mismatch|[Mm]ismatch/);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name:
+    "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
+  async fn() {
+    const body = new TextEncoder().encode("conflict test content");
+    const wrongHash = "c".repeat(64);
+
+    const res = await fetchNoAuth("/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": String(body.byteLength),
+        "Content-Type": "application/octet-stream",
+        "X-SHA-256": wrongHash,
+      },
+      body,
+    });
+    assertEquals(res.status, 409);
+    const reason = res.headers.get("X-Reason") ?? "";
+    assertMatch(reason, /[Hh]ash mismatch/);
     await res.body?.cancel();
   },
   ...testOpts,
@@ -476,7 +499,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 201);
 
     const json = await res.json();
     // Even without X-SHA-256 the server MUST compute and return the correct hash
@@ -494,7 +517,7 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name: "PUT /upload: x-tagged auth with matching X-SHA-256 → 200",
+  name: "PUT /upload: x-tagged auth with matching X-SHA-256 → 201",
   async fn() {
     const body = new TextEncoder().encode("x tag scoped upload");
     const hash = await sha256Hex(body);
@@ -510,7 +533,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 201);
   },
   ...testOpts,
 });
@@ -562,12 +585,16 @@ Deno.test({
         },
         body: body.slice(),
       });
-      assertEquals(res.status, 200);
-      return res.json();
+      return res;
     };
 
-    const json1 = await doUpload();
-    const json2 = await doUpload();
+    const res1 = await doUpload();
+    assertEquals(res1.status, 201);
+    const json1 = await res1.json();
+
+    const res2 = await doUpload();
+    assertEquals(res2.status, 200);
+    const json2 = await res2.json();
 
     assertEquals(json1.sha256, json2.sha256);
     assertEquals(json1.url, json2.url);
@@ -604,7 +631,7 @@ Deno.test({
         body,
       }),
     );
-    assertEquals(uploadRes.status, 200);
+    assertEquals(uploadRes.status, 201);
 
     const listRes = await listApp.fetch(
       new Request(`https://localhost/list/${pk}`),
@@ -682,7 +709,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "HEAD /upload: valid request returns 200",
+  name: "HEAD /upload: valid preflight returns 204 No Content",
   async fn() {
     const res = await fetchNoAuth("/upload", {
       method: "HEAD",
@@ -691,7 +718,7 @@ Deno.test({
         "X-Content-Type": "application/octet-stream",
       },
     });
-    assertEquals(res.status, 200);
+    assertEquals(res.status, 204);
   },
   ...testOpts,
 });
@@ -713,7 +740,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(uploadRes.status, 200);
+    assertEquals(uploadRes.status, 201);
 
     // Now preflight — should get 200 with X-Reason indicating dedup
     const res = await fetchNoAuth("/upload", {

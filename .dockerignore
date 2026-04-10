@@ -4,9 +4,6 @@ data/
 # Config — mounted at runtime via docker-compose.yml volume
 config.yml
 
-# Legacy Node.js implementation — not used by the Deno server
-legacy-nodejs/
-
 # Tests — not needed at runtime
 tests/
 
