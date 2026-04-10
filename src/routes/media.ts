@@ -448,6 +448,7 @@ export function buildMediaRouter(
               type: existing.type ?? "application/octet-stream",
               uploaded: existing.uploaded,
             } satisfies BlobDescriptor,
+            201,
           );
         }
         // Derivative record exists but blob was pruned — fall through to re-optimize
@@ -528,6 +529,7 @@ export function buildMediaRouter(
               type: existing.type ?? "application/octet-stream",
               uploaded: existing.uploaded,
             } satisfies BlobDescriptor,
+            201,
           );
         }
       }
@@ -570,6 +572,7 @@ export function buildMediaRouter(
           type: blobRecord.type ?? "application/octet-stream",
           uploaded: now,
         } satisfies BlobDescriptor,
+        201,
       );
     } catch (err) {
       // Global catch: clean up any remaining temp files

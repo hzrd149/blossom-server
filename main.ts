@@ -102,7 +102,7 @@ if (config.dashboard.enabled) {
     const generated = btoa(String.fromCharCode(...bytes))
       .replace(/[+/=]/g, "")
       .slice(0, 20);
-    (config.dashboard as { password: string }).password = generated;
+    config.dashboard.password = generated;
     console.log(`  Admin:    password auto-generated: ${generated}`);
   }
   console.log("  Admin:    ready");
