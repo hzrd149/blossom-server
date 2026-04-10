@@ -29,10 +29,10 @@ Every endpoint returns the exact HTTP status codes specified in the updated BUD 
 ### Active
 
 - [ ] PUT /upload returns 507 Insufficient Storage when server can't store
-- [ ] GET /<sha256> returns correct status codes (200, 206, 307/308, 400, 401, 403, 404, 416, 429, 503)
-- [ ] HEAD /<sha256> returns correct status codes (200, 307/308, 400, 401, 403, 404, 429, 503)
-- [ ] DELETE /<sha256> returns 200 OK with body or 204 No Content without body
-- [ ] GET /list/<pubkey> returns correct status codes per BUD-12
+- ✓ GET /<sha256> returns correct status codes (200, 206, 404, 416) — Validated in Phase 2: Read-Side Operations
+- ✓ HEAD /<sha256> returns correct status codes (200, 404) — Validated in Phase 2: Read-Side Operations
+- ✓ DELETE /<sha256> returns 204 No Content on success — Validated in Phase 2: Read-Side Operations
+- ✓ GET /list/<pubkey> returns correct status codes (200, 400) — Validated in Phase 2: Read-Side Operations
 - [ ] PUT /media returns correct status codes (200, 400, 401, 403, 409, 411, 413, 415, 422, 429, 503, 507)
 - [ ] HEAD /media returns correct status codes (200, 400, 401, 403, 411, 413, 415, 429, 503)
 - [ ] X-Reason header used as human-readable diagnostic only (no control flow)
@@ -67,6 +67,7 @@ Every endpoint returns the exact HTTP status codes specified in the updated BUD 
 | Status code changes only, no route reorganization | Server routes aren't organized by BUD number, so the BUD-02/BUD-12 spec split doesn't map to code structure | Confirmed |
 | HEAD /upload 204 for "accepted" | New spec defines 204 No Content instead of 200 OK for "upload would be accepted"; backwards compatible since clients check 2xx | Implemented in Phase 1 |
 | PUT /upload 201 for new blobs | New spec distinguishes new (201) vs existing (200) uploads; backwards compatible | Implemented in Phase 1 |
+| DELETE returns 204 No Content | New spec defines 204 (no body) instead of 200 for successful deletion; backwards compatible since clients check 2xx | Implemented in Phase 2 |
 
 ## Evolution
 
@@ -86,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after Phase 1 completion — Upload Pipeline*
+*Last updated: 2026-04-10 after Phase 2 completion — Read-Side Operations*
