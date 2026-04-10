@@ -136,7 +136,8 @@ export function UploadForm({
           authHeader,
         );
 
-        if (status === 200) {
+        if (status === 200 && !uf.optimize) {
+          // HEAD /upload 200 = blob already exists on server, skip upload
           const blobUrl = `${location.origin}/${sha256}`;
           const syntheticResult: BlobDescriptor = {
             sha256,
@@ -148,7 +149,9 @@ export function UploadForm({
           return false;
         }
 
-        if (status === 204) return true;
+        // HEAD /upload 204 = accepted, proceed
+        // HEAD /media 200 = accepted, proceed (output hash unknown until processed)
+        if (status === 204 || (status === 200 && uf.optimize)) return true;
 
         patchFile(uf.id, {
           status: "skipped",
