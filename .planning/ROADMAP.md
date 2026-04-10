@@ -60,8 +60,8 @@ Plans:
   5. No code path uses X-Reason for conditional logic or control flow
 **Plans:** 2 plans
 Plans:
-- [ ] 03-01-PLAN.md — PUT /media status codes (409, 422) + HEAD /media preflight validation + E2E tests
-- [ ] 03-02-PLAN.md — X-Reason audit and cross-endpoint verification tests
+- [x] 03-01-PLAN.md — PUT /media status codes (409, 422) + HEAD /media preflight validation + E2E tests
+- [x] 03-02-PLAN.md — X-Reason audit and cross-endpoint verification tests
 
 ## Progress
 
