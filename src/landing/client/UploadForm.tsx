@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
-import type { FileStatus, UploadFile } from "./types.ts";
-import { xhrUpload } from "./api.ts";
+import type { BlobDescriptor, FileStatus, UploadFile } from "./types.ts";
+import { HttpError, preflightUpload, xhrUpload } from "./api.ts";
 import { hashBatch, MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
-import { formatBytes, isMediaFile } from "./helpers.ts";
+import { friendlyErrorMessage, isMediaFile } from "./helpers.ts";
 import { FileRow } from "./FileRow.tsx";
+
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 2000;
+const PREFLIGHT_CONCURRENCY = 10;
+
+function isRetryable(status: number): boolean {
+  return status === 429 || status === 503;
+}
+
+function retryDelay(attempt: number, retryAfter?: number): number {
+  if (retryAfter) return retryAfter * 1000;
+  return RETRY_BASE_MS * Math.pow(2, attempt);
+}
 
 export function UploadForm({
   requireAuth,
@@ -47,26 +60,30 @@ export function UploadForm({
     [globalOptimize, mediaEnabled],
   );
 
-  // Sync the optimize flag on pending files whenever the toggle changes.
-  // Files added before the checkbox was checked would otherwise keep optimize:false
-  // and route to /upload instead of /media.
   useEffect(() => {
     setQueue((prev) =>
       prev.map((f) =>
         f.status === "pending"
           ? {
-              ...f,
-              optimize: globalOptimize && mediaEnabled && isMediaFile(f.file),
-            }
-          : f,
-      ),
+            ...f,
+            optimize: globalOptimize && mediaEnabled && isMediaFile(f.file),
+          }
+          : f
+      )
     );
   }, [globalOptimize, mediaEnabled]);
 
-  const removeFile = useCallback((id: string) => setQueue((prev) => prev.filter((f) => f.id !== id)), []);
+  const removeFile = useCallback(
+    (id: string) => setQueue((prev) => prev.filter((f) => f.id !== id)),
+    [],
+  );
 
   const clearDone = useCallback(() => {
-    setQueue((prev) => prev.filter((f) => f.status !== "done" && f.status !== "error"));
+    setQueue((prev) =>
+      prev.filter((f) =>
+        !["done", "exists", "skipped", "error"].includes(f.status)
+      )
+    );
   }, []);
 
   const copyUrl = useCallback((url: string) => {
@@ -100,22 +117,95 @@ export function UploadForm({
     [addFiles],
   );
 
+  /** Run preflight HEAD check for a single file. */
+  const checkOne = useCallback(
+    async (
+      uf: UploadFile,
+      sha256: string,
+      authHeader: string | undefined,
+    ): Promise<boolean> => {
+      const endpoint = uf.optimize ? "/media" : "/upload";
+      patchFile(uf.id, { status: "checking" });
+
+      try {
+        const { status, reason } = await preflightUpload(
+          endpoint,
+          sha256,
+          uf.file.type || "application/octet-stream",
+          uf.file.size,
+          authHeader,
+        );
+
+        if (status === 200) {
+          const blobUrl = `${location.origin}/${sha256}`;
+          const syntheticResult: BlobDescriptor = {
+            sha256,
+            size: uf.file.size,
+            type: uf.file.type || "application/octet-stream",
+            url: blobUrl,
+          };
+          patchFile(uf.id, { status: "exists", result: syntheticResult });
+          return false;
+        }
+
+        if (status === 204) return true;
+
+        patchFile(uf.id, {
+          status: "skipped",
+          error: friendlyErrorMessage(status, reason),
+        });
+        return false;
+      } catch {
+        return true;
+      }
+    },
+    [patchFile],
+  );
+
+  /** Upload a single file with auto-retry for 429/503. */
   const uploadOne = useCallback(
     async (uf: UploadFile, authHeader: string | undefined) => {
       const endpoint = uf.optimize ? "/media" : "/upload";
-      try {
-        patchFile(uf.id, { status: "uploading", progress: 0 });
-        const headers: Record<string, string> = {
-          "Content-Type": uf.file.type || "application/octet-stream",
-        };
-        if (authHeader) headers["Authorization"] = authHeader;
-        const result = await xhrUpload(endpoint, uf.file, headers, (pct) => patchFile(uf.id, { progress: pct }));
-        patchFile(uf.id, { status: "done", progress: 100, result });
-      } catch (err) {
-        patchFile(uf.id, {
-          status: "error",
-          error: err instanceof Error ? err.message : String(err),
-        });
+      const headers: Record<string, string> = {
+        "Content-Type": uf.file.type || "application/octet-stream",
+      };
+      if (authHeader) headers["Authorization"] = authHeader;
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          patchFile(uf.id, {
+            status: attempt > 0 ? "retrying" : "uploading",
+            progress: 0,
+          });
+          const { descriptor, status } = await xhrUpload(
+            endpoint,
+            uf.file,
+            headers,
+            (pct) => patchFile(uf.id, { progress: pct }),
+          );
+          patchFile(uf.id, {
+            status: status === 200 ? "exists" : "done",
+            progress: 100,
+            result: descriptor,
+          });
+          return;
+        } catch (err) {
+          if (
+            err instanceof HttpError && isRetryable(err.status) &&
+            attempt < MAX_RETRIES
+          ) {
+            patchFile(uf.id, { status: "retrying" });
+            await new Promise<void>((res) =>
+              setTimeout(res, retryDelay(attempt, err.retryAfter))
+            );
+            continue;
+          }
+          patchFile(uf.id, {
+            status: "error",
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return;
+        }
       }
     },
     [patchFile],
@@ -126,17 +216,39 @@ export function UploadForm({
     const pending = currentQueue?.filter((f) => f.status === "pending") ?? [];
     if (pending.length === 0) return;
 
-    const needsAuth = pending.some((f) => (f.optimize ? mediaRequireAuth : requireAuth));
+    const needsAuth = pending.some((
+      f,
+    ) => (f.optimize ? mediaRequireAuth : requireAuth));
 
     if (!needsAuth) {
-      const semSlots = Math.max(0, concurrency - (activeCount.current ?? 0));
-      const toStart = pending.slice(0, semSlots);
-      for (const uf of toStart) {
+      const hashes = await hashBatch(
+        pending,
+        (id, status) => patchFile(id, { status }),
+      );
+
+      // Phase 1: Preflight all files concurrently
+      const toUpload: UploadFile[] = [];
+      const preflightBatch = async (uf: UploadFile) => {
+        const proceed = await checkOne(uf, hashes.get(uf.id)!, undefined);
+        if (proceed) toUpload.push(uf);
+      };
+      for (let i = 0; i < pending.length; i += PREFLIGHT_CONCURRENCY) {
+        await Promise.all(
+          pending.slice(i, i + PREFLIGHT_CONCURRENCY).map(preflightBatch),
+        );
+      }
+
+      // Phase 2: Upload files that passed preflight
+      const uploadWithSlot = (uf: UploadFile) => {
         activeCount.current = (activeCount.current ?? 0) + 1;
-        uploadOne(uf, undefined).finally(() => {
+        return uploadOne(uf, undefined).finally(() => {
           activeCount.current = (activeCount.current ?? 0) - 1;
-          runQueue();
         });
+      };
+      for (let i = 0; i < toUpload.length; i += concurrency) {
+        await Promise.all(
+          toUpload.slice(i, i + concurrency).map(uploadWithSlot),
+        );
       }
       return;
     }
@@ -156,13 +268,18 @@ export function UploadForm({
     const regularPending = pending.filter((f) => !f.optimize);
     const mediaPending = pending.filter((f) => f.optimize);
 
-    for (const [group, verb, content] of [
-      [regularPending, "upload", "Upload files"] as const,
-      [mediaPending, "media", "Optimize and upload media"] as const,
-    ]) {
+    for (
+      const [group, verb, content] of [
+        [regularPending, "upload", "Upload files"] as const,
+        [mediaPending, "media", "Optimize and upload media"] as const,
+      ]
+    ) {
       if (group.length === 0) continue;
 
-      const hashes = await hashBatch(group, (id, status) => patchFile(id, { status }));
+      const hashes = await hashBatch(
+        group,
+        (id, status) => patchFile(id, { status }),
+      );
 
       for (let i = 0; i < group.length; i += MAX_X_TAGS_PER_EVENT) {
         const batch = group.slice(i, i + MAX_X_TAGS_PER_EVENT);
@@ -181,6 +298,19 @@ export function UploadForm({
           continue;
         }
 
+        // Preflight with auth
+        const toUpload: UploadFile[] = [];
+        const preflightBatch = async (uf: UploadFile) => {
+          const proceed = await checkOne(uf, hashes.get(uf.id)!, authHeader);
+          if (proceed) toUpload.push(uf);
+        };
+        for (let j = 0; j < batch.length; j += PREFLIGHT_CONCURRENCY) {
+          await Promise.all(
+            batch.slice(j, j + PREFLIGHT_CONCURRENCY).map(preflightBatch),
+          );
+        }
+
+        // Upload files that passed preflight
         const uploadWithSlot = async (uf: UploadFile) => {
           while ((activeCount.current ?? 0) >= concurrency) {
             await new Promise<void>((res) => setTimeout(res, 50));
@@ -189,28 +319,61 @@ export function UploadForm({
           try {
             await uploadOne(uf, authHeader);
           } finally {
-            activeCount.current--;
+            activeCount.current = (activeCount.current ?? 0) - 1;
           }
         };
 
-        await Promise.all(batch.map(uploadWithSlot));
+        await Promise.all(toUpload.map(uploadWithSlot));
       }
     }
-  }, [requireAuth, mediaRequireAuth, concurrency, patchFile, uploadOne]);
+  }, [
+    requireAuth,
+    mediaRequireAuth,
+    concurrency,
+    patchFile,
+    uploadOne,
+    checkOne,
+  ]);
 
   const handleUpload = useCallback(() => runQueue(), [runQueue]);
 
-  const isWorking = queue.some((f) => f.status === "hashing" || f.status === "signing" || f.status === "uploading");
-  const hasDoneOrError = queue.some((f) => f.status === "done" || f.status === "error");
+  const TERMINAL_STATUSES: FileStatus[] = [
+    "done",
+    "exists",
+    "skipped",
+    "error",
+  ];
+  const WORKING_STATUSES: FileStatus[] = [
+    "hashing",
+    "checking",
+    "signing",
+    "uploading",
+    "retrying",
+  ];
+
+  const isWorking = queue.some((f) => WORKING_STATUSES.includes(f.status));
+  const hasDoneOrError = queue.some((f) =>
+    TERMINAL_STATUSES.includes(f.status)
+  );
   const hasPending = queue.some((f) => f.status === "pending");
-  const showOptimizeToggle = mediaEnabled && queue.some((f) => isMediaFile(f.file));
-  const allDone = queue.length > 0 && queue.every((f) => f.status === "done" || f.status === "error");
+  const showOptimizeToggle = mediaEnabled &&
+    queue.some((f) => isMediaFile(f.file));
+  const allDone = queue.length > 0 &&
+    queue.every((f) => TERMINAL_STATUSES.includes(f.status));
   const canUpload = hasPending && !isWorking;
-  const doneUrls = queue.filter((f) => f.status === "done" && f.result).map((f) => f.result!.url);
+
+  const successUrls = queue
+    .filter((f) => (f.status === "done" || f.status === "exists") && f.result)
+    .map((f) => f.result!.url);
 
   const copyAllUrls = useCallback(() => {
-    navigator.clipboard.writeText(doneUrls.join("\n")).catch(() => {});
-  }, [doneUrls]);
+    navigator.clipboard.writeText(successUrls.join("\n")).catch(() => {});
+  }, [successUrls]);
+
+  const doneCount = queue.filter((f) => f.status === "done").length;
+  const existsCount = queue.filter((f) => f.status === "exists").length;
+  const skippedCount = queue.filter((f) => f.status === "skipped").length;
+  const errorCount = queue.filter((f) => f.status === "error").length;
 
   return (
     <div class="p-6 space-y-4">
@@ -238,7 +401,8 @@ export function UploadForm({
                 class="w-4 h-4 rounded accent-blue-500"
                 checked={globalOptimize}
                 disabled={isWorking}
-                onChange={(e) => setGlobalOptimize((e.target as HTMLInputElement).checked)}
+                onChange={(e) =>
+                  setGlobalOptimize((e.target as HTMLInputElement).checked)}
               />
               <span>
                 Optimize media
@@ -260,29 +424,43 @@ export function UploadForm({
 
       <label
         class={`block border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-          isDragging ? "border-blue-500 bg-blue-950" : "border-gray-700 hover:border-gray-500"
+          isDragging
+            ? "border-blue-500 bg-blue-950"
+            : "border-gray-700 hover:border-gray-500"
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <input type="file" multiple class="sr-only" onChange={handleInputChange} />
-        {queue.length > 0 ? (
-          <p class="text-sm text-gray-400">Drop more files or click to add</p>
-        ) : (
-          <div class="space-y-2">
-            <p class="text-gray-300">Drop files here or click to select</p>
-            <p class="text-xs text-gray-500">
-              {requireAuth ? "Nostr extension required to sign uploads" : "No auth required"}
-            </p>
-          </div>
-        )}
+        <input
+          type="file"
+          multiple
+          class="sr-only"
+          onChange={handleInputChange}
+        />
+        {queue.length > 0
+          ? <p class="text-sm text-gray-400">Drop more files or click to add</p>
+          : (
+            <div class="space-y-2">
+              <p class="text-gray-300">Drop files here or click to select</p>
+              <p class="text-xs text-gray-500">
+                {requireAuth
+                  ? "Nostr extension required to sign uploads"
+                  : "No auth required"}
+              </p>
+            </div>
+          )}
       </label>
 
       {queue.length > 0 && (
         <div class="space-y-2">
           {queue.map((uf) => (
-            <FileRow key={uf.id} uf={uf} onRemove={removeFile} onCopy={copyUrl} />
+            <FileRow
+              key={uf.id}
+              uf={uf}
+              onRemove={removeFile}
+              onCopy={copyUrl}
+            />
           ))}
         </div>
       )}
@@ -299,24 +477,34 @@ export function UploadForm({
           disabled={!canUpload}
         >
           {isWorking
-            ? "Uploading…"
+            ? "Uploading\u2026"
             : canUpload
-              ? `Upload ${queue.filter((f) => f.status === "pending").length} file${
-                  queue.filter((f) => f.status === "pending").length === 1 ? "" : "s"
-                }`
-              : allDone
-                ? "All done"
-                : "Upload"}
+            ? `Upload ${
+              queue.filter((f) => f.status === "pending").length
+            } file${
+              queue.filter((f) => f.status === "pending").length === 1
+                ? ""
+                : "s"
+            }`
+            : allDone
+            ? "All done"
+            : "Upload"}
         </button>
       )}
 
       {allDone && (
         <div class="flex items-center justify-between gap-4">
           <p class="text-sm text-gray-500">
-            {queue.filter((f) => f.status === "done").length} succeeded ·{" "}
-            {queue.filter((f) => f.status === "error").length} failed
+            {[
+              doneCount > 0 && `${doneCount} uploaded`,
+              existsCount > 0 && `${existsCount} already existed`,
+              skippedCount > 0 && `${skippedCount} skipped`,
+              errorCount > 0 && `${errorCount} failed`,
+            ]
+              .filter(Boolean)
+              .join(" \u00b7 ")}
           </p>
-          {doneUrls.length > 0 && (
+          {successUrls.length > 0 && (
             <button
               type="button"
               class="shrink-0 text-sm bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg border border-gray-700"

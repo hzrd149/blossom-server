@@ -418,8 +418,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "PUT /upload: mismatched X-SHA-256 returns 409 Conflict",
+  name: "PUT /upload: mismatched X-SHA-256 returns 409 Conflict",
   async fn() {
     const body = new TextEncoder().encode("real content");
     const wrongHash = "a".repeat(64);
@@ -444,7 +443,8 @@ Deno.test({
 });
 
 Deno.test({
-  name: "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
+  name:
+    "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
   async fn() {
     const body = new TextEncoder().encode("conflict test content");
     const wrongHash = "c".repeat(64);

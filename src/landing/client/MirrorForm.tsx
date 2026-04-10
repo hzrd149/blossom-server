@@ -3,13 +3,25 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
-import type { MirrorItem } from "./types.ts";
-import { mirrorPut } from "./api.ts";
+import type { MirrorItem, MirrorStatus } from "./types.ts";
+import { HttpError, mirrorPut } from "./api.ts";
 import { MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
 import { parseBlossomRef } from "./helpers.ts";
 import { MirrorRow } from "./MirrorRow.tsx";
 
 type MirrorPhase = "input" | "list";
+
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 2000;
+
+function isRetryable(status: number): boolean {
+  return status === 429 || status === 503;
+}
+
+function retryDelay(attempt: number, retryAfter?: number): number {
+  if (retryAfter) return retryAfter * 1000;
+  return RETRY_BASE_MS * Math.pow(2, attempt);
+}
 
 export function MirrorForm({
   requireAuth,
@@ -30,7 +42,9 @@ export function MirrorForm({
   }, [phase, items.length, onQueueChange]);
 
   const patchItem = useCallback((id: string, patch: Partial<MirrorItem>) => {
-    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it))
+    );
   }, []);
 
   /** Parse the textarea and move to the list phase. */
@@ -49,12 +63,15 @@ export function MirrorForm({
         displayUrl: ref.displayUrl,
         mirrorUrl: ref.mirrorUrl,
         sha256: ref.sha256,
+        allHashes: ref.allHashes,
         status: "pending",
       });
     }
 
     if (parsed.length === 0) {
-      setParseError("No valid Blossom URLs or blossom:// URIs found. Each must contain a 64-character hex hash.");
+      setParseError(
+        "No valid Blossom URLs or blossom:// URIs found. Each must contain a 64-character hex hash.",
+      );
       return;
     }
 
@@ -68,15 +85,59 @@ export function MirrorForm({
     setItems([]);
   }, []);
 
-  const removeItem = useCallback((id: string) => setItems((prev) => prev.filter((it) => it.id !== id)), []);
+  const removeItem = useCallback(
+    (id: string) => setItems((prev) => prev.filter((it) => it.id !== id)),
+    [],
+  );
 
   const copyUrl = useCallback((url: string) => {
     navigator.clipboard.writeText(url).catch(() => {});
   }, []);
 
   const clearDone = useCallback(() => {
-    setItems((prev) => prev.filter((it) => it.status !== "done" && it.status !== "error"));
+    setItems((prev) =>
+      prev.filter((it) => !["done", "exists", "error"].includes(it.status))
+    );
   }, []);
+
+  /** Mirror a single item with auto-retry for 429/503. */
+  const mirrorOne = useCallback(
+    async (item: MirrorItem, authHeader?: string) => {
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          patchItem(item.id, {
+            status: attempt > 0 ? "retrying" : "mirroring",
+          });
+          const { descriptor, status } = await mirrorPut(
+            item.mirrorUrl,
+            authHeader,
+          );
+          patchItem(item.id, {
+            status: status === 200 ? "exists" : "done",
+            result: descriptor,
+          });
+          return;
+        } catch (err) {
+          if (
+            err instanceof HttpError && isRetryable(err.status) &&
+            attempt < MAX_RETRIES
+          ) {
+            patchItem(item.id, { status: "retrying" });
+            await new Promise<void>((res) =>
+              setTimeout(res, retryDelay(attempt, err.retryAfter))
+            );
+            continue;
+          }
+          patchItem(item.id, {
+            status: "error",
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return;
+        }
+      }
+    },
+    [patchItem],
+  );
 
   const runMirror = useCallback(async () => {
     const current = itemsRef.current;
@@ -84,25 +145,10 @@ export function MirrorForm({
     if (pending.length === 0) return;
 
     if (!requireAuth) {
-      // No auth — fire all concurrently (server handles its own limit)
-      await Promise.all(
-        pending.map(async (item) => {
-          patchItem(item.id, { status: "mirroring" });
-          try {
-            const result = await mirrorPut(item.mirrorUrl);
-            patchItem(item.id, { status: "done", result });
-          } catch (err) {
-            patchItem(item.id, {
-              status: "error",
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }),
-      );
+      await Promise.all(pending.map((item) => mirrorOne(item)));
       return;
     }
 
-    // Auth required — batch sign, then mirror concurrently per batch
     // deno-lint-ignore no-explicit-any
     const nostr = (globalThis as any).nostr;
     if (!nostr) {
@@ -117,7 +163,7 @@ export function MirrorForm({
 
     for (let i = 0; i < pending.length; i += MAX_X_TAGS_PER_EVENT) {
       const batch = pending.slice(i, i + MAX_X_TAGS_PER_EVENT);
-      const hashes = batch.map((it) => it.sha256);
+      const hashes = [...new Set(batch.flatMap((it) => it.allHashes))];
 
       for (const it of batch) patchItem(it.id, { status: "signing" });
 
@@ -132,41 +178,45 @@ export function MirrorForm({
         continue;
       }
 
-      await Promise.all(
-        batch.map(async (item) => {
-          patchItem(item.id, { status: "mirroring" });
-          try {
-            const result = await mirrorPut(item.mirrorUrl, authHeader);
-            patchItem(item.id, { status: "done", result });
-          } catch (err) {
-            patchItem(item.id, {
-              status: "error",
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }),
-      );
+      await Promise.all(batch.map((item) => mirrorOne(item, authHeader)));
     }
-  }, [requireAuth, patchItem]);
+  }, [requireAuth, patchItem, mirrorOne]);
 
-  const isWorking = items.some((it) => it.status === "signing" || it.status === "mirroring");
+  const TERMINAL_STATUSES: MirrorStatus[] = ["done", "exists", "error"];
+  const WORKING_STATUSES: MirrorStatus[] = ["signing", "mirroring", "retrying"];
+
+  const isWorking = items.some((it) => WORKING_STATUSES.includes(it.status));
   const hasPending = items.some((it) => it.status === "pending");
-  const hasDoneOrError = items.some((it) => it.status === "done" || it.status === "error");
-  const allDone = items.length > 0 && items.every((it) => it.status === "done" || it.status === "error");
+  const hasDoneOrError = items.some((it) =>
+    TERMINAL_STATUSES.includes(it.status)
+  );
+  const allDone = items.length > 0 &&
+    items.every((it) => TERMINAL_STATUSES.includes(it.status));
   const canMirror = hasPending && !isWorking;
-  const doneUrls = items.filter((it) => it.status === "done" && it.result).map((it) => it.result!.url);
+
+  const successUrls = items
+    .filter((it) =>
+      (it.status === "done" || it.status === "exists") && it.result
+    )
+    .map((it) => it.result!.url);
 
   const copyAllUrls = useCallback(() => {
-    navigator.clipboard.writeText(doneUrls.join("\n")).catch(() => {});
-  }, [doneUrls]);
+    navigator.clipboard.writeText(successUrls.join("\n")).catch(() => {});
+  }, [successUrls]);
+
+  const doneCount = items.filter((it) => it.status === "done").length;
+  const existsCount = items.filter((it) => it.status === "exists").length;
+  const errorCount = items.filter((it) => it.status === "error").length;
 
   // ---- Phase: input --------------------------------------------------------
   if (phase === "input") {
     return (
       <div class="p-6 space-y-4">
         <p class="text-sm text-gray-400">
-          Paste Blossom URLs or <code class="text-gray-300 bg-gray-800 px-1 rounded">blossom://</code> URIs below, one
-          per line (or comma-separated).
+          Paste Blossom URLs or{" "}
+          <code class="text-gray-300 bg-gray-800 px-1 rounded">blossom://</code>
+          {" "}
+          URIs below, one per line (or comma-separated).
         </p>
         <textarea
           class="w-full bg-gray-800 border border-gray-700 text-gray-200 text-sm font-mono rounded-lg px-3 py-2 resize-y min-h-32 focus:outline-none focus:border-gray-500 placeholder-gray-600"
@@ -175,7 +225,9 @@ export function MirrorForm({
           onInput={(e) => setInputText((e.target as HTMLTextAreaElement).value)}
         />
         {parseError && (
-          <p class="text-xs text-red-400 bg-red-950 border border-red-800 rounded-lg px-3 py-2">{parseError}</p>
+          <p class="text-xs text-red-400 bg-red-950 border border-red-800 rounded-lg px-3 py-2">
+            {parseError}
+          </p>
         )}
         <button
           type="button"
@@ -199,18 +251,30 @@ export function MirrorForm({
       <div class="flex items-center justify-between">
         <p class="text-sm text-gray-400">
           {items.length} blob{items.length === 1 ? "" : "s"} to mirror
-          {requireAuth && <span class="ml-2 text-xs text-gray-500">· auth required</span>}
+          {requireAuth && (
+            <span class="ml-2 text-xs text-gray-500">
+              &middot; auth required
+            </span>
+          )}
         </p>
         {!isWorking && (
-          <button type="button" class="text-xs text-gray-500 hover:text-gray-300 underline" onClick={handleBack}>
-            ← Edit URLs
+          <button
+            type="button"
+            class="text-xs text-gray-500 hover:text-gray-300 underline"
+            onClick={handleBack}
+          >
+            &larr; Edit URLs
           </button>
         )}
       </div>
 
       {hasDoneOrError && !isWorking && (
         <div class="flex justify-end">
-          <button type="button" class="text-xs text-gray-500 hover:text-gray-300 underline" onClick={clearDone}>
+          <button
+            type="button"
+            class="text-xs text-gray-500 hover:text-gray-300 underline"
+            onClick={clearDone}
+          >
             Clear finished
           </button>
         </div>
@@ -218,7 +282,12 @@ export function MirrorForm({
 
       <div class="space-y-2">
         {items.map((item) => (
-          <MirrorRow key={item.id} item={item} onRemove={removeItem} onCopy={copyUrl} />
+          <MirrorRow
+            key={item.id}
+            item={item}
+            onRemove={removeItem}
+            onCopy={copyUrl}
+          />
         ))}
       </div>
 
@@ -233,23 +302,32 @@ export function MirrorForm({
         disabled={!canMirror}
       >
         {isWorking
-          ? "Mirroring…"
+          ? "Mirroring\u2026"
           : canMirror
-            ? `Mirror ${items.filter((it) => it.status === "pending").length} blob${
-                items.filter((it) => it.status === "pending").length === 1 ? "" : "s"
-              }`
-            : allDone
-              ? "All done"
-              : "Mirror"}
+          ? `Mirror ${
+            items.filter((it) => it.status === "pending").length
+          } blob${
+            items.filter((it) => it.status === "pending").length === 1
+              ? ""
+              : "s"
+          }`
+          : allDone
+          ? "All done"
+          : "Mirror"}
       </button>
 
       {allDone && (
         <div class="flex items-center justify-between gap-4">
           <p class="text-sm text-gray-500">
-            {items.filter((it) => it.status === "done").length} succeeded ·{" "}
-            {items.filter((it) => it.status === "error").length} failed
+            {[
+              doneCount > 0 && `${doneCount} mirrored`,
+              existsCount > 0 && `${existsCount} already existed`,
+              errorCount > 0 && `${errorCount} failed`,
+            ]
+              .filter(Boolean)
+              .join(" \u00b7 ")}
           </p>
-          {doneUrls.length > 0 && (
+          {successUrls.length > 0 && (
             <button
               type="button"
               class="shrink-0 text-sm bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg border border-gray-700"

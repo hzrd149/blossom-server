@@ -1,9 +1,13 @@
 export type FileStatus =
   | "pending"
   | "hashing"
+  | "checking"
   | "signing"
   | "uploading"
   | "done"
+  | "exists"
+  | "skipped"
+  | "retrying"
   | "error";
 
 export type MirrorStatus =
@@ -11,6 +15,8 @@ export type MirrorStatus =
   | "signing"
   | "mirroring"
   | "done"
+  | "exists"
+  | "retrying"
   | "error";
 
 export type Tab = "upload" | "mirror";
@@ -20,6 +26,12 @@ export interface BlobDescriptor {
   size: number;
   type: string;
   url: string;
+}
+
+export interface UploadResult {
+  descriptor: BlobDescriptor;
+  /** HTTP status: 200 = already existed, 201 = newly created */
+  status: number;
 }
 
 export interface UploadFile {
@@ -40,8 +52,10 @@ export interface MirrorItem {
   displayUrl: string;
   /** HTTP/S URL sent to PUT /mirror body (resolved from xs hint for blossom: URIs) */
   mirrorUrl: string;
-  /** Extracted 64-char sha256 hex — used in the auth event x tag */
+  /** Primary 64-char sha256 hex (last hash found in the URL path) */
   sha256: string;
+  /** All unique hashes found in the URL — used in auth event x-tags */
+  allHashes: string[];
   status: MirrorStatus;
   result?: BlobDescriptor;
   error?: string;

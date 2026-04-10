@@ -171,7 +171,8 @@ export function buildMediaRouter(
     }
 
     // --- 4. Content-Length preflight check ---
-    const xContentLength = ctx.req.header("x-content-length") ?? ctx.req.header("content-length");
+    const xContentLength = ctx.req.header("x-content-length") ??
+      ctx.req.header("content-length");
     if (xContentLength) {
       const size = parseInt(xContentLength, 10);
       if (!isNaN(size) && size > config.media.maxSize) {
@@ -184,7 +185,8 @@ export function buildMediaRouter(
     }
 
     // --- 5. Content-Type preflight check ---
-    const xContentType = ctx.req.header("x-content-type") ?? ctx.req.header("content-type");
+    const xContentType = ctx.req.header("x-content-type") ??
+      ctx.req.header("content-type");
     if (xContentType) {
       const mimeType = xContentType.split(";")[0].trim();
       const mimeRule = getFileRule(
@@ -382,7 +384,9 @@ export function buildMediaRouter(
         tmpPath = null; // worker already cleaned up
         const msg = err instanceof Error ? err.message : "Upload failed";
         debug(debugPrefix, `worker error — ${msg}`);
-        if (err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH") {
+        if (
+          err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH"
+        ) {
           return errorResponse(ctx, 409, msg);
         }
         return errorResponse(ctx, 400, msg);

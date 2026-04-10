@@ -9,20 +9,22 @@
  * MessagePorts that outlive individual tests (by design — they're reused).
  */
 
+import type { Hono } from "@hono/hono";
 import { assertEquals } from "@std/assert";
 import { encodeBase64Url } from "@std/encoding/base64url";
-import { encodeHex } from "@std/encoding/hex";
-import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
-import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+} from "nostr-tools/pure";
+import { ConfigSchema } from "../../src/config/schema.ts";
 import { initDb } from "../../src/db/client.ts";
+import type { BlossomVariables } from "../../src/middleware/auth.ts";
+import { buildApp } from "../../src/server.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
 import { initPool } from "../../src/workers/pool.ts";
-import { buildApp } from "../../src/server.ts";
-import { ConfigSchema } from "../../src/config/schema.ts";
-import type { Hono } from "@hono/hono";
-import type { BlossomVariables } from "../../src/middleware/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,14 +32,6 @@ import type { BlossomVariables } from "../../src/middleware/auth.ts";
 
 const sk = generateSecretKey();
 const pk = getPublicKey(sk);
-
-async function sha256Hex(data: Uint8Array): Promise<string> {
-  const buf = await stdCrypto.subtle.digest(
-    "SHA-256",
-    data.buffer as ArrayBuffer,
-  );
-  return encodeHex(new Uint8Array(buf));
-}
 
 function makeUploadAuth(
   opts: {
@@ -74,7 +68,6 @@ function encodeAuth(event: NostrEvent): string {
 // ---------------------------------------------------------------------------
 
 let app: Hono<{ Variables: BlossomVariables }>;
-let blobHash: string;
 let cleanup: () => Promise<void>;
 
 const testOpts = { sanitizeOps: false, sanitizeResources: false } as const;
@@ -107,7 +100,6 @@ Deno.test({
 
     // Upload a test blob so the pubkey owns at least one blob
     const body = new TextEncoder().encode("list e2e test blob");
-    blobHash = await sha256Hex(body);
     const auth = makeUploadAuth({});
 
     const uploadRes = await app.fetch(

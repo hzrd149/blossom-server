@@ -40,24 +40,36 @@ const _pk = getPublicKey(sk);
 
 /** Compute SHA-256 of bytes and return lowercase hex. */
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  const buf = await stdCrypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
+  const buf = await stdCrypto.subtle.digest(
+    "SHA-256",
+    data.buffer as ArrayBuffer,
+  );
   return encodeHex(new Uint8Array(buf));
 }
 
 /** Build a BUD-11 kind 24242 media auth event. */
-function makeMediaAuth(opts: { hash?: string; expiration?: number } = {}): NostrEvent {
+function makeMediaAuth(
+  opts: { hash?: string; expiration?: number } = {},
+): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
   const tags: string[][] = [
     ["t", "media"],
     ["expiration", String(opts.expiration ?? now + 600)],
   ];
   if (opts.hash) tags.push(["x", opts.hash]);
-  return finalizeEvent({ kind: 24242, created_at: now, tags, content: "Upload media" }, sk);
+  return finalizeEvent({
+    kind: 24242,
+    created_at: now,
+    tags,
+    content: "Upload media",
+  }, sk);
 }
 
 /** Encode event as Base64url for the Authorization header. */
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
+  return `Nostr ${
+    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
+  }`;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,15 +136,75 @@ Deno.test({
     // Use a minimal valid PNG so the upload reaches the worker.
     // The worker computes the real hash and rejects because X-SHA-256 is wrong.
     const pngHeader = new Uint8Array([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
-      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
-      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
-      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, // 8bit RGB
-      0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, // IDAT chunk
-      0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00,
-      0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc, 0x33,
-      0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, // IEND chunk
-      0xae, 0x42, 0x60, 0x82,
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a, // PNG signature
+      0x00,
+      0x00,
+      0x00,
+      0x0d,
+      0x49,
+      0x48,
+      0x44,
+      0x52, // IHDR chunk
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01, // 1x1
+      0x08,
+      0x02,
+      0x00,
+      0x00,
+      0x00,
+      0x90,
+      0x77,
+      0x53,
+      0xde, // 8bit RGB
+      0x00,
+      0x00,
+      0x00,
+      0x0c,
+      0x49,
+      0x44,
+      0x41,
+      0x54, // IDAT chunk
+      0x08,
+      0xd7,
+      0x63,
+      0xf8,
+      0xcf,
+      0xc0,
+      0x00,
+      0x00,
+      0x00,
+      0x02,
+      0x00,
+      0x01,
+      0xe2,
+      0x21,
+      0xbc,
+      0x33,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x49,
+      0x45,
+      0x4e,
+      0x44, // IEND chunk
+      0xae,
+      0x42,
+      0x60,
+      0x82,
     ]);
     const realHash = await sha256Hex(pngHeader);
     const wrongHash = "c".repeat(64);

@@ -75,7 +75,9 @@ Deno.test({
 Deno.test({
   name: "X-Reason: GET non-existent blob returns X-Reason header",
   async fn() {
-    const res = await app.fetch(new Request(`http://localhost/${"f".repeat(64)}`));
+    const res = await app.fetch(
+      new Request(`http://localhost/${"f".repeat(64)}`),
+    );
     assertEquals(res.status, 404);
     const reason = res.headers.get("X-Reason");
     assertNotEquals(reason, null, "X-Reason header must be present on 404");
