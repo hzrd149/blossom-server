@@ -377,6 +377,34 @@ Deno.test({
 });
 
 // ---------------------------------------------------------------------------
+// 404 — non-existent blobs
+// ---------------------------------------------------------------------------
+
+Deno.test({
+  name: "GET blob: non-existent hash returns 404",
+  async fn() {
+    const fakeHash = "f".repeat(64);
+    const res = await app.fetch(new Request(`http://localhost/${fakeHash}`));
+    assertEquals(res.status, 404);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD blob: non-existent hash returns 404",
+  async fn() {
+    const fakeHash = "f".repeat(64);
+    const res = await app.fetch(
+      new Request(`http://localhost/${fakeHash}`, { method: "HEAD" }),
+    );
+    assertEquals(res.status, 404);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+// ---------------------------------------------------------------------------
 // Teardown
 // ---------------------------------------------------------------------------
 
