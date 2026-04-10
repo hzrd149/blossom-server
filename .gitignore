@@ -7,3 +7,5 @@ config.yml
 dist
 .netrc
 public/client.js
+.planning
+.claude
