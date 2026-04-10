@@ -45,8 +45,8 @@ Plans:
   5. GET /list/<pubkey> responds 200 with a blob descriptor array and 400 for malformed query parameters
 **Plans:** 2 plans
 Plans:
-- [ ] 02-01-PLAN.md — DELETE status code change (200 to 204) and E2E tests
-- [ ] 02-02-PLAN.md — Verify GET/HEAD blob retrieval and GET /list status codes with E2E tests
+- [x] 02-01-PLAN.md — DELETE status code change (200 to 204) and E2E tests
+- [x] 02-02-PLAN.md — Verify GET/HEAD blob retrieval and GET /list status codes with E2E tests
 
 ### Phase 3: Media Endpoints and Error Format
 **Goal**: PUT /media and HEAD /media return exact spec status codes, and all error responses use X-Reason as a diagnostic-only header
