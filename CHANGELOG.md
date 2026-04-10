@@ -1,5 +1,11 @@
 # blossom-server
 
+## 6.1.1
+
+### Patch Changes
+
+- Fix bug with auth event validation errors not being passed through to the client
+
 ## 6.1.0
 
 ### Minor Changes

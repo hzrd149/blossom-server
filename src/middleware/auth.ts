@@ -3,6 +3,7 @@ import { HTTPException } from "@hono/hono/http-exception";
 import { decodeBase64Url } from "@std/encoding/base64url";
 import { verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
+import { debug } from "./debug.ts";
 
 export interface AuthState {
   auth?: NostrEvent;
@@ -84,9 +85,10 @@ export function parseAuthEvent(
   if (auth.kind !== 24242) {
     throw new HTTPException(400, { message: "Auth event must be kind 24242" });
   }
-  if (auth.created_at > now) {
+  const drift = auth.created_at - now;
+  if (drift > 60) {
     throw new HTTPException(400, {
-      message: "Auth event created_at is in the future",
+      message: `Auth event created_at is ${drift}s in the future`,
     });
   }
 
@@ -137,13 +139,20 @@ export function authMiddleware(
 ): MiddlewareHandler<{ Variables: BlossomVariables }> {
   return async (ctx, next) => {
     const authHeader = ctx.req.header("authorization");
+
     if (authHeader?.startsWith("Nostr ")) {
+      debug('[auth]', "Found Nostr auth header");
+
       const raw = authHeader.slice("Nostr ".length).trim();
       const domain = extractHostname(publicDomain) ??
         ctx.req.header("host")?.split(":")[0]?.toLowerCase() ?? null;
 
+      debug('[auth]', "Extracted domain", domain);
+
       try {
         const auth = parseAuthEvent(raw, domain);
+        debug('[auth]', "Parsed auth event", auth.tags);
+
         ctx.set("auth", auth);
         ctx.set("authType", auth.tags.find((t) => t[0] === "t")?.[1]);
         ctx.set(
@@ -154,11 +163,16 @@ export function authMiddleware(
           ),
         );
       } catch (err) {
+        debug('[auth]', "Auth parse error", err);
+
         // Parse failure: leave auth undefined, let route handlers decide
         // if auth is required they will reject; if optional they won't care
         if (!(err instanceof HTTPException)) {
           console.warn("Auth parse error:", err);
+          throw new HTTPException(500, { message: "Internal server error" });
         }
+        // Else pass through the HTTPException
+        else throw err
       }
     }
     await next();
