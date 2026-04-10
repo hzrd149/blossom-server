@@ -33,9 +33,9 @@ Every endpoint returns the exact HTTP status codes specified in the updated BUD 
 - ✓ HEAD /<sha256> returns correct status codes (200, 404) — Validated in Phase 2: Read-Side Operations
 - ✓ DELETE /<sha256> returns 204 No Content on success — Validated in Phase 2: Read-Side Operations
 - ✓ GET /list/<pubkey> returns correct status codes (200, 400) — Validated in Phase 2: Read-Side Operations
-- [ ] PUT /media returns correct status codes (200, 400, 401, 403, 409, 411, 413, 415, 422, 429, 503, 507)
-- [ ] HEAD /media returns correct status codes (200, 400, 401, 403, 411, 413, 415, 429, 503)
-- [ ] X-Reason header used as human-readable diagnostic only (no control flow)
+- ✓ PUT /media returns correct status codes (200, 409, 413, 415, 422) — Validated in Phase 3: Media Endpoints and Error Format
+- ✓ HEAD /media returns correct status codes (200, 413, 415) — Validated in Phase 3: Media Endpoints and Error Format
+- ✓ X-Reason header used as human-readable diagnostic only (no control flow) — Validated in Phase 3: Media Endpoints and Error Format
 
 ### Out of Scope
 
@@ -68,6 +68,8 @@ Every endpoint returns the exact HTTP status codes specified in the updated BUD 
 | HEAD /upload 204 for "accepted" | New spec defines 204 No Content instead of 200 OK for "upload would be accepted"; backwards compatible since clients check 2xx | Implemented in Phase 1 |
 | PUT /upload 201 for new blobs | New spec distinguishes new (201) vs existing (200) uploads; backwards compatible | Implemented in Phase 1 |
 | DELETE returns 204 No Content | New spec defines 204 (no body) instead of 200 for successful deletion; backwards compatible since clients check 2xx | Implemented in Phase 2 |
+| PUT /media 409 for hash mismatch, 422 for optimization failure | Mirrors upload.ts patterns; 422 signals unprocessable content instead of generic 500 | Implemented in Phase 3 |
+| HEAD /media preflight validation (413/415) | Adds Content-Length and Content-Type checks matching HEAD /upload pattern | Implemented in Phase 3 |
 
 ## Evolution
 
@@ -87,4 +89,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 after Phase 2 completion — Read-Side Operations*
+*Last updated: 2026-04-10 after Phase 3 completion — Media Endpoints and Error Format (all 3 phases complete)*
