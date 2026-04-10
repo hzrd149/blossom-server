@@ -138,7 +138,7 @@ Deno.test({
         body: BLOB_DATA,
       }),
     );
-    assertEquals(uploadRes.status, 200, "Upload should succeed");
+    assertEquals(uploadRes.status, 201, "Upload should succeed");
     const descriptor = await uploadRes.json();
     blobUrl = new URL(descriptor.url).pathname; // e.g. /abc123...
 

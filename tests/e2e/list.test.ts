@@ -121,7 +121,7 @@ Deno.test({
         body,
       }),
     );
-    assertEquals(uploadRes.status, 200, "Setup: upload should succeed");
+    assertEquals(uploadRes.status, 201, "Setup: upload should succeed");
     await uploadRes.body?.cancel();
 
     cleanup = async () => {
