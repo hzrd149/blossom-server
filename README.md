@@ -64,13 +64,17 @@ cd blossom-server
 # 2. Copy and edit the config
 cp config.example.yml config.yml
 
-# 3. Start in development mode (file-watching)
+# 3. Build the landing page client bundle
+deno task build
+
+# 4. Start in development mode (file-watching)
 deno task dev
 ```
 
 For production:
 
 ```sh
+deno task build
 deno task start
 ```
 
@@ -292,6 +296,11 @@ HTTP Basic Auth. It provides pages for:
 ## Development
 
 ```sh
+# Build the landing page client bundle (output: public/client.js)
+# Required before running `deno task dev` or `deno task start` when the
+# landing page is enabled.
+deno task build
+
 # Start with file-watching
 deno task dev
 
@@ -300,10 +309,6 @@ deno task test
 
 # Run a single test file
 deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/unit/auth.test.ts
-
-# Build the landing page client bundle (output: public/client.js)
-# The server builds it automatically at startup when the file is missing.
-deno task build
 
 # Lint
 deno lint

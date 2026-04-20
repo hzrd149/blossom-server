@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
 import type { BlobDescriptor, FileStatus, UploadFile } from "./types.ts";
 import { HttpError, preflightUpload, xhrUpload } from "./api.ts";
 import { hashBatch, MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
-import { friendlyErrorMessage, isMediaFile } from "./helpers.ts";
+import { createClientId, friendlyErrorMessage, isMediaFile } from "./helpers.ts";
 import { FileRow } from "./FileRow.tsx";
 
 const MAX_RETRIES = 3;
@@ -49,7 +49,7 @@ export function UploadForm({
     (files: FileList | File[]) => {
       const arr = Array.from(files);
       const newItems: UploadFile[] = arr.map((file) => ({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         file,
         status: "pending" as FileStatus,
         progress: 0,

@@ -18,10 +18,10 @@
     "jsr:@std/yaml@^1.0.12": "1.0.12",
     "npm:@libsql/client@*": "0.17.0",
     "npm:@libsql/client@0.17": "0.17.0",
-    "npm:applesauce-common@^5.1.0": "5.1.0",
-    "npm:applesauce-core@^5.1.0": "5.1.0",
+    "npm:applesauce-common@^5.2.0": "5.2.0",
+    "npm:applesauce-core@^5.2.0": "5.2.0",
     "npm:applesauce-loaders@^5.1.0": "5.1.0",
-    "npm:applesauce-relay@^5.1.0": "5.1.0",
+    "npm:applesauce-relay@^5.2.0": "5.2.0",
     "npm:file-type@^19.6.0": "19.6.0",
     "npm:nostr-tools@^2.23.3": "2.23.3_typescript@5.9.3",
     "npm:rxjs@^7.8.0": "7.8.2",
@@ -421,8 +421,8 @@
         "@types/node"
       ]
     },
-    "applesauce-common@5.1.0": {
-      "integrity": "sha512-qUEJibEtawkCgrxoyj0u+ECk3C/PKwGSmOq9kCupGjHVG21BU6Nh29BxU4vcmmBXH2ByiA6VuZgyJZb3t2JJuA==",
+    "applesauce-common@5.2.0": {
+      "integrity": "sha512-6Natb0szkj65OBKK5LBHIszAmVd8ha9GkCZcavJnZbNeWBgoDTO0hfkgI4pk2L6L/OWNceo2XCajvDAx0AjlgQ==",
       "dependencies": [
         "@scure/base@1.2.6",
         "applesauce-core",
@@ -431,8 +431,8 @@
         "rxjs"
       ]
     },
-    "applesauce-core@5.1.0": {
-      "integrity": "sha512-kk4nHndK4zjS8Sa6mC8LGtQ0LDSP4hlCGPJ9lpyIln7MkZaNFWD9eFd+fsEhfE9kyrne9IyYuVfJNp+EqY1b9w==",
+    "applesauce-core@5.2.0": {
+      "integrity": "sha512-aSuM6q6/Gs2FGUqytlHDjKZpSst2xKaT0vMXUQFWUctECNIxvwy6/hTDDInukMuI9mrQdjnO781ZJJgghI7RNw==",
       "dependencies": [
         "debug",
         "fast-deep-equal",
@@ -450,8 +450,8 @@
         "rxjs"
       ]
     },
-    "applesauce-relay@5.1.0": {
-      "integrity": "sha512-d0LTJmQmr5gsYFm9A6efPEo2Bx/ewoL7LNsIdieMx34QohZBpPb137RvU9KQ1lFIXTm0tudd8VYfAPncqti2OQ==",
+    "applesauce-relay@5.2.0": {
+      "integrity": "sha512-ty8PzHenocGdTr3x3It8Ql0rMD9rxB6VGCzGRfL5QF6epdstv2YHKuTyr8QdPBvf7yxfc7oZcMi6djSwNxXqkQ==",
       "dependencies": [
         "@noble/hashes@1.8.0",
         "applesauce-core",
@@ -722,10 +722,10 @@
       "jsr:@std/ulid@1",
       "jsr:@std/yaml@^1.0.12",
       "npm:@libsql/client@0.17",
-      "npm:applesauce-common@^5.1.0",
-      "npm:applesauce-core@^5.1.0",
+      "npm:applesauce-common@^5.2.0",
+      "npm:applesauce-core@^5.2.0",
       "npm:applesauce-loaders@^5.1.0",
-      "npm:applesauce-relay@^5.1.0",
+      "npm:applesauce-relay@^5.2.0",
       "npm:file-type@^19.6.0",
       "npm:nostr-tools@^2.23.3",
       "npm:rxjs@^7.8.0",

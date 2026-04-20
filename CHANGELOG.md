@@ -1,10 +1,23 @@
 # blossom-server
 
+## 6.1.3
+
+### Patch Changes
+
+- Replace landing-page WebCrypto hashing with `@noble/hashes` and remove
+  `crypto.randomUUID()` usage so the client works better on insecure origins
+- Add `window.nostr.js` to the landing bundle to provide a NIP-46 fallback when
+  no NIP-07 browser extension is installed
+- Stop runtime client bundling, document the prebuilt `public/client.js`
+  requirement, and serve the entire `public/` directory through Hono static
+  middleware
+
 ## 6.1.1
 
 ### Patch Changes
 
-- Fix bug with auth event validation errors not being passed through to the client
+- Fix bug with auth event validation errors not being passed through to the
+  client
 
 ## 6.1.0
 
@@ -12,12 +25,15 @@
 
 - More specific HTTP status codes across endpoints:
   - `PUT /upload` returns **201** for newly created blobs
-  - `HEAD /upload` return **204** when the upload would be accepted **200** when the blob already exists
+  - `HEAD /upload` return **204** when the upload would be accepted **200** when
+    the blob already exists
   - `DELETE /:sha256` returns **204** on success
   - Upload and media endpoints return **409** on SHA-256 hash mismatch (was 400)
   - `/media` optimization failures return **422** (was 500)
-- `HEAD /media` now checks `X-Content-Length` (413) and `X-Content-Type` (415) before accepting the upload stream
-- Landing page upload and mirror UI now preflights, retries on 429/503, and shows user-friendly status messages
+- `HEAD /media` now checks `X-Content-Length` (413) and `X-Content-Type` (415)
+  before accepting the upload stream
+- Landing page upload and mirror UI now preflights, retries on 429/503, and
+  shows user-friendly status messages
 
 ## 6.0.3
 

@@ -45,8 +45,7 @@ deno fmt --check
 deno fmt
 
 # Pre-build the landing page client bundle (output: public/client.js)
-# Only needed for Docker/CI — the server builds it automatically at startup
-# when public/client.js is missing (requires --unstable-bundle, already in dev/start tasks)
+# Required before running the server when the landing page is enabled.
 deno task build
 ```
 

@@ -4,6 +4,7 @@
  */
 
 import { Hono } from "@hono/hono";
+import { serveStatic } from "@hono/hono/deno";
 import type { Client } from "@libsql/client";
 import type { IBlobStorage } from "./storage/interface.ts";
 import type { Config } from "./config/schema.ts";
@@ -38,23 +39,13 @@ export async function buildApp(
   // BUD-11: parse auth header — populate ctx.var.auth (never blocks)
   app.use("*", authMiddleware(config.publicDomain));
 
-  // Serve favicon from the public folder — always registered so the server
-  // never returns a 404 for /favicon.ico regardless of other feature flags.
-  app.get("/favicon.ico", async (c) => {
-    try {
-      const file = await Deno.readFile("./public/favicon.ico");
-      return c.body(file, 200, {
-        "Content-Type": "image/x-icon",
-        "Cache-Control": "public, max-age=86400",
-      });
-    } catch {
-      return c.text("Not found", 404);
-    }
-  });
+  // Serve any file from the public directory at its root-relative URL.
+  // Requests that do not map to a file fall through to the app routes below.
+  app.use("*", serveStatic({ root: "./public" }));
 
   // Landing page: GET / and GET /client.js (disabled by default)
   // Mounted first so GET / is claimed before the Blossom blob catch-all.
-  // buildLandingRouter is async — it bundles (or loads) the client JS at startup.
+  // buildLandingRouter is async — it loads the prebuilt client JS at startup.
   if (config.landing.enabled) {
     app.route("/", await buildLandingRouter(db, config));
   }

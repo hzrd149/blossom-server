@@ -1,3 +1,6 @@
+import { bytesToHex } from "@noble/hashes/utils.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+
 export const SHA256_RE = /\b([0-9a-f]{64})\b/i;
 const SHA256_RE_GLOBAL = /\b([0-9a-f]{64})\b/gi;
 
@@ -114,10 +117,11 @@ function findAllHashes(text: string): string[] {
 
 export async function sha256Hex(file: File): Promise<string> {
   const buf = await file.arrayBuffer();
-  const hashBuf = await crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(hashBuf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return bytesToHex(sha256(new Uint8Array(buf)));
+}
+
+export function createClientId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function formatBytes(bytes: number): string {

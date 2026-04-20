@@ -108,7 +108,7 @@ if (config.dashboard.enabled) {
   console.log("  Admin:    ready");
 }
 
-// Build Hono app (async — landing router bundles client JS at startup when enabled)
+// Build Hono app (async — landing router loads the prebuilt client JS at startup).
 const app = await buildApp(db, storage, config);
 
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.

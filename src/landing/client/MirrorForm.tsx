@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
 import type { MirrorItem, MirrorStatus } from "./types.ts";
 import { HttpError, mirrorPut } from "./api.ts";
 import { MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
-import { parseBlossomRef } from "./helpers.ts";
+import { createClientId, parseBlossomRef } from "./helpers.ts";
 import { MirrorRow } from "./MirrorRow.tsx";
 
 type MirrorPhase = "input" | "list";
@@ -59,7 +59,7 @@ export function MirrorForm({
       if (seen.has(ref.sha256)) continue;
       seen.add(ref.sha256);
       parsed.push({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         displayUrl: ref.displayUrl,
         mirrorUrl: ref.mirrorUrl,
         sha256: ref.sha256,

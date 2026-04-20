@@ -141,17 +141,17 @@ export function authMiddleware(
     const authHeader = ctx.req.header("authorization");
 
     if (authHeader?.startsWith("Nostr ")) {
-      debug('[auth]', "Found Nostr auth header");
+      debug("[auth]", "Found Nostr auth header");
 
       const raw = authHeader.slice("Nostr ".length).trim();
       const domain = extractHostname(publicDomain) ??
         ctx.req.header("host")?.split(":")[0]?.toLowerCase() ?? null;
 
-      debug('[auth]', "Extracted domain", domain);
+      debug("[auth]", "Extracted domain", domain);
 
       try {
         const auth = parseAuthEvent(raw, domain);
-        debug('[auth]', "Parsed auth event", auth.tags);
+        debug("[auth]", "Parsed auth event", auth.tags);
 
         ctx.set("auth", auth);
         ctx.set("authType", auth.tags.find((t) => t[0] === "t")?.[1]);
@@ -163,16 +163,15 @@ export function authMiddleware(
           ),
         );
       } catch (err) {
-        debug('[auth]', "Auth parse error", err);
+        debug("[auth]", "Auth parse error", err);
 
         // Parse failure: leave auth undefined, let route handlers decide
         // if auth is required they will reject; if optional they won't care
         if (!(err instanceof HTTPException)) {
           console.warn("Auth parse error:", err);
           throw new HTTPException(500, { message: "Internal server error" });
-        }
-        // Else pass through the HTTPException
-        else throw err
+        } // Else pass through the HTTPException
+        else throw err;
       }
     }
     await next();
