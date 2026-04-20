@@ -7,9 +7,9 @@
 # @libsql/client) ship glibc-linked binaries that require libc.so, which is
 # absent on Alpine/musl.
 #
-# The landing page client JS is bundled at server startup via Deno.bundle()
-# (--unstable-bundle, already present in `deno task start`). No separate build
-# step or node_modules directory is required.
+# The landing page client JS is pre-built into public/client.js during image
+# build so the runtime container serves a known-good bundle instead of relying
+# on startup-time bundling.
 # ─────────────────────────────────────────────────────────────────────────────
 FROM denoland/deno:debian
 
@@ -18,14 +18,13 @@ WORKDIR /app
 # Install ffmpeg for video optimization / transcoding
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Copy Deno server source + lockfile
-# src/landing/client/ is the landing page client source — Deno.bundle() builds
-# it at startup so no separate build step or node_modules is required.
+# Copy Deno server source + static assets.
 COPY deno.json deno.lock ./
 COPY main.ts ./
+COPY public/ ./public/
 COPY src/ ./src/
 
-# Warm the Deno module cache so first startup is instant.
+# Warm the Deno module cache and pre-build the landing client bundle.
 #
 # Step 1: deno cache downloads all JSR/npm module sources declared in deno.json.
 #
@@ -33,7 +32,7 @@ COPY src/ ./src/
 # load FFI bindings under QEMU emulation (ARM64 builds on amd64 runners) causes
 # illegal instruction crashes. The .so binary will be fetched automatically on
 # first use at container runtime, which runs natively on the target architecture.
-RUN deno cache --unstable-bundle main.ts
+RUN deno cache main.ts && deno task build
 
 # Data volume — SQLite DB and blob storage. Mounted at runtime.
 VOLUME ["/app/data"]
