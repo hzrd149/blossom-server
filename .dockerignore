@@ -21,8 +21,5 @@ blossom/
 # Top-level node_modules (none should exist, but guard against accidental copy)
 /node_modules/
 
-# public/ — static assets served differently; admin/landing serve their own dist
-public/
-
-# Scripts not needed in the image (clean.ts uses Deno.remove which modifies host)
-# Keep scripts/ included — it's small and deno task clean is harmless in container
+# Ignore just the built client.js — it will be built in the container
+public/client.js

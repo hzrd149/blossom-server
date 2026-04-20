@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "jsr:@bradenmacdonald/s3-lite-client@~0.9.5": "0.9.5",
+    "jsr:@hono/hono@4.12.7": "4.12.7",
     "jsr:@hono/hono@^4.12.7": "4.12.7",
     "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/crypto@^1.0.5": "1.0.5",
