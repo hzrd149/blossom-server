@@ -22,7 +22,6 @@
     "@std/media-types": "jsr:@std/media-types@^1.1.0",
     "@std/crypto": "jsr:@std/crypto@^1.0.5",
     "@std/encoding": "jsr:@std/encoding@^1.0.10",
-    "@std/log": "jsr:@std/log@^0.224.14",
     "@std/path": "jsr:@std/path@^1.1.4",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
