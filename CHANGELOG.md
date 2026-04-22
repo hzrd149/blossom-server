@@ -1,5 +1,13 @@
 # blossom-server
 
+## 6.1.4
+
+### Patch Changes
+
+- Honor `X-Forwarded-Proto` (and RFC 7239 `Forwarded`) when building blob
+  descriptor URLs so `url` fields use `https://` when the original client
+  request was HTTPS through a TLS-terminating reverse proxy
+
 ## 6.1.3
 
 ### Patch Changes

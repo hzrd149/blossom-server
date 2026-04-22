@@ -1,6 +1,6 @@
 {
   "name": "@hzrd149/blossom-server",
-  "version": "6.1.3",
+  "version": "6.1.4",
   "exports": "./main.ts",
   "license": "MIT",
   "compilerOptions": {
