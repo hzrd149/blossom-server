@@ -276,6 +276,26 @@ media:
     # videoCodec: vp9
     # audioCodec: opus
 
+  thumbnail:
+    # Generate best-effort thumbnails for image and video uploads.
+    # When successful, PUT /media includes a NIP-94 tag:
+    #   ["thumb", "https://.../<thumbnail>", "<thumbnail-sha256>"]
+    # Thumbnail failures do not fail the media upload.
+    enabled: true
+
+    # Output quality 0-100. Higher = better quality, larger file.
+    quality: 80
+
+    # Maximum thumbnail dimensions. Aspect ratio is preserved and images are not upscaled.
+    maxWidth: 512
+    maxHeight: 512
+
+    # Thumbnail format: "webp" | "jpeg" | "png"
+    outputFormat: webp
+
+    # Timestamp in seconds to seek to when extracting video thumbnails.
+    videoSeek: 1
+
 # ---------------------------------------------------------------------------
 # Prune loop
 # ---------------------------------------------------------------------------

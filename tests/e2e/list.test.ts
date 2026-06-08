@@ -63,6 +63,13 @@ function encodeAuth(event: NostrEvent): string {
   }`;
 }
 
+function findNip94Tag(
+  descriptor: { nip94?: string[][] },
+  name: string,
+): string[] | undefined {
+  return descriptor.nip94?.find((tag) => tag[0] === name);
+}
+
 // ---------------------------------------------------------------------------
 // Shared state
 // ---------------------------------------------------------------------------
@@ -144,6 +151,10 @@ Deno.test({
     assertEquals(typeof first.url, "string");
     assertEquals(typeof first.size, "number");
     assertEquals(typeof first.type, "string");
+    assertEquals(findNip94Tag(first, "url"), ["url", first.url]);
+    assertEquals(findNip94Tag(first, "m"), ["m", first.type]);
+    assertEquals(findNip94Tag(first, "x"), ["x", first.sha256]);
+    assertEquals(findNip94Tag(first, "size"), ["size", String(first.size)]);
   },
   ...testOpts,
 });

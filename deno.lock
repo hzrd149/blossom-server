@@ -14,10 +14,10 @@
     "jsr:@std/yaml@^1.0.12": "1.0.12",
     "npm:@libsql/client@*": "0.17.0",
     "npm:@libsql/client@0.17": "0.17.0",
-    "npm:applesauce-common@^5.2.0": "5.2.0",
-    "npm:applesauce-core@^5.2.0": "5.2.0",
-    "npm:applesauce-loaders@^5.1.0": "5.1.0",
-    "npm:applesauce-relay@^5.2.0": "5.2.0",
+    "npm:applesauce-common@6": "6.0.1",
+    "npm:applesauce-core@6": "6.0.0",
+    "npm:applesauce-loaders@6": "6.0.0",
+    "npm:applesauce-relay@6": "6.0.0",
     "npm:file-type@^19.6.0": "19.6.0",
     "npm:nostr-tools@^2.23.3": "2.23.3_typescript@5.9.3",
     "npm:rxjs@^7.8.0": "7.8.2",
@@ -400,18 +400,19 @@
         "@types/node"
       ]
     },
-    "applesauce-common@5.2.0": {
-      "integrity": "sha512-6Natb0szkj65OBKK5LBHIszAmVd8ha9GkCZcavJnZbNeWBgoDTO0hfkgI4pk2L6L/OWNceo2XCajvDAx0AjlgQ==",
+    "applesauce-common@6.0.1": {
+      "integrity": "sha512-eACXtr/m5WvmnA2gUOQ+phvA6t5CtB0oSRmBNaMqi+BN9siLMjkG3lER8LliFD9I7PmK7hB5xBSqiVSezk6sJw==",
       "dependencies": [
         "@scure/base@1.2.6",
         "applesauce-core",
         "hash-sum",
         "light-bolt11-decoder",
+        "nanoid",
         "rxjs"
       ]
     },
-    "applesauce-core@5.2.0": {
-      "integrity": "sha512-aSuM6q6/Gs2FGUqytlHDjKZpSst2xKaT0vMXUQFWUctECNIxvwy6/hTDDInukMuI9mrQdjnO781ZJJgghI7RNw==",
+    "applesauce-core@6.0.0": {
+      "integrity": "sha512-uibHa8AAaWf1MlgqRzDd4/DNptmKE/kcOue0ivO051HmBFHanSbuTNBLC21Yp7SymSLdhA4F4jl8rFppaNO6wg==",
       "dependencies": [
         "debug",
         "fast-deep-equal",
@@ -421,16 +422,16 @@
         "rxjs"
       ]
     },
-    "applesauce-loaders@5.1.0": {
-      "integrity": "sha512-xllWYl7KxG0oaJqKVdZNzxN8OZQoDMaMmaTAO9Ao1Son+mmJyR9Q4UVicSwSlzzHarf59WCfvJeSdrSHIitkHg==",
+    "applesauce-loaders@6.0.0": {
+      "integrity": "sha512-1GQ1EXxHJKqNUW87D/NSnsVcjNRETsRwUXptqu+bZFV+UOPkAEBo7qkgJTtmkkGs0efkyJAcFu94ZOtVQMwo3A==",
       "dependencies": [
         "applesauce-core",
         "nanoid",
         "rxjs"
       ]
     },
-    "applesauce-relay@5.2.0": {
-      "integrity": "sha512-ty8PzHenocGdTr3x3It8Ql0rMD9rxB6VGCzGRfL5QF6epdstv2YHKuTyr8QdPBvf7yxfc7oZcMi6djSwNxXqkQ==",
+    "applesauce-relay@6.0.0": {
+      "integrity": "sha512-vemGZd62mPZbnvGqfUhFYhO4z2FpzicNNHZ3chyMy6btBWo0kt3qjOeSVO6N1wVzurlahE6xKfwVlQJGwQCZ3A==",
       "dependencies": [
         "@noble/hashes@1.8.0",
         "applesauce-core",
@@ -533,8 +534,8 @@
     "ms@2.1.3": {
       "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="
     },
-    "nanoid@5.1.6": {
-      "integrity": "sha512-c7+7RQ+dMB5dPwwCp4ee1/iV/q2P6aK1mTZcfr1BTuVlyW9hJYiMPybJCcnBlQtuSmTIWNeazm/zqNoZSSElBg==",
+    "nanoid@5.1.11": {
+      "integrity": "sha512-v+KEsUv2ps74PaSKv0gHTxTCgMXOIfBEbaqa6w6ISIGC7ZsvHN4N9oJ8d4cmf0n5oTzQz2SLmThbQWhjd/8eKg==",
       "bin": true
     },
     "node-domexception@1.0.0": {
@@ -700,10 +701,10 @@
       "jsr:@std/ulid@1",
       "jsr:@std/yaml@^1.0.12",
       "npm:@libsql/client@0.17",
-      "npm:applesauce-common@^5.2.0",
-      "npm:applesauce-core@^5.2.0",
-      "npm:applesauce-loaders@^5.1.0",
-      "npm:applesauce-relay@^5.2.0",
+      "npm:applesauce-common@6",
+      "npm:applesauce-core@6",
+      "npm:applesauce-loaders@6",
+      "npm:applesauce-relay@6",
       "npm:file-type@^19.6.0",
       "npm:nostr-tools@^2.23.3",
       "npm:rxjs@^7.8.0",

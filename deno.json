@@ -1,6 +1,6 @@
 {
   "name": "@hzrd149/blossom-server",
-  "version": "6.1.5",
+  "version": "6.2.0",
   "exports": "./main.ts",
   "license": "MIT",
   "compilerOptions": {
@@ -25,10 +25,10 @@
     "@std/path": "jsr:@std/path@^1.1.4",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
-    "applesauce-common": "npm:applesauce-common@^5.2.0",
-    "applesauce-core": "npm:applesauce-core@^5.2.0",
-    "applesauce-loaders": "npm:applesauce-loaders@^5.1.0",
-    "applesauce-relay": "npm:applesauce-relay@^5.2.0",
+    "applesauce-common": "npm:applesauce-common@^6",
+    "applesauce-core": "npm:applesauce-core@^6",
+    "applesauce-loaders": "npm:applesauce-loaders@^6",
+    "applesauce-relay": "npm:applesauce-relay@^6",
     "rxjs": "npm:rxjs@^7.8.0",
     "nostr-tools": "npm:nostr-tools@^2.23.3",
     "sharp": "npm:sharp@^0.34.5",

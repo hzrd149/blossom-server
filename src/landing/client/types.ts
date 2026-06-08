@@ -26,6 +26,7 @@ export interface BlobDescriptor {
   size: number;
   type: string;
   url: string;
+  nip94?: [name: string, value: string, ...rest: string[]][];
 }
 
 export interface UploadResult {

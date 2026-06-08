@@ -1,5 +1,28 @@
 # blossom-server
 
+## 6.2.0
+
+### Minor Changes
+
+- Add NIP-94 file metadata tags to blob descriptors returned by `/upload`,
+  `/mirror`, `/media`, and `/list/:pubkey`, including `url`, `m`, `x`, `size`,
+  optional `dim`, and transformed-media `ox` tags.
+- Persist NIP-94 metadata with blob records so descriptors can preserve derived
+  metadata across deduped uploads and list responses.
+- Add best-effort media thumbnail generation for `/media` uploads. Thumbnails
+  are generated for images and videos when possible, returned as NIP-94 `thumb`
+  tags, stored as ownerless blobs, and kept tied to their parent media blob for
+  prune/delete cleanup.
+
+### Patch Changes
+
+- Replace the previous non-standard `X-Dimensions` GET/HEAD response header with
+  standard NIP-94 `dim` metadata in blob descriptors.
+- Add pixel dimension probing for uploaded, mirrored, and optimized image/video
+  blobs.
+- Simplify NIP-94 helper methods so route handlers assign `nip94` arrays
+  directly instead of spreading helper-returned objects.
+
 ## 6.1.5
 
 ### Patch Changes

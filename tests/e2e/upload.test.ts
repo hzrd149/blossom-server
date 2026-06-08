@@ -76,6 +76,13 @@ function encodeAuth(event: NostrEvent): string {
   }`;
 }
 
+function findNip94Tag(
+  descriptor: { nip94?: string[][] },
+  name: string,
+): string[] | undefined {
+  return descriptor.nip94?.find((tag) => tag[0] === name);
+}
+
 // ---------------------------------------------------------------------------
 // Shared server setup
 //
@@ -329,12 +336,17 @@ Deno.test({
     assertEquals(json.sha256, expectedHash);
     assertEquals(json.size, body.byteLength);
     assertEquals(json.type, "text/plain");
+    assertEquals(json.dim, undefined);
     assertBlobUrl(json.url, {
       protocol: "http:",
       host: "localhost",
       hash: expectedHash,
       ext: "txt",
     });
+    assertEquals(findNip94Tag(json, "url"), ["url", json.url]);
+    assertEquals(findNip94Tag(json, "m"), ["m", "text/plain"]);
+    assertEquals(findNip94Tag(json, "x"), ["x", expectedHash]);
+    assertEquals(findNip94Tag(json, "size"), ["size", String(body.byteLength)]);
   },
   ...testOpts,
 });
@@ -647,6 +659,16 @@ Deno.test({
       hash,
       ext: "txt",
     });
+    assertEquals(findNip94Tag(descriptors[0], "url"), [
+      "url",
+      descriptors[0].url,
+    ]);
+    assertEquals(findNip94Tag(descriptors[0], "m"), ["m", "text/plain"]);
+    assertEquals(findNip94Tag(descriptors[0], "x"), ["x", hash]);
+    assertEquals(findNip94Tag(descriptors[0], "size"), [
+      "size",
+      String(body.byteLength),
+    ]);
 
     listDb.close();
   },

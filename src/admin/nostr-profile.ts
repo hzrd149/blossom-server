@@ -23,7 +23,6 @@ export const eventStore = new EventStore();
 
 export const pool = new RelayPool({
   keepAlive: 10_000,
-  eoseTimeout: 8_000,
 });
 
 /** Update this subject at any time to change the relays used for profile lookup. */

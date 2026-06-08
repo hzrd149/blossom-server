@@ -1,4 +1,5 @@
 import type { Client } from "@libsql/client";
+import type { Nip94Tag } from "../utils/nip94.ts";
 
 export interface BlobStats {
   blobCount: number;
@@ -11,6 +12,27 @@ export interface BlobRecord {
   size: number;
   type: string | null;
   uploaded: number;
+  /** Additional persisted NIP-94 metadata tags, or null when none are known. */
+  nip94: Nip94Tag[] | null;
+}
+
+function parseNip94(value: unknown): Nip94Tag[] | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  try {
+    const tags = JSON.parse(value) as unknown;
+    if (!Array.isArray(tags)) return null;
+    const valid = tags.filter((tag): tag is Nip94Tag =>
+      Array.isArray(tag) && tag.length >= 2 &&
+      tag.every((part) => typeof part === "string")
+    );
+    return valid.length > 0 ? valid : null;
+  } catch {
+    return null;
+  }
+}
+
+function serializeNip94(tags: Nip94Tag[] | null): string | null {
+  return tags && tags.length > 0 ? JSON.stringify(tags) : null;
 }
 
 export async function getBlob(
@@ -18,7 +40,8 @@ export async function getBlob(
   sha256: string,
 ): Promise<BlobRecord | null> {
   const rs = await db.execute({
-    sql: "SELECT sha256, size, type, uploaded FROM blobs WHERE sha256 = ?",
+    sql:
+      "SELECT sha256, size, type, uploaded, nip94 FROM blobs WHERE sha256 = ?",
     args: [sha256],
   });
   const row = rs.rows[0];
@@ -28,6 +51,7 @@ export async function getBlob(
     size: row[1] as number,
     type: row[2] as string | null,
     uploaded: row[3] as number,
+    nip94: parseNip94(row[4]),
   };
 }
 
@@ -48,12 +72,44 @@ export async function insertBlob(
     [
       {
         sql:
-          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded) VALUES (?, ?, ?, ?)`,
-        args: [blob.sha256, blob.size, blob.type, blob.uploaded],
+          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
+        args: [
+          blob.sha256,
+          blob.size,
+          blob.type,
+          blob.uploaded,
+          serializeNip94(blob.nip94),
+        ],
       },
       {
         sql: `INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)`,
         args: [blob.sha256, uploaderPubkey],
+      },
+      {
+        sql: `INSERT OR REPLACE INTO accessed (blob, timestamp) VALUES (?, ?)`,
+        args: [blob.sha256, blob.uploaded],
+      },
+    ],
+    "write",
+  );
+}
+
+export async function insertBlobRecord(
+  db: Client,
+  blob: BlobRecord,
+): Promise<void> {
+  await db.batch(
+    [
+      {
+        sql:
+          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
+        args: [
+          blob.sha256,
+          blob.size,
+          blob.type,
+          blob.uploaded,
+          serializeNip94(blob.nip94),
+        ],
       },
       {
         sql: `INSERT OR REPLACE INTO accessed (blob, timestamp) VALUES (?, ?)`,
@@ -147,7 +203,7 @@ export async function listBlobsByPubkey(
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const rs = await db.execute({
-    sql: `SELECT b.sha256, b.size, b.type, b.uploaded
+    sql: `SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94
           FROM blobs b
           JOIN owners o ON o.blob = b.sha256
           ${where}
@@ -161,6 +217,7 @@ export async function listBlobsByPubkey(
     size: row[1] as number,
     type: row[2] as string | null,
     uploaded: row[3] as number,
+    nip94: parseNip94(row[4]),
   }));
 }
 
@@ -209,6 +266,61 @@ export async function insertMediaDerivative(
   });
 }
 
+export async function getMediaThumbnail(
+  db: Client,
+  parentSha256: string,
+): Promise<BlobRecord | null> {
+  const rs = await db.execute({
+    sql: `SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94
+          FROM media_thumbnails mt
+          JOIN blobs b ON b.sha256 = mt.thumbnail_sha256
+          WHERE mt.parent_sha256 = ?
+          LIMIT 1`,
+    args: [parentSha256],
+  });
+  const row = rs.rows[0];
+  if (!row) return null;
+  return {
+    sha256: row[0] as string,
+    size: row[1] as number,
+    type: row[2] as string | null,
+    uploaded: row[3] as number,
+    nip94: parseNip94(row[4]),
+  };
+}
+
+export async function insertMediaThumbnail(
+  db: Client,
+  parentSha256: string,
+  thumbnailSha256: string,
+): Promise<void> {
+  await db.execute({
+    sql:
+      "INSERT OR REPLACE INTO media_thumbnails (parent_sha256, thumbnail_sha256) VALUES (?, ?)",
+    args: [parentSha256, thumbnailSha256],
+  });
+}
+
+export async function getMediaThumbnailsForParent(
+  db: Client,
+  parentSha256: string,
+): Promise<BlobRecord[]> {
+  const rs = await db.execute({
+    sql: `SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94
+          FROM media_thumbnails mt
+          JOIN blobs b ON b.sha256 = mt.thumbnail_sha256
+          WHERE mt.parent_sha256 = ?`,
+    args: [parentSha256],
+  });
+  return rs.rows.map((row) => ({
+    sha256: row[0] as string,
+    size: row[1] as number,
+    type: row[2] as string | null,
+    uploaded: row[3] as number,
+    nip94: parseNip94(row[4]),
+  }));
+}
+
 /** Check whether a pubkey is an owner of a blob. */
 export async function isOwner(
   db: Client,
@@ -246,20 +358,24 @@ export async function getBlobsForPrune(
   if (pubkeys && pubkeys.length > 0) {
     const placeholders = pubkeys.map(() => "?").join(", ");
     sql = `
-      SELECT b.sha256, b.size, b.type, b.uploaded, a.timestamp AS accessed
+      SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94, a.timestamp AS accessed
       FROM blobs b
       JOIN owners o ON o.blob = b.sha256
       LEFT JOIN accessed a ON a.blob = b.sha256
+      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
       WHERE b.type LIKE ?
         AND o.pubkey IN (${placeholders})
+        AND mt.thumbnail_sha256 IS NULL
     `;
     args = [typePattern, ...pubkeys];
   } else {
     sql = `
-      SELECT b.sha256, b.size, b.type, b.uploaded, a.timestamp AS accessed
+      SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94, a.timestamp AS accessed
       FROM blobs b
       LEFT JOIN accessed a ON a.blob = b.sha256
+      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
       WHERE b.type LIKE ?
+        AND mt.thumbnail_sha256 IS NULL
     `;
     args = [typePattern];
   }
@@ -270,7 +386,8 @@ export async function getBlobsForPrune(
     size: row[1] as number,
     type: row[2] as string | null,
     uploaded: row[3] as number,
-    accessed: row[4] as number | null,
+    nip94: parseNip94(row[4]),
+    accessed: row[5] as number | null,
   }));
 }
 
@@ -335,7 +452,7 @@ export async function listAllBlobs(
   const safeDir = sortDir === "ASC" ? "ASC" : "DESC";
 
   let sql = `
-    SELECT b.sha256, b.size, b.type, b.uploaded,
+    SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94,
            COALESCE(GROUP_CONCAT(o.pubkey, ','), '') AS owners
     FROM blobs b
     LEFT JOIN owners o ON o.blob = b.sha256
@@ -359,7 +476,8 @@ export async function listAllBlobs(
     size: row[1] as number,
     type: row[2] as string | null,
     uploaded: row[3] as number,
-    owners: row[4] ? (row[4] as string).split(",") : [],
+    nip94: parseNip94(row[4]),
+    owners: row[5] ? (row[5] as string).split(",") : [],
   }));
 }
 
@@ -508,7 +626,7 @@ export async function listBlobsByPubkeyAdmin(
   const offset = opts.offset ?? 0;
 
   const rs = await db.execute({
-    sql: `SELECT b.sha256, b.size, b.type, b.uploaded
+    sql: `SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94
           FROM blobs b
           JOIN owners o ON o.blob = b.sha256
           WHERE o.pubkey = ?
@@ -522,6 +640,7 @@ export async function listBlobsByPubkeyAdmin(
     size: row[1] as number,
     type: row[2] as string | null,
     uploaded: row[3] as number,
+    nip94: parseNip94(row[4]),
   }));
 }
 
@@ -549,7 +668,9 @@ export async function getOwnerlessBlobSha256s(
     SELECT b.sha256, b.type
     FROM blobs b
     LEFT JOIN owners o ON o.blob = b.sha256
+    LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
     WHERE o.blob IS NULL
+      AND mt.thumbnail_sha256 IS NULL
   `);
   return rs.rows.map((row) => ({
     sha256: row[0] as string,

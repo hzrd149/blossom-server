@@ -203,6 +203,49 @@ const ImageOptimizeSchema = z.object({
     ),
 });
 
+const ThumbnailSchema = z.object({
+  enabled: z
+    .boolean()
+    .default(true)
+    .describe(
+      "Generate best-effort thumbnails for media uploads and include them as NIP-94 thumb tags.",
+    ),
+  quality: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .default(80)
+    .describe(
+      "Output thumbnail quality, 0-100. Higher is better quality and larger file size.",
+    ),
+  maxWidth: z
+    .number()
+    .int()
+    .positive()
+    .default(512)
+    .describe("Maximum thumbnail width in pixels."),
+  maxHeight: z
+    .number()
+    .int()
+    .positive()
+    .default(512)
+    .describe("Maximum thumbnail height in pixels."),
+  outputFormat: z
+    .enum(["webp", "jpeg", "png"])
+    .default("webp")
+    .describe(
+      'Thumbnail image format. "webp" offers good compression for web delivery.',
+    ),
+  videoSeek: z
+    .number()
+    .min(0)
+    .default(1)
+    .describe(
+      "Timestamp in seconds to seek to when extracting a video thumbnail frame.",
+    ),
+});
+
 /** Valid codec combinations keyed by container format. */
 const VIDEO_CODEC_FOR_FORMAT = {
   mp4: ["libx264", "libx265"],
@@ -315,6 +358,9 @@ const MediaSchema = z.object({
   video: VideoOptimizeSchema.optional()
     .transform((v) => v ?? VideoOptimizeSchema.parse({}))
     .describe("Video transcoding settings."),
+  thumbnail: ThumbnailSchema.optional()
+    .transform((v) => v ?? ThumbnailSchema.parse({}))
+    .describe("Best-effort thumbnail generation settings."),
 });
 
 const MirrorSchema = z
@@ -561,4 +607,5 @@ export type StorageRule = z.infer<typeof StorageRuleSchema>;
 export type ReportConfig = z.infer<typeof ReportSchema>;
 export type ImageOptimizeConfig = z.infer<typeof ImageOptimizeSchema>;
 export type VideoOptimizeConfig = z.infer<typeof VideoOptimizeSchema>;
+export type ThumbnailConfig = z.infer<typeof ThumbnailSchema>;
 export type MediaConfig = z.infer<typeof MediaSchema>;

@@ -19,6 +19,7 @@ import {
   countOwners,
   deleteBlob,
   getBlob,
+  getMediaThumbnailsForParent,
   isOwner,
   removeOwner,
 } from "../db/blobs.ts";
@@ -89,12 +90,29 @@ export function buildDeleteRouter(
     }
 
     // No owners left (or unauthenticated delete) — purge the blob entirely
+    const thumbnails = await getMediaThumbnailsForParent(db, hash);
     await deleteBlob(db, hash);
 
     // Remove from storage backend (best-effort — DB record is the source of truth)
     await storage.remove(hash, ext).catch((err) =>
       console.warn(`Failed to remove blob ${hash} from storage:`, err)
     );
+    for (const thumbnail of thumbnails) {
+      await deleteBlob(db, thumbnail.sha256).catch((err) =>
+        console.warn(
+          `Failed to remove thumbnail blob ${thumbnail.sha256} from DB:`,
+          err,
+        )
+      );
+      await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type)).catch((
+        err,
+      ) =>
+        console.warn(
+          `Failed to remove thumbnail blob ${thumbnail.sha256} from storage:`,
+          err,
+        )
+      );
+    }
 
     return ctx.body(null, 204);
   });

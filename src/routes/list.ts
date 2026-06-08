@@ -15,11 +15,12 @@
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
-import { listBlobsByPubkey } from "../db/blobs.ts";
+import { getMediaThumbnail, listBlobsByPubkey } from "../db/blobs.ts";
 import { optionalAuth, requireAuth } from "../middleware/auth.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
+import { type Nip94Tag, nip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 
 /** 64-character lowercase hex string — valid Nostr pubkey format */
@@ -32,6 +33,8 @@ interface BlobDescriptor {
   size: number;
   type: string;
   uploaded: number;
+  /** Additional NIP-94 file metadata tags. */
+  nip94?: Nip94Tag[];
 }
 
 export function buildListRouter(
@@ -132,13 +135,34 @@ export function buildListRouter(
 
     // --- Build response ---
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-    const descriptors: BlobDescriptor[] = blobs.map((b) => ({
-      url: getBlobUrl(b.sha256, b.type, baseUrl),
-      sha256: b.sha256,
-      size: b.size,
-      type: b.type ?? "application/octet-stream",
-      uploaded: b.uploaded,
-    }));
+    const descriptors: BlobDescriptor[] = await Promise.all(
+      blobs.map(async (b) => {
+        const url = getBlobUrl(b.sha256, b.type, baseUrl);
+        const type = b.type ?? "application/octet-stream";
+        const thumbnail = await getMediaThumbnail(db, b.sha256);
+        const thumbnailTag: Nip94Tag | null = thumbnail
+          ? [
+            "thumb",
+            getBlobUrl(thumbnail.sha256, thumbnail.type, baseUrl),
+            thumbnail.sha256,
+          ]
+          : null;
+        return {
+          url,
+          sha256: b.sha256,
+          size: b.size,
+          type,
+          uploaded: b.uploaded,
+          nip94: nip94Tags({
+            url,
+            sha256: b.sha256,
+            size: b.size,
+            type,
+            tags: [...(b.nip94 ?? []), ...(thumbnailTag ? [thumbnailTag] : [])],
+          }),
+        };
+      }),
+    );
 
     return ctx.json(descriptors);
   });

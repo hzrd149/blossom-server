@@ -37,8 +37,10 @@ import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
+import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
+import { extractDimensions } from "../optimize/dimensions.ts";
 
 /** BUD-02 Blob Descriptor */
 interface BlobDescriptor {
@@ -47,6 +49,8 @@ interface BlobDescriptor {
   size: number;
   type: string;
   uploaded: number;
+  /** Additional NIP-94 file metadata tags. */
+  nip94?: Nip94Tag[];
 }
 
 export function buildUploadRouter(
@@ -275,13 +279,22 @@ export function buildUploadRouter(
           await insertBlob(db, existing, auth.pubkey);
         }
         const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
+        const url = getBlobUrl(existing.sha256, existing.type, baseUrl);
+        const type = existing.type ?? "application/octet-stream";
         return ctx.json(
           {
-            url: getBlobUrl(existing.sha256, existing.type, baseUrl),
+            url,
             sha256: existing.sha256,
             size: existing.size,
-            type: existing.type ?? "application/octet-stream",
+            type,
             uploaded: existing.uploaded,
+            nip94: nip94Tags({
+              url,
+              sha256: existing.sha256,
+              size: existing.size,
+              type,
+              tags: existing.nip94,
+            }),
           } satisfies BlobDescriptor,
         );
       }
@@ -385,6 +398,14 @@ export function buildUploadRouter(
     // For local storage: atomic Deno.rename() to <hash>.<ext>.
     // For S3 storage: stream the verified local tmp file to S3, then delete it.
     // commitWrite() handles dedup internally (no-op if blob already exists).
+    //
+    // Extract pixel dimensions from the verified temp file *before* commit —
+    // after commitWrite() the temp file is consumed (renamed for local,
+    // uploaded+deleted for S3). Best-effort: null on any failure.
+    const blobType = mimeType !== "application/octet-stream" ? mimeType : null;
+    const dim = await extractDimensions(session.tmpPath, blobType);
+    debug(debugPrefix, `dim=${dim ?? "none"}`);
+
     debug(debugPrefix, `commitWrite start hash=${hash} ext=${ext}`);
     const t0 = Date.now();
     try {
@@ -401,8 +422,9 @@ export function buildUploadRouter(
     const blobRecord = {
       sha256: hash,
       size,
-      type: mimeType !== "application/octet-stream" ? mimeType : null,
+      type: blobType,
       uploaded: now,
+      nip94: optionalNip94Tags({ dim }),
     };
     debug(debugPrefix, `insertBlob start hash=${hash}`);
     const t2 = Date.now();
@@ -418,13 +440,22 @@ export function buildUploadRouter(
       })`,
     );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
+    const url = getBlobUrl(hash, blobRecord.type, baseUrl);
+    const type = blobRecord.type ?? "application/octet-stream";
     return ctx.json(
       {
-        url: getBlobUrl(hash, blobRecord.type, baseUrl),
+        url,
         sha256: hash,
         size,
-        type: blobRecord.type ?? "application/octet-stream",
+        type,
         uploaded: now,
+        nip94: nip94Tags({
+          url,
+          sha256: hash,
+          size,
+          type,
+          tags: blobRecord.nip94,
+        }),
       } satisfies BlobDescriptor,
       201,
     );

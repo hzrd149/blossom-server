@@ -21,6 +21,7 @@ import type { IBlobStorage } from "../storage/interface.ts";
 import {
   deleteBlob,
   getBlobsForPrune,
+  getMediaThumbnailsForParent,
   getOwnerlessBlobSha256s,
 } from "../db/blobs.ts";
 import { mimeToExt } from "../utils/mime.ts";
@@ -94,8 +95,14 @@ export async function pruneStorage(
       if (lastSeen < cutoffSeconds) {
         try {
           const ext = mimeToExt(row.type);
+          const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
           await deleteBlob(db, row.sha256); // FK cascade removes owners + accessed rows
           await storage.remove(row.sha256, ext);
+          for (const thumbnail of thumbnails) {
+            await deleteBlob(db, thumbnail.sha256);
+            await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
+            deleted++;
+          }
           deleted++;
         } catch (err) {
           console.warn(`[prune] Failed to delete blob ${row.sha256}:`, err);
@@ -124,8 +131,14 @@ export async function pruneStorage(
 
       try {
         const ext = mimeToExt(row.type);
+        const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
         await deleteBlob(db, row.sha256);
         await storage.remove(row.sha256, ext); // fixes legacy bug: file was never removed
+        for (const thumbnail of thumbnails) {
+          await deleteBlob(db, thumbnail.sha256);
+          await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
+          deleted++;
+        }
         deleted++;
       } catch (err) {
         console.warn(
