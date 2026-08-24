@@ -304,6 +304,12 @@ const VideoOptimizeSchema = z
       .describe(
         'Video codec. Must be compatible with the chosen format. mp4/mkv: "libx264" (default), "libx265". webm: "vp9" (default), "vp8".',
       ),
+    keepMetadata: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Keep container metadata (titles, encoder tags, creation info) and chapters in the output file. When false (default), all metadata is stripped — recommended for privacy.",
+      ),
   })
   .superRefine((v, ctx) => {
     const validVideo = VIDEO_CODEC_FOR_FORMAT[v.format] as readonly string[];

@@ -66,34 +66,30 @@ async function probeFps(inputPath: string): Promise<number | null> {
 }
 
 /**
- * Transcodes a video file using ffmpeg.
- * Returns the path to the transcoded temp file.
- * Caller is responsible for deleting the output file on any error.
+ * Builds the ffmpeg argument list for a /media video transcode.
+ * Pure function — exported so unit tests can assert on the exact invocation
+ * without running ffmpeg.
  *
  * Quality → CRF mapping: CRF = round(51 − (quality / 100) × 51)
  *   quality=100 → CRF=0, quality=90 → CRF≈5, quality=0 → CRF=51
  *
  * Size filter: `?x<maxHeight>` — ffmpeg maintains aspect ratio automatically.
+ *
+ * When `opts.keepMetadata` is false (the default), the output options
+ * `-map_metadata -1 -map_chapters -1` are included: container metadata
+ * (titles, encoder tags, creation info) and chapters are stripped from the
+ * transcoded file — mirroring the image pipeline's EXIF stripping.
  */
-export async function optimizeVideo(
+export function buildVideoArgs(
   inputPath: string,
+  outputPath: string,
   opts: VideoOptimizeConfig,
-  tmpDir: string,
-): Promise<string> {
-  const outputPath = await Deno.makeTempFile({
-    dir: tmpDir,
-    suffix: `.${opts.format}`,
-  });
+  targetFps: number,
+): string[] {
   const crf = Math.round(51 - (opts.quality / 100) * 51);
   const extraArgs = FORMAT_EXTRA_ARGS[opts.format] ?? [];
 
-  // Probe original FPS; clamp to min(originalFps, maxFps)
-  const originalFps = await probeFps(inputPath);
-  const targetFps = originalFps !== null
-    ? Math.min(originalFps, opts.maxFps)
-    : opts.maxFps;
-
-  const args = [
+  return [
     "-i",
     inputPath,
     "-vcodec",
@@ -107,10 +103,38 @@ export async function optimizeVideo(
     String(crf),
     "-r",
     String(targetFps),
+    // output options: strip container metadata + chapters unless kept
+    ...(opts.keepMetadata
+      ? []
+      : ["-map_metadata", "-1", "-map_chapters", "-1"]),
     ...extraArgs,
     "-y", // overwrite output without prompting (temp file already exists)
     outputPath,
   ];
+}
+
+/**
+ * Transcodes a video file using ffmpeg.
+ * Returns the path to the transcoded temp file.
+ * Caller is responsible for deleting the output file on any error.
+ */
+export async function optimizeVideo(
+  inputPath: string,
+  opts: VideoOptimizeConfig,
+  tmpDir: string,
+): Promise<string> {
+  const outputPath = await Deno.makeTempFile({
+    dir: tmpDir,
+    suffix: `.${opts.format}`,
+  });
+
+  // Probe original FPS; clamp to min(originalFps, maxFps)
+  const originalFps = await probeFps(inputPath);
+  const targetFps = originalFps !== null
+    ? Math.min(originalFps, opts.maxFps)
+    : opts.maxFps;
+
+  const args = buildVideoArgs(inputPath, outputPath, opts, targetFps);
 
   const cmd = new Deno.Command("ffmpeg", {
     args,
