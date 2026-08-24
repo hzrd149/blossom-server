@@ -3,6 +3,50 @@
  */
 
 /**
+ * Sentinel embedded in byteCapGuard errors. Detected by the upload worker
+ * to classify the failure so routes can map it to HTTP 413.
+ */
+export const BYTE_LIMIT_ERROR = "BYTE_LIMIT_EXCEEDED";
+
+/**
+ * Returns a TransformStream that passes bytes through while the running
+ * total stays within `limit`, and ERRORS the stream as soon as it exceeds
+ * it.
+ *
+ * Unlike byteLimitTransform (which silently truncates — correct for range
+ * reads), this guard is for untrusted inbound bodies: the Content-Length
+ * header has already been checked, but a client can lie about it, and the
+ * write path would otherwise buffer arbitrary amounts to disk. Erroring —
+ * rather than truncating — matters: truncation would silently produce a
+ * hash of the wrong bytes.
+ *
+ * Exactly `limit` bytes pass (a body that matches its declared size is
+ * legitimate); the limit is only breached by the (limit+1)th byte.
+ *
+ * @param limit Maximum number of bytes to allow. Must be >= 0.
+ */
+export function byteCapGuard(
+  limit: number,
+): TransformStream<Uint8Array, Uint8Array> {
+  let seen = 0;
+
+  return new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      seen += chunk.byteLength;
+      if (seen > limit) {
+        controller.error(
+          new Error(
+            `${BYTE_LIMIT_ERROR}: body exceeded the maximum allowed size of ${limit} bytes`,
+          ),
+        );
+        return;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+}
+
+/**
  * Reads `body` to completion and discards it.
  *
  * Cancelling a request body the client is still streaming resets the request

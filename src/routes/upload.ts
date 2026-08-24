@@ -38,7 +38,7 @@ import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
-import { drainBody } from "../utils/streams.ts";
+import { byteCapGuard, drainBody } from "../utils/streams.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
@@ -312,8 +312,14 @@ export function buildUploadRouter(
       }`,
     );
 
+    // Stream-side size cap: the Content-Length check above only validates
+    // the DECLARED size — a client can lie and stream more. The guard errors
+    // the stream the moment the cap is exceeded; the worker classifies it as
+    // BYTE_LIMIT and we map it to 413 below.
+    const cappedBody = body.pipeThrough(byteCapGuard(config.upload.maxSize));
+
     const jobPromise = pool.dispatch(
-      body,
+      cappedBody,
       session.tmpPath,
       contentLength,
       xSha256,
@@ -353,6 +359,13 @@ export function buildUploadRouter(
       debug(debugPrefix, `worker error — ${msg}`);
       if (err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH") {
         return errorResponse(ctx, 409, msg);
+      }
+      if (err instanceof WorkerJobError && err.errorType === "BYTE_LIMIT") {
+        return errorResponse(
+          ctx,
+          413,
+          `File too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+        );
       }
       return errorResponse(ctx, 400, msg);
     }
