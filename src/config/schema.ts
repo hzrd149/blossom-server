@@ -350,6 +350,12 @@ const MediaSchema = z.object({
   requireAuth: z.boolean().default(true).describe(
     "Require a valid BUD-11 Nostr auth event for media uploads.",
   ),
+  optimizeByDefault: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Pre-select the 'Optimize media' option on the landing upload form, so uploads are sent through the /media pipeline (EXIF and video metadata stripped) by default. Users can still opt out per upload. No effect when media.enabled is false.",
+    ),
   maxSize: z
     .number()
     .int()

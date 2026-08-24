@@ -31,16 +31,20 @@ export function UploadForm({
   requireAuth,
   mediaEnabled,
   mediaRequireAuth,
+  optimizeByDefault,
   onQueueChange,
 }: {
   requireAuth: boolean;
   mediaEnabled: boolean;
   mediaRequireAuth: boolean;
+  optimizeByDefault: boolean;
   onQueueChange: (hasItems: boolean) => void;
 }) {
   const [queue, setQueue] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [globalOptimize, setGlobalOptimize] = useState(false);
+  const [globalOptimize, setGlobalOptimize] = useState(
+    optimizeByDefault && mediaEnabled,
+  );
   const [concurrency, setConcurrency] = useState(3);
   const activeCount = useRef<number>(0);
   const queueRef = useRef<UploadFile[]>([]);
