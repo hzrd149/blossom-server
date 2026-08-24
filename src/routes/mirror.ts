@@ -6,9 +6,12 @@
  *   2.  BUD-11 auth check (t="upload") → 401/403
  *   3.  Parse JSON body { url } → 400
  *   4.  Validate URL scheme (http/https only) → 400
- *   5.  SSRF guard: reject bare private/loopback IP addresses → 400
+ *   5.  SSRF guard per fetch hop: literal-IP check (full IPv4/IPv6 incl.
+ *       IPv4-mapped/NAT64/6to4/ULA/link-local) + resolve-then-validate of
+ *       A/AAAA records; redirects followed manually (≤ 3 hops, re-validated
+ *       each hop) → 400 on disallowed target, 502 on redirect excess
  *   6.  Pre-fetch pool check (pool.available === 0) → 503
- *   7.  Outbound fetch with AbortSignal.timeout → 502 on error/timeout
+ *   7.  Outbound fetch (manual redirects) with AbortSignal.timeout → 502 on error/timeout
  *   8.  Non-2xx origin response → 502
  *   9.  Content-Length > maxSize → 413 (body never streamed to worker)
  *  10.  Content-Type allowlist check → 415
@@ -47,6 +50,12 @@ import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
+import {
+  checkLiteralHost,
+  parseIPv4,
+  parseIPv6,
+  validateResolvedRecords,
+} from "../utils/ip-guard.ts";
 
 /** BUD-02 Blob Descriptor (same shape as upload route) */
 interface BlobDescriptor {
@@ -59,46 +68,78 @@ interface BlobDescriptor {
   nip94?: Nip94Tag[];
 }
 
-/** Returns true if a dotted-decimal IPv4 string falls in a private/loopback range. */
-function isPrivateIPv4(ip: string): boolean {
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
-    return false; // not a valid IPv4 — let the fetch attempt fail naturally
+/**
+ * Full SSRF guard for a mirror target hostname.
+ *
+ * 1. Literal-IP check — every IPv4/IPv6 spelling, including IPv4-mapped,
+ *    IPv4-compatible, NAT64, 6to4, ULA and link-local encodings
+ *    (see utils/ip-guard.ts for the full matrix).
+ * 2. Resolve-then-validate — reject when ANY A/AAAA record for the hostname
+ *    points at a non-public address. This closes the "hostname that
+ *    statically resolves to an internal address" class of SSRF. A DNS rebind
+ *    between this check and the fetch itself is a documented residual race —
+ *    Deno's fetch cannot pin a resolved address.
+ *
+ * Returns an error string when disallowed, or null when OK. DNS resolution
+ * failures are not errors here — the outbound fetch will fail on its own.
+ */
+async function checkSsrf(hostname: string): Promise<string | null> {
+  const bare = hostname.replace(/^\[|\]$/g, "");
+  const isLiteral = parseIPv4(bare) !== null || parseIPv6(bare) !== null;
+  if (isLiteral) {
+    const reason = checkLiteralHost(bare);
+    return reason
+      ? `Mirror URL points to a non-public address: ${hostname} (${reason})`
+      : null;
   }
-  const [a, b] = parts;
-  return (
-    a === 127 || // 127.0.0.0/8   loopback
-    a === 10 || // 10.0.0.0/8    RFC-1918
-    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 RFC-1918
-    (a === 192 && b === 168) || // 192.168.0.0/16 RFC-1918
-    (a === 169 && b === 254) || // 169.254.0.0/16 link-local
-    a === 0 // 0.0.0.0/8
+  const [aRes, aaaaRes] = await Promise.allSettled([
+    Deno.resolveDns(bare, "A"),
+    Deno.resolveDns(bare, "AAAA"),
+  ]);
+  const reason = validateResolvedRecords(
+    aRes.status === "fulfilled" ? aRes.value : [],
+    aaaaRes.status === "fulfilled" ? aaaaRes.value : [],
   );
+  return reason ? `Mirror URL ${reason}` : null;
 }
 
-/** Returns true if a colon-hex IPv6 string is loopback (::1) or unspecified (::). */
-function isPrivateIPv6(ip: string): boolean {
-  // Normalise: strip brackets if present (e.g. [::1])
-  const bare = ip.replace(/^\[|\]$/g, "");
-  return bare === "::1" || bare === "::" ||
-    bare.toLowerCase() === "0:0:0:0:0:0:0:1";
-}
+/** Maximum redirect hops followed on a mirror fetch (each hop re-validated). */
+const MAX_REDIRECT_HOPS = 3;
 
 /**
- * Best-effort SSRF guard for literal IP addresses in the URL hostname.
- * Hostname-based DNS rebinding is out of scope — the fetch timeout is the
- * primary mitigation for that class of attack.
- *
- * Returns an error string if the hostname is a disallowed IP, or null if OK.
+ * Single fetch attempt with manual redirects and the connect-timeout race.
+ * The AbortController is only used to cancel the network request when the
+ * timeout wins — it is never associated with the response body stream.
  */
-function checkSsrf(hostname: string): string | null {
-  if (isPrivateIPv4(hostname)) {
-    return `Mirror URL points to a private IPv4 address: ${hostname}`;
+async function fetchWithConnectTimeout(
+  url: URL,
+  connectTimeoutMs: number,
+): Promise<Response> {
+  if (connectTimeoutMs <= 0) {
+    return await fetch(url.toString(), { redirect: "manual" });
   }
-  if (isPrivateIPv6(hostname)) {
-    return `Mirror URL points to a loopback IPv6 address: ${hostname}`;
+  const connectAbort = new AbortController();
+  let connectTimerId: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    connectTimerId = setTimeout(() => {
+      connectAbort.abort();
+      reject(
+        new Error(`Origin server did not respond within ${connectTimeoutMs}ms`),
+      );
+    }, connectTimeoutMs);
+  });
+  try {
+    const fetchPromise = fetch(url.toString(), {
+      redirect: "manual",
+      signal: connectAbort.signal,
+    });
+    // Suppress the unhandled rejection that occurs when the timeout wins
+    // and connectAbort cancels the in-flight fetch.
+    fetchPromise.catch(() => {});
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } finally {
+    clearTimeout(connectTimerId!);
   }
-  return null;
 }
 
 export function buildMirrorRouter(
@@ -174,12 +215,6 @@ export function buildMirrorRouter(
       );
     }
 
-    const ssrfError = checkSsrf(mirrorUrl.hostname);
-    if (ssrfError) {
-      debug(debugPrefix, `rejected: SSRF guard — ${ssrfError}`);
-      return errorResponse(ctx, 400, ssrfError);
-    }
-
     if (getPool().available === 0) {
       debug(debugPrefix, "rejected: all upload workers busy (pre-fetch)");
       return errorResponse(
@@ -194,37 +229,68 @@ export function buildMirrorRouter(
       `fetching origin url=${mirrorUrl.toString()} connectTimeout=${config.mirror.connectTimeout}ms bodyTimeout=${config.mirror.bodyTimeout}ms`,
     );
     const t0 = Date.now();
-    let originResponse: Response;
+    let originResponse: Response | null = null;
     try {
-      if (config.mirror.connectTimeout > 0) {
-        // Race fetch against a timeout. The AbortController is only used to
-        // cancel the network request when the timeout wins — it is never
-        // associated with the response body stream.
-        const connectAbort = new AbortController();
-        let connectTimerId: ReturnType<typeof setTimeout>;
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          connectTimerId = setTimeout(() => {
-            connectAbort.abort();
-            reject(
-              new Error(
-                `Origin server did not respond within ${config.mirror.connectTimeout}ms`,
-              ),
-            );
-          }, config.mirror.connectTimeout);
-        });
-        try {
-          const fetchPromise = fetch(mirrorUrl.toString(), {
-            signal: connectAbort.signal,
-          });
-          // Suppress the unhandled rejection that occurs when the timeout wins
-          // and connectAbort cancels the in-flight fetch.
-          fetchPromise.catch(() => {});
-          originResponse = await Promise.race([fetchPromise, timeoutPromise]);
-        } finally {
-          clearTimeout(connectTimerId!);
+      // Redirects are followed manually with the full SSRF guard re-run on
+      // every hop — a redirect chain cannot steer the fetch to a private
+      // target that the original URL was checked against.
+      let currentUrl = mirrorUrl;
+      for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+        const ssrfError = await checkSsrf(currentUrl.hostname);
+        if (ssrfError) {
+          debug(
+            debugPrefix,
+            `rejected: SSRF guard (hop ${hop}) — ${ssrfError}`,
+          );
+          return errorResponse(ctx, 400, ssrfError);
         }
-      } else {
-        originResponse = await fetch(mirrorUrl.toString());
+        const response = await fetchWithConnectTimeout(
+          currentUrl,
+          config.mirror.connectTimeout,
+        );
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get("location");
+          await response.body?.cancel();
+          if (!location) {
+            debug(debugPrefix, "rejected: redirect without Location header");
+            return errorResponse(
+              ctx,
+              502,
+              `Origin server returned ${response.status} without a Location header`,
+            );
+          }
+          const next = new URL(location, currentUrl);
+          if (next.protocol !== "http:" && next.protocol !== "https:") {
+            debug(
+              debugPrefix,
+              `rejected: redirect to unsupported scheme ${next.protocol}`,
+            );
+            return errorResponse(
+              ctx,
+              400,
+              `Redirect to unsupported URL scheme: ${next.protocol}. Only http and https are allowed`,
+            );
+          }
+          debug(
+            debugPrefix,
+            `redirect ${response.status} → ${next.toString()}`,
+          );
+          currentUrl = next;
+          continue;
+        }
+        originResponse = response;
+        break;
+      }
+      if (!originResponse) {
+        debug(
+          debugPrefix,
+          `rejected: redirect chain exceeded ${MAX_REDIRECT_HOPS} hops`,
+        );
+        return errorResponse(
+          ctx,
+          502,
+          `Origin server redirect chain exceeded ${MAX_REDIRECT_HOPS} hops`,
+        );
       }
       const t1 = Date.now();
       debug(
