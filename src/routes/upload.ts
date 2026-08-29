@@ -36,7 +36,7 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
-import { mimeToExt } from "../utils/mime.ts";
+import { isEnvelopeMime, mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { drainBody } from "../utils/streams.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
@@ -84,6 +84,16 @@ export function buildUploadRouter(
     const xContentType = ctx.req.header("x-content-type") ??
       "application/octet-stream";
     const xContentLength = ctx.req.header("x-content-length");
+
+    // BUD-02 expects the raw file body — reject transport envelopes early
+    // (incident 2026-08-27: multipart bodies were stored as envelope blobs).
+    if (isEnvelopeMime(xContentType.split(";")[0])) {
+      return errorResponse(
+        ctx,
+        415,
+        "multipart/form-data and urlencoded bodies are not supported — PUT the raw file body with its Content-Type per BUD-02",
+      );
+    }
 
     if (!xContentLength) {
       return errorResponse(ctx, 411, "Missing X-Content-Length header");
@@ -196,6 +206,20 @@ export function buildUploadRouter(
     const contentType = ctx.req.header("content-type") ??
       "application/octet-stream";
     const mimeType = contentType.split(";")[0].trim();
+
+    // BUD-02 expects the raw file body — reject transport envelopes
+    if (isEnvelopeMime(mimeType)) {
+      await ctx.req.raw.body?.cancel();
+      debug(
+        debugPrefix,
+        `rejected: envelope content-type "${mimeType}" — raw body required (BUD-02)`,
+      );
+      return errorResponse(
+        ctx,
+        415,
+        "multipart/form-data and urlencoded bodies are not supported — PUT the raw file body with its Content-Type per BUD-02",
+      );
+    }
 
     const mimeRule = getFileRule(
       { mimeType, pubkey: auth?.pubkey },
