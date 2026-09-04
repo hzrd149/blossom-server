@@ -435,6 +435,57 @@ Deno.test({
 });
 
 // ---------------------------------------------------------------------------
+// Strict segment validation + static-path guard (mangled URL hardening)
+// ---------------------------------------------------------------------------
+
+Deno.test({
+  name: "GET blob: valid hash with extension suffix serves the blob",
+  async fn() {
+    const res = await app.fetch(
+      new Request(`http://localhost/${blobHash}.png`),
+    );
+    assertEquals(res.status, 200);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "GET blob: event-JSON slop glued to the URL returns 404 (was 200)",
+  async fn() {
+    // Real-world mangled shape from prod logs: imeta URL + kind:1 JSON
+    const slop = `${blobHash}.png%22,%22created_at%22:1787905306,%22id%22:%22` +
+      `2d8de223ef961bf88e14112b57098750833e88f1ad2e67604027dd75daa6c16f%22`;
+    const res = await app.fetch(new Request(`http://localhost/${slop}`));
+    assertEquals(res.status, 404);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "GET blob: over-long garbage path returns 404 without static stat",
+  async fn() {
+    const res = await app.fetch(
+      new Request(`http://localhost/${"a".repeat(300)}`),
+    );
+    assertEquals(res.status, 404);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "GET /favicon.ico: flat public asset still served through the guard",
+  async fn() {
+    const res = await app.fetch(new Request("http://localhost/favicon.ico"));
+    assertEquals(res.status, 200);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+// ---------------------------------------------------------------------------
 // Teardown
 // ---------------------------------------------------------------------------
 
