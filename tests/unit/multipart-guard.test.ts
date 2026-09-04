@@ -18,7 +18,8 @@ Deno.test("isEnvelopeMime: detects multipart variants", () => {
 
 Deno.test("isEnvelopeMime: detects the incident's exact value", () => {
   // real stored value from 2026-08-27 (header split on ';' at the call site):
-  const header = "multipart/form-data; boundary=------BlossomUpload1787500197539";
+  const header =
+    "multipart/form-data; boundary=------BlossomUpload1787500197539";
   assertEquals(isEnvelopeMime(header.split(";")[0]), true);
 });
 
