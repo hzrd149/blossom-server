@@ -45,3 +45,16 @@ export function getBlobUrl(
   const ext = mimeToExt(mimeType);
   return `${baseUrl}/${hash}${ext ? `.${ext}` : ""}`;
 }
+
+/**
+ * Whether a request path can name a file in the flat ./public directory
+ * (favicon.ico, client.js). Public assets are a single short segment of
+ * `[A-Za-z0-9._-]`; anything else — scanner slop, encoded JSON glued onto a
+ * URL, nested or `..` paths — cannot be an asset, so callers skip the static
+ * middleware entirely instead of stat'ing an absurd decoded filename on disk
+ * (ENAMETOOLONG on paths over ~255 bytes).
+ */
+export function isServeStaticCandidate(pathname: string): boolean {
+  if (pathname.includes("..")) return false;
+  return /^\/[A-Za-z0-9._-]{1,128}$/.test(pathname);
+}
