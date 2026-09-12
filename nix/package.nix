@@ -28,7 +28,7 @@ let
     inherit version src;
 
     entrypoint = "main.ts";
-    denoDepsHash = "sha256-wUDMyisK/TUBXvuRYlg8/6C19ssk3LzGA1LCxOs2dF8=";
+    denoDepsHash = "sha256-0Z0hloRWc3QVK2Kn2fctc1bz9TV1y/vTNo2sNYi65Yg=";
     runtimeInputs = [ pkgs.ffmpeg ];
     runFlags = [ "-P" ];
 

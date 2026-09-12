@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785925743,
-        "narHash": "sha256-1wa+KLYpiXYV93fgzdVBu8OFS6huXfp4s4xx1Bh510Q=",
+        "lastModified": 1789243157,
+        "narHash": "sha256-cgGBy3rxBGRP3OU7iYS2fRE4/ngdtOCHmD0WAK2BFRk=",
         "owner": "hzrd149",
         "repo": "deno2nix",
-        "rev": "31c88189e10c7e77f08237ec5d852db3ebba169e",
+        "rev": "0f4bdf687c3e73beed19c54b3539228e546f2ef1",
         "type": "github"
       },
       "original": {
