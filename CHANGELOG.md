@@ -1,5 +1,12 @@
 # blossom-server
 
+## 6.3.1
+
+### Patch Changes
+
+- Clamp blob range requests that end past EOF instead of returning 416.
+- Update the Nix package to use the upstream deno2nix dependency hashing fix.
+
 ## 6.3.0
 
 ### Minor Changes
