@@ -39,12 +39,19 @@ export interface PruneResult {
  *
  * Safe to call from a recurring setTimeout loop — never throws.
  * All per-blob errors are caught, counted, and logged as warnings.
+ *
+ * Each phase takes at most `batchSize` blobs per rule, so the cost of a cycle
+ * is bounded by configuration rather than by the size of the store. Anything
+ * left over is picked up by the next cycle. Without that bound a large store
+ * spends every cycle re-examining blobs that are nowhere near expiring, which
+ * blocks the event loop and makes the server intermittently unreachable.
  */
 export async function pruneStorage(
   db: Client,
   storage: IBlobStorage,
   rules: StorageRule[],
   removeWhenNoOwners: boolean,
+  batchSize = 1000,
 ): Promise<PruneResult> {
   let deleted = 0;
   let errors = 0;
@@ -71,7 +78,13 @@ export async function pruneStorage(
 
     let rows;
     try {
-      rows = await getBlobsForPrune(db, typePattern, rule.pubkeys);
+      rows = await getBlobsForPrune(
+        db,
+        typePattern,
+        cutoffSeconds,
+        batchSize,
+        rule.pubkeys,
+      );
     } catch (err) {
       console.warn(
         `[prune] Failed to query blobs for rule type="${rule.type}":`,
@@ -84,8 +97,9 @@ export async function pruneStorage(
       if (checked.has(row.sha256)) continue;
       checked.add(row.sha256);
 
-      // Use last-access time preferentially; fall back to upload time if the
-      // blob has never been accessed (accessed IS NULL).
+      // Expiry is decided in SQL now, so this is a guard rather than a filter:
+      // it should never reject a row. Kept because the failure it protects
+      // against — a query change that widens the match — deletes user data.
       const lastSeen = row.accessed ?? row.uploaded;
 
       if (lastSeen < cutoffSeconds) {
@@ -111,7 +125,7 @@ export async function pruneStorage(
   if (removeWhenNoOwners) {
     let ownerless: { sha256: string; type: string | null }[];
     try {
-      ownerless = await getOwnerlessBlobSha256s(db);
+      ownerless = await getOwnerlessBlobSha256s(db, batchSize);
     } catch (err) {
       console.warn("[prune] Failed to query ownerless blobs:", err);
       ownerless = [];

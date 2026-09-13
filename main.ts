@@ -125,6 +125,7 @@ if (pruneEnabled) {
         storage,
         config.storage.rules,
         config.storage.removeWhenNoOwners,
+        config.prune.batchSize,
       );
       if (result.deleted > 0 || result.errors > 0) {
         console.log(
