@@ -47,6 +47,13 @@ deno fmt
 # Pre-build the landing page client bundle (output: public/client.js)
 # Required before running the server when the landing page is enabled.
 deno task build
+
+# Rebuild all Nix artifacts in sandboxes, bypass cached outputs, and check the flake.
+deno task check:nix
+
+# Individual fixed-output checks, useful when updating a reported hash.
+nix build .#denoDeps --rebuild --print-build-logs
+nix build .#clientBundle --rebuild --print-build-logs
 ```
 
 > **Before every commit:** run `deno fmt` to auto-format all changed files.
@@ -56,6 +63,13 @@ deno task build
 > **Read before writing tests:** `TESTING.md` contains the full planned test
 > matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or
 > `tests/e2e/` (full Hono app via `app.fetch()` — no real HTTP port needed).
+
+> **Nix deterministic validation:** Run `deno task check:nix` after changing Nix
+> inputs, dependencies, or bundled client code. It realizes all outputs and then
+> force-rebuilds `denoDeps`, `clientBundle`, and the final package, so old store
+> paths cannot hide stale fixed-output hashes. If Nix reports a hash mismatch,
+> update the corresponding `denoDepsHash` or `clientBundle.hash` in
+> `nix/package.nix`, then rerun the task.
 
 ---
 

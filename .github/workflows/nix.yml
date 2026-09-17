@@ -17,4 +17,4 @@ jobs:
         uses: cachix/install-nix-action@v31
 
       - name: Check flake
-        run: nix flake check --print-build-logs
+        run: bash nix/check.sh

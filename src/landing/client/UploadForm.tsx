@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
 import type { BlobDescriptor, FileStatus, UploadFile } from "./types.ts";
 import { blobExists, HttpError, preflightUpload, xhrUpload } from "./api.ts";
-import {
-  getNostrProvider,
-  hashBatch,
-  MAX_X_TAGS_PER_EVENT,
-  signBatch,
-} from "./auth.ts";
+import { hashBatch, MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
+import { ensureIdentity } from "./identity.ts";
 import {
   createClientId,
   friendlyErrorMessage,
@@ -269,16 +265,8 @@ export function UploadForm({
       return;
     }
 
-    const nostr = getNostrProvider();
-    if (!nostr) {
-      for (const uf of pending) {
-        patchFile(uf.id, {
-          status: "error",
-          error: "No Nostr extension detected. Install Alby or nos2x.",
-        });
-      }
-      return;
-    }
+    // Whatever the user signed in with, or a generated key. Never prompts.
+    const signer = ensureIdentity();
 
     const regularPending = pending.filter((f) => !f.optimize);
     const mediaPending = pending.filter((f) => f.optimize);
@@ -304,7 +292,7 @@ export function UploadForm({
 
         let authHeader: string;
         try {
-          authHeader = await signBatch(nostr, batchHashes, verb, content);
+          authHeader = await signBatch(signer, batchHashes, verb, content);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           for (const uf of batch) {
@@ -458,11 +446,7 @@ export function UploadForm({
           : (
             <div class="space-y-2">
               <p class="text-gray-300">Drop files here or click to select</p>
-              <p class="text-xs text-gray-500">
-                {requireAuth
-                  ? "Nostr extension required to sign uploads"
-                  : "No auth required"}
-              </p>
+              <p class="text-xs text-gray-500">No sign-up required</p>
             </div>
           )}
       </label>

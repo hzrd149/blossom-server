@@ -11,9 +11,11 @@
   "tasks": {
     "dev": "deno run -P --env-file=.env --watch main.ts",
     "start": "deno run -P --env-file=.env main.ts",
-    "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/",
+    "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/ && deno task test:client",
+    "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/identity.test.ts",
     "build": "deno task build:client",
     "build:client": "deno bundle --frozen --lock=src/landing/client/deno.lock --config src/landing/client/deno.json --minify --platform browser -o public/client.js src/landing/client/index.tsx",
+    "check:nix": "bash nix/check.sh",
     "scan": "deno run --allow-env --allow-sys --allow-write --allow-read --allow-run --deny-net npm:aislop scan"
   },
   "permissions": {
@@ -38,10 +40,10 @@
     "@std/path": "jsr:@std/path@^1.1.4",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
-    "applesauce-common": "npm:applesauce-common@^6",
-    "applesauce-core": "npm:applesauce-core@^6",
-    "applesauce-loaders": "npm:applesauce-loaders@^6",
-    "applesauce-relay": "npm:applesauce-relay@^6",
+    "applesauce-common": "npm:applesauce-common@^6.2.0",
+    "applesauce-core": "npm:applesauce-core@^6.2.0",
+    "applesauce-loaders": "npm:applesauce-loaders@^6.2.0",
+    "applesauce-relay": "npm:applesauce-relay@^6.2.0",
     "rxjs": "npm:rxjs@^7.8.0",
     "nostr-tools": "npm:nostr-tools@^2.23.3",
     "sharp": "npm:sharp@^0.35.3",
