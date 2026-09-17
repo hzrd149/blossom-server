@@ -20,7 +20,7 @@ let
       "--platform=browser"
     ];
 
-    hash = "sha256-sI3XH0PqG0+2O9Sgdf4KDfInX5pleyXjyIILARub9P0=";
+    hash = "sha256-3aTe6unYpZZj/YBYEMQrXSqVZoqUfPI7W/Mb5FwGDjo=";
   };
 
   blossom-server = pkgs.buildDenoApplication {

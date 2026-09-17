@@ -47,6 +47,13 @@ deno fmt
 # Pre-build the landing page client bundle (output: public/client.js)
 # Required before running the server when the landing page is enabled.
 deno task build
+
+# Validate the Nix flake, forcing fixed-output derivations to rebuild.
+# Required after changing src/landing/client/ or its dependency lockfile.
+nix flake check --rebuild --print-build-logs
+
+# Targeted check for the fixed-output landing page bundle.
+nix build .#clientBundle --rebuild --print-build-logs
 ```
 
 > **Before every commit:** run `deno fmt` to auto-format all changed files.
@@ -56,6 +63,13 @@ deno task build
 > **Read before writing tests:** `TESTING.md` contains the full planned test
 > matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or
 > `tests/e2e/` (full Hono app via `app.fetch()` — no real HTTP port needed).
+
+> **Nix fixed-output validation:** A plain `nix flake check` may reuse an old
+> `clientBundle` from the local Nix store even when its source changed. After
+> changing `src/landing/client/`, its `deno.json`, or its `deno.lock`, run
+> `nix build .#clientBundle --rebuild --print-build-logs`. If Nix reports a hash
+> mismatch, update the `clientBundle.hash` in `nix/package.nix` to the reported
+> value, then run `nix flake check --rebuild --print-build-logs`.
 
 ---
 
