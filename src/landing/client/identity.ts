@@ -19,10 +19,11 @@ import {
   finalizeEvent,
   generateSecretKey,
   getPublicKey,
+  verifyEvent,
 } from "nostr-tools/pure";
 import { npubEncode, nsecEncode } from "nostr-tools/nip19";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
-import type { Signer, SignerKind } from "./types.ts";
+import type { SignedNostrEvent, Signer, UnsignedNostrEvent } from "./types.ts";
 import { getNostrProvider } from "./auth.ts";
 
 const STORAGE_KEY = "blossom.identity.v1";
@@ -68,12 +69,36 @@ function providerSigner(kind: "extension" | "remote", pubkey: string): Signer {
     kind,
     pubkey,
     npub: npubEncode(pubkey),
-    signEvent: (event) => {
+    signEvent: async (event) => {
       const nostr = getNostrProvider();
       if (!nostr) throw new Error("Signer is no longer available");
-      return nostr.signEvent(event);
+      const signed = await nostr.signEvent(event);
+      if (!isValidSignedEvent(signed, event)) {
+        throw new Error("Signer returned an invalid event");
+      }
+
+      const actualKind = nostr.isWnj ? "remote" : "extension";
+      if (actualKind !== kind || signed.pubkey !== pubkey) {
+        const adopted = providerSigner(actualKind, signed.pubkey);
+        writeStored({ kind: actualKind, pubkey: signed.pubkey });
+        setIdentity(adopted);
+      }
+
+      return signed;
     },
   };
+}
+
+function isValidSignedEvent(
+  signed: SignedNostrEvent,
+  unsigned: UnsignedNostrEvent,
+): boolean {
+  return HEX_32_RE.test(signed?.pubkey) &&
+    signed.kind === unsigned.kind &&
+    signed.content === unsigned.content &&
+    signed.created_at === unsigned.created_at &&
+    JSON.stringify(signed.tags) === JSON.stringify(unsigned.tags) &&
+    verifyEvent(signed);
 }
 
 function readStored(): StoredIdentity | null {
@@ -146,14 +171,11 @@ export function createLocalIdentity(): Signer {
  * button press.
  */
 export async function signInWithProvider(): Promise<Signer> {
-  const kind: SignerKind = hasExtension() ? "extension" : "remote";
-  if (kind === "remote" && !hasRemoteSigner()) {
-    throw new Error("No signer available");
-  }
   const nostr = getNostrProvider();
   if (typeof nostr?.getPublicKey !== "function") {
     throw new Error("No signer available");
   }
+  const kind = nostr.isWnj ? "remote" : "extension";
   const pubkey = await nostr.getPublicKey();
   if (!HEX_32_RE.test(pubkey)) {
     throw new Error("Signer returned an invalid public key");
