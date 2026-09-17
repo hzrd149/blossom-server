@@ -64,6 +64,9 @@ export interface MirrorItem {
 
 export interface NostrProvider {
   signEvent(event: UnsignedNostrEvent): Promise<unknown>;
+  getPublicKey?(): Promise<string>;
+  /** Set by window.nostr.js on its own shim, absent on real NIP-07 extensions. */
+  isWnj?: boolean;
 }
 
 export interface UnsignedNostrEvent {
@@ -71,6 +74,18 @@ export interface UnsignedNostrEvent {
   content: string;
   created_at: number;
   tags: string[][];
+}
+
+export type SignerKind = "extension" | "remote" | "local";
+
+/** Whatever is currently signing auth events. */
+export interface Signer {
+  kind: SignerKind;
+  pubkey: string;
+  npub: string;
+  /** bech32 nsec — local keys only, so they can be backed up */
+  nsec?: string;
+  signEvent(event: UnsignedNostrEvent): Promise<unknown>;
 }
 
 declare global {

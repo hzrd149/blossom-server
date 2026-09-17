@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@hono/hono@^4.12.7": "4.12.7",
     "npm:@noble/hashes@^2.2.0": "2.2.0",
+    "npm:nostr-tools@^2.23.3": "2.23.5",
     "npm:window.nostr.js@~0.7.1": "0.7.1"
   },
   "jsr": {
@@ -150,6 +151,18 @@
         "p-locate"
       ]
     },
+    "nostr-tools@2.23.5": {
+      "integrity": "sha512-Fa7ZlUdjfUW1P4E7H3yBexhOHYi18XNyvd2n7eNHkYR085xADX6Y8V8Vm7nT/XQajaFOBrptXmVIGkJ2E4vfVw==",
+      "dependencies": [
+        "@noble/ciphers",
+        "@noble/curves",
+        "@noble/hashes@2.0.1",
+        "@scure/base",
+        "@scure/bip32",
+        "@scure/bip39",
+        "nostr-wasm"
+      ]
+    },
     "nostr-wasm@0.1.0": {
       "integrity": "sha512-78BTryCLcLYv96ONU8Ws3Q1JzjlAt+43pWQhIl86xZmWeegYCNLPml7yQ+gG3vR6V5h4XGj+TxO+SS5dsThQIA=="
     },
@@ -261,6 +274,7 @@
     "dependencies": [
       "jsr:@hono/hono@^4.12.7",
       "npm:@noble/hashes@^2.2.0",
+      "npm:nostr-tools@^2.23.3",
       "npm:window.nostr.js@~0.7.1"
     ]
   }

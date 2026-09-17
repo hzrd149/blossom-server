@@ -2,6 +2,7 @@ import { useEffect, useState } from "@hono/hono/jsx/dom";
 import type { Tab } from "./types.ts";
 import { UploadForm } from "./UploadForm.tsx";
 import { MirrorForm } from "./MirrorForm.tsx";
+import { IdentityBar } from "./IdentityBar.tsx";
 
 export function App({
   requireAuth,
@@ -38,6 +39,8 @@ export function App({
 
   return (
     <div>
+      <IdentityBar />
+
       {/* Tab bar — only rendered when mirror is enabled */}
       {mirrorEnabled && (
         <div class="flex border-b border-gray-800 px-6 pt-4">
