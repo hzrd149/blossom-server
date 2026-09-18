@@ -4,6 +4,7 @@ import { encodeHex } from "@std/encoding/hex";
 import { DbProxy } from "../db/proxy.ts";
 import { DirectDbHandle } from "../db/direct.ts";
 import type { IDbHandle } from "../db/handle.ts";
+import { BYTE_LIMIT_ERROR } from "../utils/streams.ts";
 
 let _db: IDbHandle | null = null;
 
@@ -42,7 +43,11 @@ interface JobSuccess {
 }
 
 /** Discriminated error types for status code mapping on the main thread. */
-type WorkerErrorType = "HASH_MISMATCH" | "WRITE_ERROR" | "UNKNOWN";
+type WorkerErrorType =
+  | "HASH_MISMATCH"
+  | "WRITE_ERROR"
+  | "BYTE_LIMIT"
+  | "UNKNOWN";
 
 interface JobError {
   id: string;
@@ -151,11 +156,17 @@ async function handleJob(msg: JobMessage): Promise<void> {
       file?.close();
     } catch { /* already closed */ }
     await Deno.remove(tmpPath).catch(() => {});
+    const errText = err instanceof Error ? err.message : String(err);
+    // byteCapGuard errors carry a sentinel so routes can map them to 413
+    // instead of a generic 400.
+    const errorType: WorkerErrorType = errText.includes(BYTE_LIMIT_ERROR)
+      ? "BYTE_LIMIT"
+      : "UNKNOWN";
     self.postMessage(
       {
         id,
-        error: err instanceof Error ? err.message : String(err),
-        errorType: "UNKNOWN",
+        error: errText,
+        errorType,
       } satisfies JobError,
     );
   }

@@ -8,9 +8,13 @@
  * streams to exact byte counts across chunk-boundary scenarios.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { parseRange } from "../../src/routes/blobs.ts";
-import { byteLimitTransform } from "../../src/utils/streams.ts";
+import {
+  BYTE_LIMIT_ERROR,
+  byteCapGuard,
+  byteLimitTransform,
+} from "../../src/utils/streams.ts";
 
 // ---------------------------------------------------------------------------
 // parseRange — RFC 9110 single-range forms
@@ -225,4 +229,52 @@ Deno.test("byteLimitTransform: limit larger than stream — all bytes pass throu
     makeStream(data).pipeThrough(byteLimitTransform(100)),
   );
   assertEquals(result, data);
+});
+
+// ---------------------------------------------------------------------------
+// byteCapGuard — stream-side upload size cap (errors, never truncates)
+// ---------------------------------------------------------------------------
+
+function cappedStream(...chunks: Uint8Array[]): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      for (const c of chunks) controller.enqueue(c);
+      controller.close();
+    },
+  });
+}
+
+async function countBytes(stream: ReadableStream<Uint8Array>): Promise<number> {
+  let total = 0;
+  for await (const chunk of stream) total += chunk.byteLength;
+  return total;
+}
+
+Deno.test("byteCapGuard: stream under the limit passes through intact", async () => {
+  const out = cappedStream(new Uint8Array(40), new Uint8Array(40))
+    .pipeThrough(byteCapGuard(100));
+  assertEquals(await countBytes(out), 80);
+});
+
+Deno.test("byteCapGuard: stream exactly at the limit passes (declared size is legitimate)", async () => {
+  const out = cappedStream(new Uint8Array(60), new Uint8Array(40))
+    .pipeThrough(byteCapGuard(100));
+  assertEquals(await countBytes(out), 100);
+});
+
+Deno.test("byteCapGuard: stream exceeding the limit errors with the sentinel", async () => {
+  // Simulates a lying Content-Length: declared 100, actually streams 120.
+  const out = cappedStream(new Uint8Array(60), new Uint8Array(60))
+    .pipeThrough(byteCapGuard(100));
+  await assertRejects(() => countBytes(out), Error, BYTE_LIMIT_ERROR);
+});
+
+Deno.test("byteCapGuard: single oversized chunk errors immediately", async () => {
+  const out = cappedStream(new Uint8Array(1000)).pipeThrough(byteCapGuard(100));
+  await assertRejects(() => countBytes(out), Error, BYTE_LIMIT_ERROR);
+});
+
+Deno.test("byteCapGuard: limit 0 rejects any non-empty body", async () => {
+  const out = cappedStream(new Uint8Array(1)).pipeThrough(byteCapGuard(0));
+  await assertRejects(() => countBytes(out), Error, BYTE_LIMIT_ERROR);
 });

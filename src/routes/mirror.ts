@@ -40,7 +40,8 @@ import type { BlossomVariables } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
-import { getPool } from "../workers/pool.ts";
+import { getPool, WorkerJobError } from "../workers/pool.ts";
+import { byteCapGuard } from "../utils/streams.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
@@ -358,8 +359,13 @@ export function buildMirrorRouter(
 
     // Pass null as xSha256 — the hash is unknown pre-download. The x-tag
     // verification happens post-hash (step 13) after the worker returns.
+    // Stream-side size cap — the origin's Content-Length gate only validated
+    // the DECLARED size; a malicious origin can lie and stream more.
+    const cappedStream = streamForWorker.pipeThrough(
+      byteCapGuard(config.upload.maxSize),
+    );
     const jobPromise = pool.dispatch(
-      streamForWorker,
+      cappedStream,
       session.tmpPath,
       contentLength,
       null,
@@ -406,6 +412,13 @@ export function buildMirrorRouter(
         ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`
         : errMsg || "Mirror failed";
       debug(debugPrefix, `worker error — ${msg}`);
+      if (err instanceof WorkerJobError && err.errorType === "BYTE_LIMIT") {
+        return errorResponse(
+          ctx,
+          413,
+          `Remote blob too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+        );
+      }
       return errorResponse(ctx, 502, msg);
     }
 
