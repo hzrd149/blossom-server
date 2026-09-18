@@ -20,7 +20,20 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 
-const SHA256_RE = /^[0-9a-f]{64}$/;
+/**
+ * A valid blob path segment: exactly the 64-char hash with an optional short
+ * alphanumeric extension. Deliberately strict — a segment that carries URL
+ * slop (e.g. event JSON glued onto the hash by a misbehaving client) must
+ * fall through to 404 rather than fuzzy-match the leading hex run.
+ */
+const BLOB_SEGMENT_RE = /^([0-9a-f]{64})(?:\.[A-Za-z0-9]{1,10})?$/;
+
+/** Extract the blob hash from a /:filename segment, or null if it is not a
+ * strict `<sha256>[.ext]` reference. */
+export function extractBlobHash(filename: string): string | null {
+  const match = filename.match(BLOB_SEGMENT_RE);
+  return match ? match[1] : null;
+}
 
 export function buildBlobsRouter(
   db: Client,
@@ -34,11 +47,9 @@ export function buildBlobsRouter(
   // Match the full segment including optional extension (e.g. abc123...def.jpg)
   app.on(["GET", "HEAD"], "/:filename", async (ctx, next) => {
     const filename = ctx.req.param("filename") ?? "";
-    // Extract 64-char hex hash — the last 64-char hex run in the segment
-    const match = filename.match(/([0-9a-f]{64})/);
-    const hash = match?.[1] ?? "";
+    const hash = extractBlobHash(filename);
 
-    if (!SHA256_RE.test(hash)) {
+    if (!hash) {
       return next();
     }
 

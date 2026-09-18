@@ -14,6 +14,7 @@ import { authMiddleware } from "./middleware/auth.ts";
 import type { BlossomVariables } from "./middleware/auth.ts";
 import { onError } from "./middleware/errors.ts";
 import { requestLogger } from "./middleware/logger.ts";
+import { isServeStaticCandidate } from "./utils/url.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
 import { buildLandingRouter } from "./routes/landing.tsx";
@@ -41,7 +42,15 @@ export async function buildApp(
 
   // Serve any file from the public directory at its root-relative URL.
   // Requests that do not map to a file fall through to the app routes below.
-  app.use("*", serveStatic({ root: "./public" }));
+  // The path guard skips the middleware for anything that cannot name a flat
+  // public asset — serveStatic stats public/<decoded-path> on every request,
+  // and garbage URLs (e.g. event JSON glued onto a blob path) decode to
+  // filenames past the OS limit, producing ENAMETOOLONG noise on each hit.
+  const serveStaticMw = serveStatic({ root: "./public" });
+  app.use("*", (ctx, next) => {
+    if (!isServeStaticCandidate(ctx.req.path)) return next();
+    return serveStaticMw(ctx, next);
+  });
 
   // Landing page: GET / and GET /client.js (disabled by default)
   // Mounted first so GET / is claimed before the Blossom blob catch-all.

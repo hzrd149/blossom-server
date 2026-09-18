@@ -91,3 +91,38 @@ Deno.test("getBaseUrl: incoming https stays https without forwarded headers", ()
   const req = new Request("https://cdn.example.com/");
   assertEquals(getBaseUrl(req, ""), "https://cdn.example.com");
 });
+
+// ---------------------------------------------------------------------------
+// isServeStaticCandidate — public-asset path guard
+// ---------------------------------------------------------------------------
+
+import { isServeStaticCandidate } from "../../src/utils/url.ts";
+
+Deno.test("isServeStaticCandidate: accepts flat public asset names", () => {
+  assertEquals(isServeStaticCandidate("/favicon.ico"), true);
+  assertEquals(isServeStaticCandidate("/client.js"), true);
+  assertEquals(isServeStaticCandidate("/abc-123_0.A"), true);
+});
+
+Deno.test("isServeStaticCandidate: rejects bare root and nested paths", () => {
+  assertEquals(isServeStaticCandidate("/"), false);
+  assertEquals(isServeStaticCandidate("/a/b.png"), false);
+  assertEquals(isServeStaticCandidate("/nested/dir/file.js"), false);
+});
+
+Deno.test("isServeStaticCandidate: rejects URL slop and special characters", () => {
+  assertEquals(isServeStaticCandidate("/foo.png%22,%22x"), false);
+  assertEquals(isServeStaticCandidate('/foo.png","created_at":1'), false);
+  assertEquals(isServeStaticCandidate("/caf\u00e9.js"), false);
+});
+
+Deno.test("isServeStaticCandidate: rejects traversal", () => {
+  assertEquals(isServeStaticCandidate("/.."), false);
+  assertEquals(isServeStaticCandidate("/../etc/passwd"), false);
+});
+
+Deno.test("isServeStaticCandidate: rejects over-long segments", () => {
+  assertEquals(isServeStaticCandidate(`/${"a".repeat(128)}`), true);
+  assertEquals(isServeStaticCandidate(`/${"a".repeat(129)}`), false);
+  assertEquals(isServeStaticCandidate(`/${"a".repeat(300)}`), false);
+});
