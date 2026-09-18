@@ -25,6 +25,7 @@ import { extractDimensions } from "../optimize/dimensions.ts";
 import { createThumbnail } from "../optimize/thumbnail.ts";
 import { getFileRule } from "../prune/rules.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
+import { isEnvelopeMime } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
@@ -261,6 +262,14 @@ export function buildMediaRouter(
     const xContentType = ctx.req.header("x-content-type") ??
       ctx.req.header("content-type");
     if (xContentType) {
+      // BUD-02 expects the raw file body — reject transport envelopes early
+      if (isEnvelopeMime(xContentType.split(";")[0])) {
+        return errorResponse(
+          ctx,
+          415,
+          "multipart/form-data and urlencoded bodies are not supported: PUT the raw file body with its Content-Type per BUD-02",
+        );
+      }
       const mimeType = xContentType.split(";")[0].trim();
       const mimeRule = getFileRule(
         { mimeType, pubkey: ctx.get("auth")?.pubkey },
@@ -358,6 +367,20 @@ export function buildMediaRouter(
       const contentType = ctx.req.header("content-type") ??
         "application/octet-stream";
       const mimeType = contentType.split(";")[0].trim();
+
+      // BUD-02 expects the raw file body — reject transport envelopes
+      if (isEnvelopeMime(mimeType)) {
+        await ctx.req.raw.body?.cancel();
+        debug(
+          debugPrefix,
+          `rejected: envelope content-type "${mimeType}" - raw body required (BUD-02)`,
+        );
+        return errorResponse(
+          ctx,
+          415,
+          "multipart/form-data and urlencoded bodies are not supported: PUT the raw file body with its Content-Type per BUD-02",
+        );
+      }
       const mimeRule = getFileRule(
         { mimeType, pubkey: auth?.pubkey },
         config.storage.rules,
