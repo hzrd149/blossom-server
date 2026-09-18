@@ -15,6 +15,13 @@ Deno.test("ConfigSchema: media thumbnail defaults are enabled", () => {
   assertEquals(config.media.thumbnail.videoSeek, 1);
 });
 
+Deno.test("ConfigSchema: media optimizeByDefault and video keepMetadata default off", () => {
+  const config = ConfigSchema.parse({ media: { enabled: true } });
+
+  assertEquals(config.media.optimizeByDefault, false);
+  assertEquals(config.media.video.keepMetadata, false);
+});
+
 Deno.test("loadConfig: directory config path uses defaults", async () => {
   const dir = await Deno.makeTempDir();
   const configPath = join(dir, "config.yml");

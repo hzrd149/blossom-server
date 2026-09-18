@@ -19,6 +19,7 @@ if (root) {
       requireAuth={root.dataset.requireAuth === "true"}
       mediaEnabled={root.dataset.mediaEnabled === "true"}
       mediaRequireAuth={root.dataset.mediaRequireAuth === "true"}
+      optimizeByDefault={root.dataset.optimizeByDefault === "true"}
       mirrorEnabled={root.dataset.mirrorEnabled === "true"}
       mirrorRequireAuth={root.dataset.mirrorRequireAuth === "true"}
     />,

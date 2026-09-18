@@ -34,6 +34,8 @@ export const LandingPage: FC<{ db: IDbHandle; config: Config }> = async (
         uploadEnabled={config.upload.enabled}
         mediaEnabled={config.media.enabled}
         mediaRequireAuth={config.media.requireAuth}
+        optimizeByDefault={config.media.enabled &&
+          config.media.optimizeByDefault}
         mirrorEnabled={config.mirror.enabled}
         mirrorRequireAuth={config.mirror.requireAuth}
       />

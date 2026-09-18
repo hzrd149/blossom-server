@@ -11,6 +11,7 @@ export const UploadIsland: FC<{
   uploadEnabled: boolean;
   mediaEnabled: boolean;
   mediaRequireAuth: boolean;
+  optimizeByDefault: boolean;
   mirrorEnabled: boolean;
   mirrorRequireAuth: boolean;
 }> = (
@@ -19,6 +20,7 @@ export const UploadIsland: FC<{
     uploadEnabled,
     mediaEnabled,
     mediaRequireAuth,
+    optimizeByDefault,
     mirrorEnabled,
     mirrorRequireAuth,
   },
@@ -33,6 +35,7 @@ export const UploadIsland: FC<{
             data-require-auth={String(requireAuth)}
             data-media-enabled={String(mediaEnabled)}
             data-media-require-auth={String(mediaRequireAuth)}
+            data-optimize-by-default={String(optimizeByDefault)}
             data-mirror-enabled={String(mirrorEnabled)}
             data-mirror-require-auth={String(mirrorRequireAuth)}
             class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden"

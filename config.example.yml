@@ -212,6 +212,12 @@ media:
   # Require a valid BUD-11 Nostr auth event for media uploads.
   requireAuth: true
 
+  # Pre-select the "Optimize media" option on the landing upload form, so
+  # uploads are sent through the /media pipeline (EXIF and video metadata
+  # stripped) by default. Users can still opt out per upload.
+  # No effect when media.enabled is false.
+  optimizeByDefault: false
+
   # Maximum input file size in bytes before reading the body. Default: 1 GB.
   maxSize: 1073741824 # 1 GB
 
@@ -276,6 +282,12 @@ media:
     #   mp4 / mkv: "libx264" (default), "libx265"
     #   webm:      "vp9", "vp8"
     videoCodec: libx264
+
+    # Keep container metadata (titles, encoder tags, creation info) and
+    # chapters in the output file.
+    # When false (default), all metadata is stripped — recommended for
+    # privacy, matching the image pipeline's keepExif: false behaviour.
+    keepMetadata: false
 
     # Example: webm output (all three fields must be changed together)
     # format: webm

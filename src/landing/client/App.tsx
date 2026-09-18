@@ -7,12 +7,14 @@ export function App({
   requireAuth,
   mediaEnabled,
   mediaRequireAuth,
+  optimizeByDefault,
   mirrorEnabled,
   mirrorRequireAuth,
 }: {
   requireAuth: boolean;
   mediaEnabled: boolean;
   mediaRequireAuth: boolean;
+  optimizeByDefault: boolean;
   mirrorEnabled: boolean;
   mirrorRequireAuth: boolean;
 }) {
@@ -64,6 +66,7 @@ export function App({
           requireAuth={requireAuth}
           mediaEnabled={mediaEnabled}
           mediaRequireAuth={mediaRequireAuth}
+          optimizeByDefault={optimizeByDefault}
           onQueueChange={setUploadHasItems}
         />
       )}
