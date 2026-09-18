@@ -1,4 +1,3 @@
-
 import { castUser } from "applesauce-common/casts";
 import { EventStore } from "applesauce-core/event-store";
 import type { ProfileContent } from "applesauce-core/helpers";
