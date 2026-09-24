@@ -42,6 +42,27 @@ export function parseDuration(s: string): number {
 }
 
 /**
+ * Whether a pubkey would be allowed by ANY rule under requirePubkeyInRule
+ * semantics — i.e. it appears in at least one rule's pubkeys allowlist.
+ *
+ * Used by PUT /mirror to reject non-allowlisted uploaders BEFORE fetching
+ * the origin: without this, a non-allowlisted authenticated key could make
+ * the server issue outbound HTTP requests (SSRF-guarded, but still an
+ * unintended capability) whose results it would never be allowed to store.
+ */
+export function pubkeyAllowedByRules(
+  pubkey: string | undefined,
+  rules: StorageRule[],
+  requirePubkeyInRule: boolean,
+): boolean {
+  if (!requirePubkeyInRule) return true;
+  if (!pubkey) return false;
+  return rules.some(
+    (rule) => rule.pubkeys !== undefined && rule.pubkeys.includes(pubkey),
+  );
+}
+
+/**
  * Returns true if a MIME type matches a rule's type pattern.
  *
  * Pattern semantics (mirrors legacy getFileRule logic):

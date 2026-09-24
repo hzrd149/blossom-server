@@ -45,7 +45,7 @@ import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
-import { getFileRule } from "../prune/rules.ts";
+import { getFileRule, pubkeyAllowedByRules } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
 
 /** BUD-02 Blob Descriptor (same shape as upload route) */
@@ -169,6 +169,24 @@ export function buildMirrorRouter(
         ctx,
         400,
         `Unsupported URL scheme: ${mirrorUrl.protocol}. Only http and https are allowed`,
+      );
+    }
+
+    // Pre-fetch allowlist gate: with requirePubkeyInRule, a non-allowlisted
+    // uploader must be rejected BEFORE the origin fetch — otherwise they can
+    // make the server issue outbound requests it would never store for them.
+    if (
+      config.upload.requirePubkeyInRule &&
+      !pubkeyAllowedByRules(auth?.pubkey, config.storage.rules, true)
+    ) {
+      debug(
+        debugPrefix,
+        `rejected: pubkey not authorized by any storage rule (pre-fetch)`,
+      );
+      return errorResponse(
+        ctx,
+        401,
+        "Pubkey not authorized by any storage rule",
       );
     }
 

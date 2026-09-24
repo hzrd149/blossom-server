@@ -17,6 +17,7 @@
   release tags.
 - Bound expiry and ownerless pruning with cursor-based batches while preserving ordered first-match retention rules and allowing later blobs to progress past
   deletion failures.
+- Reject mirror requests from pubkeys absent from every storage-rule allowlist before fetching the remote origin.
 
 ## 6.3.1
 
