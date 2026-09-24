@@ -332,91 +332,47 @@ export async function isOwner(
 export interface BlobPruneRecord extends BlobRecord {
   /** Unix timestamp from the accessed table, or null if the blob has never been accessed. */
   accessed: number | null;
+  owners: string[];
+  thumbnail: boolean;
+  pruneSource: PruneSource;
 }
 
-/**
- * Fetch up to `limit` blobs that match a type pattern and are already expired:
- * last accessed (or, if never accessed, uploaded) before `cutoff`.
- *
- * ## Why this is not one `COALESCE(a.timestamp, b.uploaded) < ?`
- *
- * That reads better and is unusably slow. SQLite cannot drive an index from an
- * expression spanning two tables, so it evaluates the COALESCE for every row in
- * `blobs` — and because `LIMIT` can only stop early once it has found matching
- * rows, a store where nothing is expiring pays for a full scan every time. On a
- * 1.07M blob store that is ~22s, against ~33s for fetching every row and
- * filtering in JS: barely an improvement, and still long enough to stall the
- * event loop.
- *
- * Splitting the fallback into its two disjoint cases gives SQLite something it
- * can seek on, and the same store answers in ~1ms:
- *
- *   - blobs WITH an `accessed` row, expired by `accessed.timestamp`
- *     (driven by the `accessed_timestamp` index)
- *   - blobs WITHOUT one, expired by `blobs.uploaded`
- *     (driven by the `blobs_uploaded` index, added in 006)
- *
- * The two arms are mutually exclusive by construction — a blob either has an
- * `accessed` row or it does not — so `UNION ALL` cannot produce duplicates.
- *
- * `EXISTS` is used for the owner and thumbnail conditions rather than joins so
- * that one row out means one blob out. A blob with several matching owners
- * would otherwise appear several times and consume the caller's batch.
- *
- * @param typePattern  SQL LIKE pattern (e.g. "image/%", "%"). Use mimeToSqlLike() to derive this.
- * @param cutoff       Unix seconds. Blobs last seen strictly before this are returned.
- * @param limit        Maximum rows to return, bounding the caller's work per cycle.
- * @param pubkeys      If provided, only blobs owned by one of these pubkeys are returned.
- */
+export type PruneSource = "accessed" | "uploaded";
+
+export interface PruneCursor {
+  timestamp: number;
+  sha256: string;
+}
+
 export async function getBlobsForPrune(
   db: Client,
-  typePattern: string,
   cutoff: number,
   limit: number,
-  pubkeys?: string[],
+  source: PruneSource,
+  cursor?: PruneCursor,
 ): Promise<BlobPruneRecord[]> {
-  const cols = "b.sha256, b.size, b.type, b.uploaded, b.nip94";
+  const timestamp = source === "accessed" ? "a.timestamp" : "b.uploaded";
+  const tieBreaker = source === "accessed" ? "a.blob" : "b.sha256";
+  const joinAccessed = source === "accessed" ? "JOIN accessed a ON a.blob = b.sha256" : "";
+  const conditions = [`${timestamp} < ?`];
+  const args: (string | number)[] = [cutoff];
 
-  // Shared per-arm conditions. Thumbnails are owned by their parent blob and
-  // are removed with it, so they are never pruned in their own right.
-  const notThumbnail =
-    "NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256)";
-
-  const args: (string | number)[] = [];
-  let ownedBy = "";
-  const ownerArgs: string[] = [];
-
-  if (pubkeys && pubkeys.length > 0) {
-    const placeholders = pubkeys.map(() => "?").join(", ");
-    ownedBy =
-      `AND EXISTS (SELECT 1 FROM owners o WHERE o.blob = b.sha256 AND o.pubkey IN (${placeholders}))`;
-    ownerArgs.push(...pubkeys);
+  if (cursor) {
+    conditions.push(`(${timestamp}, ${tieBreaker}) > (?, ?)`);
+    args.push(cursor.timestamp, cursor.sha256);
   }
 
   const sql = `
-    SELECT ${cols}, a.timestamp AS accessed
+    SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94,
+           ${source === "accessed" ? "a.timestamp" : "(SELECT a.timestamp FROM accessed a WHERE a.blob = b.sha256)"} AS accessed,
+           COALESCE((SELECT GROUP_CONCAT(o.pubkey, ',') FROM owners o WHERE o.blob = b.sha256), '') AS owners,
+           EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS thumbnail
     FROM blobs b
-    JOIN accessed a ON a.blob = b.sha256
-    WHERE a.timestamp < ?
-      AND b.type LIKE ?
-      ${ownedBy}
-      AND ${notThumbnail}
-
-    UNION ALL
-
-    SELECT ${cols}, NULL AS accessed
-    FROM blobs b
-    WHERE b.uploaded < ?
-      AND NOT EXISTS (SELECT 1 FROM accessed a WHERE a.blob = b.sha256)
-      AND b.type LIKE ?
-      ${ownedBy}
-      AND ${notThumbnail}
-
+    ${joinAccessed}
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY ${timestamp} ASC, ${tieBreaker} ASC
     LIMIT ?
   `;
-
-  args.push(cutoff, typePattern, ...ownerArgs);
-  args.push(cutoff, typePattern, ...ownerArgs);
   args.push(limit);
 
   const rs = await db.execute({ sql, args });
@@ -427,6 +383,9 @@ export async function getBlobsForPrune(
     uploaded: row[3] as number,
     nip94: parseNip94(row[4]),
     accessed: row[5] as number | null,
+    owners: row[6] ? (row[6] as string).split(",") : [],
+    thumbnail: Boolean(row[7]),
+    pruneSource: source,
   }));
 }
 
@@ -674,24 +633,33 @@ export async function countBlobsByPubkey(
   return (rs.rows[0]?.[0] as number) ?? 0;
 }
 
-export async function getOwnerlessBlobSha256s(
+export interface OwnerlessScanRecord {
+  sha256: string;
+  type: string | null;
+  prunable: boolean;
+}
+
+export async function getOwnerlessBlobCandidates(
   db: Client,
   limit: number,
-): Promise<{ sha256: string; type: string | null }[]> {
+  cursor?: string,
+): Promise<OwnerlessScanRecord[]> {
+  const cursorCondition = cursor ? "WHERE b.sha256 > ?" : "";
   const rs = await db.execute({
     sql: `
-      SELECT b.sha256, b.type
+      SELECT b.sha256, b.type,
+             NOT EXISTS (SELECT 1 FROM owners o WHERE o.blob = b.sha256)
+             AND NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS prunable
       FROM blobs b
-      LEFT JOIN owners o ON o.blob = b.sha256
-      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-      WHERE o.blob IS NULL
-        AND mt.thumbnail_sha256 IS NULL
+      ${cursorCondition}
+      ORDER BY b.sha256 ASC
       LIMIT ?
     `,
-    args: [limit],
+    args: cursor ? [cursor, limit] : [limit],
   });
   return rs.rows.map((row) => ({
     sha256: row[0] as string,
     type: row[1] as string | null,
+    prunable: Boolean(row[2]),
   }));
 }
