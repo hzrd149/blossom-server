@@ -162,6 +162,9 @@ deno task start /etc/blossom/config.yml
 Configuration is loaded from a YAML file (default: `config.yml` in the working directory). Environment variables can be substituted anywhere in the file using
 `${VAR_NAME}` syntax.
 
+Set `BLOSSOM_REQUIRE_CONFIG=1` to make startup fail when the configured file is missing or is a directory instead of silently using schema defaults. The Docker
+Compose example and NixOS module enable this safeguard automatically; direct source and `nix run` invocations remain lenient unless you opt in.
+
 ### Key Options
 
 | Key                          | Default          | Description                                                                                                            |

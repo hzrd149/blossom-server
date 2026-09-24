@@ -4,6 +4,9 @@ volumes:
 services:
   blossom:
     build: .
+    environment:
+      # Refuse to boot with open defaults if the config bind mount is missing or invalid.
+      BLOSSOM_REQUIRE_CONFIG: "1"
     ports:
       - "3000:3000"
     volumes:

@@ -5,6 +5,7 @@
 ### Minor Changes
 
 - Add an independent `media.requirePubkeyInRule` setting, enabled by default, with a warned compatibility fallback for existing media configurations.
+- Add opt-in strict config loading through `BLOSSOM_REQUIRE_CONFIG`, enabled by default in the Docker Compose example and NixOS module.
 - Allow landing-page uploads and mirrors without signing in first by generating a persistent browser-local Nostr identity. Add controls to back up the local
   secret key, sign in with a NIP-07 or NIP-46 signer, and safely switch or sign out of identities.
 
