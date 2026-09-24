@@ -9,12 +9,14 @@
 
 import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
+import { fromFileUrl, join } from "@std/path";
 import type { Config } from "../config/schema.ts";
 import { DirectDbHandle } from "../db/direct.ts";
 import { LandingPage } from "../landing/page.tsx";
 
-const CLIENT_BUNDLE_PATH = "./public/client.js";
-const STYLESHEET_PATH = "./public/styles.css";
+export const PUBLIC_DIR = fromFileUrl(new URL("../../public", import.meta.url));
+const CLIENT_BUNDLE_PATH = join(PUBLIC_DIR, "client.js");
+const STYLESHEET_PATH = join(PUBLIC_DIR, "styles.css");
 
 /** Refuse to enable an HTML UI when its compiled stylesheet is unavailable. */
 export async function assertStylesheetPresent(): Promise<void> {

@@ -11,7 +11,7 @@
 
 ### Patch Changes
 
-- Compile and package the landing and admin Tailwind stylesheet locally instead of loading Tailwind's development CDN at runtime.
+- Compile, package, and serve the landing and admin Tailwind stylesheet locally instead of loading Tailwind's development CDN at runtime.
 - Upgrade Applesauce dependencies to 6.2 and adapt admin Nostr profile loading to the updated profile model.
 - Add deterministic Nix rebuild validation for dependencies, the landing-page bundle, and the final server package.
 - Add a `deno task update:nix-hashes` command that refreshes stale fixed-output hashes and verifies the resulting Nix builds.

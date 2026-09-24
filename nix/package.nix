@@ -44,14 +44,6 @@ let
     runFlags = [ "-P" ];
 
     postPatch = ''
-      client_bundle="${builtins.placeholder "out"}/share/blossom-server/public/client.js"
-      stylesheet="${builtins.placeholder "out"}/share/blossom-server/public/styles.css"
-      substituteInPlace src/routes/landing.tsx \
-        --replace-fail 'const CLIENT_BUNDLE_PATH = "./public/client.js";' \
-                       "const CLIENT_BUNDLE_PATH = \"$client_bundle\";" \
-        --replace-fail 'const STYLESHEET_PATH = "./public/styles.css";' \
-                       "const STYLESHEET_PATH = \"$stylesheet\";"
-
       cp ${clientBundle}/client.js public/client.js
       cp ${styles} public/styles.css
     '';
