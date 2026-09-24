@@ -48,6 +48,9 @@ deno task build
 # Rebuild all Nix artifacts in sandboxes, bypass cached outputs, and check the flake.
 deno task check:nix
 
+# Refresh stale fixed-output hashes, then run the full Nix check
+deno task update:nix-hashes
+
 # Individual fixed-output checks, useful when updating a reported hash.
 nix build .#denoDeps --rebuild --print-build-logs
 nix build .#clientBundle --rebuild --print-build-logs
@@ -65,7 +68,7 @@ nix build .#clientBundle --rebuild --print-build-logs
 
 > **Nix deterministic validation:** Run `deno task check:nix` after changing Nix inputs, dependencies, or bundled client code. It realizes all outputs and then
 > force-rebuilds `denoDeps`, `clientBundle`, and the final package, so old store paths cannot hide stale fixed-output hashes. If Nix reports a hash mismatch,
-> update the corresponding `denoDepsHash` or `clientBundle.hash` in `nix/package.nix`, then rerun the task.
+> run `deno task update:nix-hashes` to refresh `denoDepsHash` and `clientBundle.hash` in `nix/package.nix` and verify all outputs.
 
 ---
 

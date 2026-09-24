@@ -16,6 +16,7 @@
     "build": "deno task build:client",
     "build:client": "deno bundle --frozen --lock=src/landing/client/deno.lock --config src/landing/client/deno.json --minify --platform browser -o public/client.js src/landing/client/index.tsx",
     "check:nix": "bash nix/check.sh",
+    "update:nix-hashes": "bash nix/update-hashes.sh",
     "scan": "deno run --allow-env --allow-sys --allow-write --allow-read --allow-run --deny-net npm:aislop scan"
   },
   "permissions": {

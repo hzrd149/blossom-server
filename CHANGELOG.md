@@ -12,6 +12,7 @@
 
 - Upgrade Applesauce dependencies to 6.2 and adapt admin Nostr profile loading to the updated profile model.
 - Add deterministic Nix rebuild validation for dependencies, the landing-page bundle, and the final server package.
+- Add a `deno task update:nix-hashes` command that refreshes stale fixed-output hashes and verifies the resulting Nix builds.
 - Run Deno tests on pushes and pull requests, verify multi-architecture Docker builds on non-`master` branches, and limit image publishing to `master` and
   release tags.
 - Bound expiry and ownerless pruning with cursor-based batches while preserving ordered first-match retention rules and allowing later blobs to progress past
