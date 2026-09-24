@@ -134,7 +134,8 @@ Deno.test({
       storage,
       config,
     );
-    const origin = Deno.serve({ port: 0 }, () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () => {
       const body = new ReadableStream<Uint8Array>({
         start(controller) {
           controller.enqueue(new Uint8Array(60));
@@ -142,10 +143,12 @@ Deno.test({
           controller.close();
         },
       });
-      return new Response(body, {
-        headers: { "Content-Type": "application/octet-stream" },
-      });
-    });
+      return Promise.resolve(
+        new Response(body, {
+          headers: { "Content-Type": "application/octet-stream" },
+        }),
+      );
+    };
 
     try {
       const res = await app.fetch(
@@ -153,7 +156,7 @@ Deno.test({
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: `http://localhost:${origin.addr.port}/blob`,
+            url: "https://1.1.1.1/blob",
           }),
         }),
       );
@@ -166,7 +169,7 @@ Deno.test({
       }
       assertEquals(tempFiles, []);
     } finally {
-      await origin.shutdown();
+      globalThis.fetch = originalFetch;
       pool.shutdown();
       db.close();
       await Deno.remove(tmpDir, { recursive: true });

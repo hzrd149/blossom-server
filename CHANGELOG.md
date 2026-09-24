@@ -20,6 +20,7 @@
   deletion failures.
 - Reject mirror requests from pubkeys absent from every storage-rule allowlist before fetching the remote origin.
 - Enforce configured upload and media size limits against streamed bytes, even when clients or mirror origins underreport `Content-Length`.
+- Harden mirror fetching against SSRF through DNS-resolved local addresses, IPv6 address variants, and redirect destinations.
 
 ## 6.3.1
 
