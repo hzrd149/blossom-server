@@ -19,6 +19,7 @@
 - Bound expiry and ownerless pruning with cursor-based batches while preserving ordered first-match retention rules and allowing later blobs to progress past
   deletion failures.
 - Reject mirror requests from pubkeys absent from every storage-rule allowlist before fetching the remote origin.
+- Enforce configured upload and media size limits against streamed bytes, even when clients or mirror origins underreport `Content-Length`.
 
 ## 6.3.1
 

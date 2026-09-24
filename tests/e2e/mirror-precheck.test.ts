@@ -111,3 +111,66 @@ Deno.test({
   },
   ...testOpts,
 });
+
+Deno.test({
+  name: "PUT /mirror: streamed bytes exceeding maxSize return 413",
+  async fn() {
+    const tmpDir = await Deno.makeTempDir({
+      prefix: "blossom_e2e_mirrorcap_",
+    });
+    const dbPath = join(tmpDir, "test.db");
+    const db = await initDb({ path: dbPath });
+    const storage = new LocalStorage(join(tmpDir, "blobs"));
+    await storage.setup();
+    const pool = initPool(1, 4, 500, db, { path: dbPath });
+    const config = ConfigSchema.parse({
+      publicDomain: "localhost",
+      upload: { requireAuth: false, enabled: true, maxSize: 100 },
+      mirror: { enabled: true, requireAuth: false },
+      storage: { rules: [{ type: "*", expiration: "1 month" }] },
+    });
+    const app: Hono<{ Variables: BlossomVariables }> = await buildApp(
+      db,
+      storage,
+      config,
+    );
+    const origin = Deno.serve({ port: 0 }, () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(60));
+          controller.enqueue(new Uint8Array(41));
+          controller.close();
+        },
+      });
+      return new Response(body, {
+        headers: { "Content-Type": "application/octet-stream" },
+      });
+    });
+
+    try {
+      const res = await app.fetch(
+        new Request("http://localhost/mirror", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: `http://localhost:${origin.addr.port}/blob`,
+          }),
+        }),
+      );
+      assertEquals(res.status, 413);
+      await res.body?.cancel();
+
+      const tempFiles = [];
+      for await (const entry of Deno.readDir(storage.tmpDir)) {
+        tempFiles.push(entry.name);
+      }
+      assertEquals(tempFiles, []);
+    } finally {
+      await origin.shutdown();
+      pool.shutdown();
+      db.close();
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+  ...testOpts,
+});

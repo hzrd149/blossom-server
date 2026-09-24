@@ -279,6 +279,52 @@ Deno.test({
   ...testOpts,
 });
 
+Deno.test({
+  name: "PUT /media: streamed bytes exceeding maxSize return 413",
+  async fn() {
+    const smallDb = await initDb({ path: join(tmpDir, "stream-maxsize.db") });
+    const smallStorage = new LocalStorage(join(tmpDir, "blobs-stream-maxsize"));
+    await smallStorage.setup();
+    const smallConfig = ConfigSchema.parse({
+      publicDomain: "localhost",
+      storage: { rules: [{ type: "image/*", expiration: "1 month" }] },
+      upload: { requireAuth: false, enabled: true },
+      media: {
+        enabled: true,
+        requireAuth: false,
+        requirePubkeyInRule: false,
+        maxSize: 100,
+        tmpDir: join(tmpDir, "media-stream-maxsize"),
+      },
+    });
+    const smallApp = await buildApp(smallDb, smallStorage, smallConfig);
+
+    try {
+      const res = await smallApp.fetch(
+        new Request("http://localhost/media", {
+          method: "PUT",
+          headers: {
+            "Content-Length": "100",
+            "Content-Type": "image/png",
+          },
+          body: new Uint8Array(101),
+        }),
+      );
+      assertEquals(res.status, 413);
+      await res.body?.cancel();
+
+      const tempFiles = [];
+      for await (const entry of Deno.readDir(smallStorage.tmpDir)) {
+        tempFiles.push(entry.name);
+      }
+      assertEquals(tempFiles, []);
+    } finally {
+      smallDb.close();
+    }
+  },
+  ...testOpts,
+});
+
 // ---------------------------------------------------------------------------
 // PUT /media — disallowed MIME type (415)
 // ---------------------------------------------------------------------------
