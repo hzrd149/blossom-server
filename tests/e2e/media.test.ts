@@ -37,6 +37,7 @@ import type { BlossomVariables } from "../../src/middleware/auth.ts";
 
 const sk = generateSecretKey();
 const _pk = getPublicKey(sk);
+const unlistedSk = generateSecretKey();
 
 /** Compute SHA-256 of bytes and return lowercase hex. */
 async function sha256Hex(data: Uint8Array): Promise<string> {
@@ -50,6 +51,7 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
 /** Build a BUD-11 kind 24242 media auth event. */
 function makeMediaAuth(
   opts: { hash?: string; expiration?: number } = {},
+  secretKey = sk,
 ): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
   const tags: string[][] = [
@@ -62,7 +64,7 @@ function makeMediaAuth(
     created_at: now,
     tags,
     content: "Upload media",
-  }, sk);
+  }, secretKey);
 }
 
 /** Encode event as Base64url for the Authorization header. */
@@ -80,6 +82,7 @@ function encodeAuth(event: NostrEvent): string {
 const testOpts = { sanitizeOps: false, sanitizeResources: false } as const;
 
 let app: Hono<{ Variables: BlossomVariables }>;
+let restrictedApp: Hono<{ Variables: BlossomVariables }>;
 let tmpDir: string;
 let cleanup: () => Promise<void>;
 
@@ -107,15 +110,37 @@ Deno.test({
           { type: "video/*", expiration: "1 week" },
         ],
       },
-      upload: { requireAuth: false, enabled: true },
+      upload: {
+        requireAuth: false,
+        enabled: true,
+        requirePubkeyInRule: true,
+      },
       media: {
         enabled: true,
         requireAuth: false,
+        requirePubkeyInRule: false,
         maxSize: 10_000_000,
       },
     });
 
     app = await buildApp(db, storage, config);
+
+    const restrictedConfig = ConfigSchema.parse({
+      publicDomain: "localhost",
+      storage: {
+        rules: [
+          { type: "image/*", expiration: "1 month", pubkeys: [_pk] },
+        ],
+      },
+      upload: { requireAuth: false, requirePubkeyInRule: false },
+      media: {
+        enabled: true,
+        requireAuth: false,
+        requirePubkeyInRule: true,
+        maxSize: 10_000_000,
+      },
+    });
+    restrictedApp = await buildApp(db, storage, restrictedConfig);
 
     cleanup = async () => {
       pool.shutdown();
@@ -338,6 +363,87 @@ Deno.test({
       }),
     );
     assertEquals(res.status, 415);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /media: media rule allows an explicitly listed pubkey",
+  async fn() {
+    const res = await restrictedApp.fetch(
+      new Request("http://localhost/media", {
+        method: "HEAD",
+        headers: {
+          "X-Content-Type": "image/png",
+          Authorization: encodeAuth(makeMediaAuth()),
+        },
+      }),
+    );
+    assertEquals(res.status, 200);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /media: media rule rejects an unlisted pubkey",
+  async fn() {
+    const res = await restrictedApp.fetch(
+      new Request("http://localhost/media", {
+        method: "HEAD",
+        headers: {
+          "X-Content-Type": "image/png",
+          Authorization: encodeAuth(makeMediaAuth({}, unlistedSk)),
+        },
+      }),
+    );
+    assertEquals(res.status, 401);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /media: media rule rejects an unlisted pubkey before processing",
+  async fn() {
+    const body = new Uint8Array(100);
+    const hash = await sha256Hex(body);
+    const res = await restrictedApp.fetch(
+      new Request("http://localhost/media", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(body.byteLength),
+          "Content-Type": "image/png",
+          Authorization: encodeAuth(makeMediaAuth({ hash }, unlistedSk)),
+        },
+        body: body.slice(),
+      }),
+    );
+    assertEquals(res.status, 401);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /media: media rule allows a listed pubkey through admission",
+  async fn() {
+    const body = new Uint8Array(100);
+    const hash = await sha256Hex(body);
+    const res = await restrictedApp.fetch(
+      new Request("http://localhost/media", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(body.byteLength),
+          "Content-Type": "image/png",
+          "X-SHA-256": "c".repeat(64),
+          Authorization: encodeAuth(makeMediaAuth({ hash })),
+        },
+        body: body.slice(),
+      }),
+    );
+    assertEquals(res.status, 409);
     await res.body?.cancel();
   },
   ...testOpts,

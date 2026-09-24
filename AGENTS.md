@@ -60,6 +60,12 @@ nix build .#clientBundle --rebuild --print-build-logs
 > Unformatted code will fail CI. Run `deno fmt --check` to verify without
 > modifying files.
 
+> **Changelog:** Add every unreleased user-facing change to the `Unreleased`
+> section of `CHANGELOG.md` as part of the same change. Categorize entries under
+> `Major Changes`, `Minor Changes`, or `Patch Changes`, and do not create a new
+> version heading until cutting a release. When releasing, move the accumulated
+> entries into the new version section.
+
 > **Read before writing tests:** `TESTING.md` contains the full planned test
 > matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or
 > `tests/e2e/` (full Hono app via `app.fetch()` — no real HTTP port needed).

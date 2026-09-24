@@ -39,6 +39,14 @@ export async function loadConfig(configPath = "config.yml"): Promise<Config> {
   }
 
   const interpolated = interpolateEnv(raw);
+  const media = interpolated !== null && typeof interpolated === "object" &&
+      !Array.isArray(interpolated)
+    ? (interpolated as Record<string, unknown>).media
+    : undefined;
+  const usesLegacyMediaPubkeySetting = media !== null &&
+    typeof media === "object" &&
+    !Array.isArray(media) &&
+    !Object.hasOwn(media, "requirePubkeyInRule");
   const result = ConfigSchema.safeParse(interpolated);
 
   if (!result.success) {
@@ -47,6 +55,19 @@ export async function loadConfig(configPath = "config.yml"): Promise<Config> {
       console.error(`  ${issue.path.join(".")}: ${issue.message}`);
     }
     Deno.exit(1);
+  }
+
+  if (usesLegacyMediaPubkeySetting) {
+    console.warn(
+      "media.requirePubkeyInRule is not set; falling back to upload.requirePubkeyInRule for backward compatibility. Set it explicitly; the new default is true.",
+    );
+    return {
+      ...result.data,
+      media: {
+        ...result.data.media,
+        requirePubkeyInRule: result.data.upload.requirePubkeyInRule,
+      },
+    };
   }
 
   return result.data;

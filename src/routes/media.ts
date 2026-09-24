@@ -265,10 +265,10 @@ export function buildMediaRouter(
       const mimeRule = getFileRule(
         { mimeType, pubkey: ctx.get("auth")?.pubkey },
         config.storage.rules,
-        config.upload.requirePubkeyInRule,
+        config.media.requirePubkeyInRule,
       );
       if (!mimeRule) {
-        if (config.upload.requirePubkeyInRule) {
+        if (config.media.requirePubkeyInRule) {
           return errorResponse(
             ctx,
             401,
@@ -361,7 +361,7 @@ export function buildMediaRouter(
       const mimeRule = getFileRule(
         { mimeType, pubkey: auth?.pubkey },
         config.storage.rules,
-        config.upload.requirePubkeyInRule,
+        config.media.requirePubkeyInRule,
       );
       if (!mimeRule) {
         await ctx.req.raw.body?.cancel();
@@ -369,7 +369,7 @@ export function buildMediaRouter(
           debugPrefix,
           `rejected: no storage rule matches — mime=${mimeType}`,
         );
-        if (config.upload.requirePubkeyInRule) {
+        if (config.media.requirePubkeyInRule) {
           return errorResponse(
             ctx,
             401,

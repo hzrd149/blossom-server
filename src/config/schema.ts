@@ -344,6 +344,12 @@ const MediaSchema = z.object({
   requireAuth: z.boolean().default(true).describe(
     "Require a valid BUD-11 Nostr auth event for media uploads.",
   ),
+  requirePubkeyInRule: z
+    .boolean()
+    .default(true)
+    .describe(
+      "When true, media uploads are rejected unless the uploader's pubkey appears in a matching storage rule's pubkeys list.",
+    ),
   maxSize: z
     .number()
     .int()

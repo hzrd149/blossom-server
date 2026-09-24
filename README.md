@@ -207,6 +207,7 @@ directory). Environment variables can be substituted anywhere in the file using
 | `list.requireAuth`           | `false`          | Require Nostr auth for list requests                                                                                   |
 | `list.allowListOthers`       | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
 | `media.enabled`              | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
+| `media.requirePubkeyInRule`  | `true`           | Reject media uploads unless the uploader's pubkey appears in the matching storage rule                                 |
 | `report.enabled`             | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
 | `landing.enabled`            | `true`           | Enable the landing page at `/`                                                                                         |
 | `landing.title`              | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
@@ -214,6 +215,12 @@ directory). Environment variables can be substituted anywhere in the file using
 
 For all options with inline documentation, see
 [`config.example.yml`](config.example.yml).
+
+Existing configurations with a `media` section that omit
+`media.requirePubkeyInRule` temporarily inherit `upload.requirePubkeyInRule` and
+log a migration warning. Set the media option explicitly to avoid the
+compatibility fallback. New configurations default it to `true` so media
+processing is limited to pubkeys named by matching storage rules.
 
 ### S3 Storage Backend
 

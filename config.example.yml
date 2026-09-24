@@ -212,6 +212,11 @@ media:
   # Require a valid BUD-11 Nostr auth event for media uploads.
   requireAuth: true
 
+  # Require the uploader's Nostr pubkey to appear in the matching storage rule's
+  # "pubkeys" list. Enabled by default to prevent unrestricted media processing.
+  # Add authorized pubkeys to image/video rules before enabling the endpoint.
+  requirePubkeyInRule: true
+
   # Maximum input file size in bytes before reading the body. Default: 1 GB.
   maxSize: 1073741824 # 1 GB
 

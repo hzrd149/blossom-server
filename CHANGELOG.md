@@ -1,5 +1,12 @@
 # blossom-server
 
+## Unreleased
+
+### Minor Changes
+
+- Add an independent `media.requirePubkeyInRule` setting, enabled by default,
+  with a warned compatibility fallback for existing media configurations.
+
 ## 6.3.1
 
 ### Patch Changes
