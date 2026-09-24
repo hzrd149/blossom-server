@@ -307,9 +307,7 @@ export function buildUploadRouter(
 
     debug(
       debugPrefix,
-      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${
-        xSha256?.slice(0, 8) ?? "unknown"
-      }`,
+      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${xSha256?.slice(0, 8) ?? "unknown"}`,
     );
 
     const jobPromise = pool.dispatch(
@@ -402,9 +400,7 @@ export function buildUploadRouter(
 
     debug(
       debugPrefix,
-      `upload complete — ${hash} (${size} bytes, ${
-        blobRecord.type ?? "application/octet-stream"
-      })`,
+      `upload complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`,
     );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     const url = getBlobUrl(hash, blobRecord.type, baseUrl);

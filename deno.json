@@ -29,6 +29,9 @@
       "run": true
     }
   },
+  "fmt": {
+    "lineWidth": 160
+  },
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
     "@hono/hono": "jsr:@hono/hono@^4.12.7",

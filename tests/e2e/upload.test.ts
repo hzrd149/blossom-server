@@ -14,11 +14,7 @@ import { encodeBase64Url } from "@std/encoding/base64url";
 import { encodeHex } from "@std/encoding/hex";
 import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
-import {
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-} from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
@@ -71,9 +67,7 @@ function makeUploadAuth(
 
 /** Encode event as Base64url for the Authorization header. */
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${
-    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
-  }`;
+  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
 }
 
 function findNip94Tag(
@@ -455,8 +449,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
+  name: "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
   async fn() {
     const body = new TextEncoder().encode("conflict test content");
     const wrongHash = "c".repeat(64);
@@ -581,8 +574,7 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name:
-    "PUT /upload: same content uploaded twice returns same descriptor (dedup)",
+  name: "PUT /upload: same content uploaded twice returns same descriptor (dedup)",
   async fn() {
     const body = new TextEncoder().encode("deduplicated content abc123");
     const hash = await sha256Hex(body);
@@ -802,8 +794,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "HEAD /upload: existing blob with X-SHA-256 returns 200 with dedup reason",
+  name: "HEAD /upload: existing blob with X-SHA-256 returns 200 with dedup reason",
   async fn() {
     // Upload the blob first
     const body = new TextEncoder().encode("preflight dedup test xyz");

@@ -196,8 +196,7 @@ export function requireAuth(
   const authType = ctx.get("authType");
   if (authType !== verb) {
     throw new HTTPException(403, {
-      message:
-        `Auth token type "${authType}" does not match required "${verb}"`,
+      message: `Auth token type "${authType}" does not match required "${verb}"`,
     });
   }
   return auth;

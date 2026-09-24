@@ -29,8 +29,7 @@ Deno.test("loadConfig: legacy media config inherits upload pubkey setting", asyn
   const configPath = join(dir, "config.yml");
   const warnings: string[] = [];
   const originalWarn = console.warn;
-  console.warn = (...args: unknown[]) =>
-    warnings.push(args.map(String).join(" "));
+  console.warn = (...args: unknown[]) => warnings.push(args.map(String).join(" "));
 
   try {
     await Deno.writeTextFile(

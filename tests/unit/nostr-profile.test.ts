@@ -1,11 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
-import {
-  eventStore,
-  fetchUserProfile,
-  fetchUserProfiles,
-  pool,
-} from "../../src/admin/nostr-profile.ts";
+import { eventStore, fetchUserProfile, fetchUserProfiles, pool } from "../../src/admin/nostr-profile.ts";
 
 Deno.test("Nostr profile helpers resolve cached kind 0 metadata", async () => {
   const profile = {

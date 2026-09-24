@@ -11,9 +11,7 @@ function formatBytes(bytes: number): string {
 
 export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
   const { upload, storage, media } = config;
-  const allowedTypes = storage.rules.length > 0
-    ? [...new Set(storage.rules.map((r) => r.type))]
-    : ["All types accepted"];
+  const allowedTypes = storage.rules.length > 0 ? [...new Set(storage.rules.map((r) => r.type))] : ["All types accepted"];
 
   return (
     <section id="server-info">
@@ -94,9 +92,7 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
             <div class="flex items-center justify-between">
               <span class="text-gray-400 text-sm">Image output</span>
               <span class="font-mono text-gray-300 text-xs">
-                {media.image.outputFormat} ·{" "}
-                {media.image.maxWidth}×{media.image.maxHeight}{" "}
-                · q{media.image.quality}
+                {media.image.outputFormat} · {media.image.maxWidth}×{media.image.maxHeight} · q{media.image.quality}
                 {media.image.progressive ? " · progressive" : ""}
                 {` · ${media.image.fps}fps`}
               </span>
@@ -104,8 +100,7 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
             <div class="flex items-center justify-between">
               <span class="text-gray-400 text-sm">Video output</span>
               <span class="font-mono text-gray-300 text-xs">
-                {media.video.format} · {media.video.videoCodec} ·{" "}
-                {media.video.audioCodec} · {media.video.maxHeight}p ·{" "}
+                {media.video.format} · {media.video.videoCodec} · {media.video.audioCodec} · {media.video.maxHeight}p ·{" "}
                 {media.video.maxFps}fps · q{media.video.quality}
               </span>
             </div>

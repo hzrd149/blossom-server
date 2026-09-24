@@ -311,12 +311,11 @@ const VideoOptimizeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["videoCodec"],
-        message:
-          `videoCodec "${v.videoCodec}" is not compatible with format "${v.format}". Valid codecs: ${
-            validVideo.join(
-              ", ",
-            )
-          }.`,
+        message: `videoCodec "${v.videoCodec}" is not compatible with format "${v.format}". Valid codecs: ${
+          validVideo.join(
+            ", ",
+          )
+        }.`,
       });
     }
     const validAudio = AUDIO_CODEC_FOR_FORMAT[v.format] as readonly string[];
@@ -324,12 +323,11 @@ const VideoOptimizeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["audioCodec"],
-        message:
-          `audioCodec "${v.audioCodec}" is not compatible with format "${v.format}". Valid codecs: ${
-            validAudio.join(
-              ", ",
-            )
-          }.`,
+        message: `audioCodec "${v.audioCodec}" is not compatible with format "${v.format}". Valid codecs: ${
+          validAudio.join(
+            ", ",
+          )
+        }.`,
       });
     }
   });
@@ -606,9 +604,7 @@ export const ConfigSchema = z
     // Priority: database.path > databasePath > default "data/sqlite.db"
     const database = DatabaseSchema.parse({
       ...raw.database,
-      ...(raw.database?.path === undefined && raw.databasePath !== undefined
-        ? { path: raw.databasePath }
-        : {}),
+      ...(raw.database?.path === undefined && raw.databasePath !== undefined ? { path: raw.databasePath } : {}),
     });
     const { databasePath: _dropped, ...rest } = raw;
     return { ...rest, database };

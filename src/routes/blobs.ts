@@ -62,9 +62,7 @@ export function buildBlobsRouter(
 
     // Update last-access timestamp (for prune rules) — fire-and-forget
     const now = Math.floor(Date.now() / 1000);
-    touchBlob(db, hash, now).catch((err) =>
-      console.warn("touchBlob failed:", err)
-    );
+    touchBlob(db, hash, now).catch((err) => console.warn("touchBlob failed:", err));
 
     const mimeType = blob.type ?? "application/octet-stream";
     const headers: Record<string, string> = {
@@ -81,9 +79,7 @@ export function buildBlobsRouter(
     // Short-circuit before storage I/O: only the DB lookup has occurred at this point.
     const ifNoneMatch = ctx.req.header("if-none-match");
     if (ifNoneMatch) {
-      const tags = ifNoneMatch.split(",").map((t) =>
-        t.trim().replace(/^"(.*)"$/, "$1")
-      );
+      const tags = ifNoneMatch.split(",").map((t) => t.trim().replace(/^"(.*)"$/, "$1"));
       if (tags.includes(hash) || tags.includes("*")) {
         return ctx.body(null, 304, {
           ETag: headers["ETag"],

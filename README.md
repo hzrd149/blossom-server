@@ -1,30 +1,21 @@
 # Blossom Server
 
-A content-addressed blob storage server implementing the
-[Blossom](https://github.com/hzrd149/blossom) protocol. Files are stored and
-retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
-[Hono](https://hono.dev), and [LibSQL](https://turso.tech/libsql).
+A content-addressed blob storage server implementing the [Blossom](https://github.com/hzrd149/blossom) protocol. Files are stored and retrieved by their SHA-256
+hash. Built with [Deno 2](https://deno.com), [Hono](https://hono.dev), and [LibSQL](https://turso.tech/libsql).
 
 ## Features
 
-- **BUD-01** — Blob retrieval (`GET`/`HEAD /:sha256`) with range requests,
-  ETag/304, and CORS
-- **BUD-02** — Upload (`PUT /upload`), delete (`DELETE /:sha256`), and list
-  (`GET /list/:pubkey`)
+- **BUD-01** — Blob retrieval (`GET`/`HEAD /:sha256`) with range requests, ETag/304, and CORS
+- **BUD-02** — Upload (`PUT /upload`), delete (`DELETE /:sha256`), and list (`GET /list/:pubkey`)
 - **BUD-04** — Server-side mirror (`PUT /mirror`) with SSRF protection
-- **BUD-05** — Media optimisation (`PUT /media`): image resize/convert via
-  sharp, video transcode via ffmpeg
-- **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool
-  availability before sending the body
+- **BUD-05** — Media optimisation (`PUT /media`): image resize/convert via sharp, video transcode via ffmpeg
+- **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool availability before sending the body
 - **BUD-08** — `nip94` field in all blob descriptor responses
 - **BUD-09** — Blob reports (`PUT /report`) accepting NIP-56 kind:1984 events
 - **BUD-11** — Nostr-signed event authentication (kind 24242)
-- Zero-copy streaming uploads — no body buffering, SHA-256 computed in a
-  dedicated worker pool
-- Content-addressed deduplication — re-uploading an existing hash skips the
-  write
-- Configurable storage retention rules with MIME-type glob patterns and
-  per-pubkey scoping
+- Zero-copy streaming uploads — no body buffering, SHA-256 computed in a dedicated worker pool
+- Content-addressed deduplication — re-uploading an existing hash skips the write
+- Configurable storage retention rules with MIME-type glob patterns and per-pubkey scoping
 - Automatic prune loop — expired blobs are removed on a configurable timer
 - Local filesystem and S3-compatible storage backends
 - Optional server-side rendered admin dashboard at `/admin` (Hono JSX)
@@ -34,8 +25,7 @@ retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
 ## Requirements
 
 - **Docker + Docker Compose** (recommended)
-- **or** [Deno 2.x](https://docs.deno.com/runtime/getting_started/installation/)
-  for running from source
+- **or** [Deno 2.x](https://docs.deno.com/runtime/getting_started/installation/) for running from source
 
 ## Quick Start — Docker
 
@@ -50,8 +40,7 @@ cp config.example.yml config.yml
 docker compose up --build
 ```
 
-The server listens on port `3000` by default. Blob data and the SQLite database
-are stored in a named Docker volume (`data`). The config file is mounted
+The server listens on port `3000` by default. Blob data and the SQLite database are stored in a named Docker volume (`data`). The config file is mounted
 read-only from the host.
 
 ## Quick Start — From Source
@@ -80,10 +69,8 @@ deno task start
 
 ## Quick Start — Nix
 
-This repository includes a flake that builds the server reproducibly with a
-pinned Nixpkgs input and a fixed-output Deno dependency cache. The build also
-pre-builds the landing page client bundle into the package output. The pinned
-cache is currently provided for `x86_64-linux`.
+This repository includes a flake that builds the server reproducibly with a pinned Nixpkgs input and a fixed-output Deno dependency cache. The build also
+pre-builds the landing page client bundle into the package output. The pinned cache is currently provided for `x86_64-linux`.
 
 ```sh
 # Build the package
@@ -98,14 +85,12 @@ nix run .# -- ./config.yml
 nix develop
 ```
 
-The packaged wrapper includes `ffmpeg`/`ffprobe` on `PATH` for media handling.
-If your Nix install does not enable flakes globally, add
+The packaged wrapper includes `ffmpeg`/`ffprobe` on `PATH` for media handling. If your Nix install does not enable flakes globally, add
 `--extra-experimental-features 'nix-command flakes'` to the `nix` commands.
 
 ### NixOS service
 
-The flake exports `nixosModules.default`, which runs Blossom as a hardened
-systemd service with persistent state in `/var/lib/blossom-server`:
+The flake exports `nixosModules.default`, which runs Blossom as a hardened systemd service with persistent state in `/var/lib/blossom-server`:
 
 ```nix
 {
@@ -134,10 +119,8 @@ systemd service with persistent state in `/var/lib/blossom-server`:
 }
 ```
 
-For S3, Turso, or dashboard credentials, put environment variable placeholders
-in `settings` and provide a root-readable environment file. Secrets must not be
-written directly in `settings`, because the generated YAML is stored in the
-world-readable Nix store.
+For S3, Turso, or dashboard credentials, put environment variable placeholders in `settings` and provide a root-readable environment file. Secrets must not be
+written directly in `settings`, because the generated YAML is stored in the world-readable Nix store.
 
 ```nix
 services.blossom-server = {
@@ -162,12 +145,10 @@ S3_ACCESS_KEY=example
 S3_SECRET_KEY=secret
 ```
 
-This works with runtime paths produced by secret managers such as sops-nix or
-agenix. The module defaults to `127.0.0.1:3000` and keeps the firewall closed,
+This works with runtime paths produced by secret managers such as sops-nix or agenix. The module defaults to `127.0.0.1:3000` and keeps the firewall closed,
 which is suitable when running behind a reverse proxy.
 
-For a complete, runnable example, see the [NixOS VM guide](nix/VM-EXAMPLE.md).
-It builds a QEMU VM from this flake and also shows how to activate the same
+For a complete, runnable example, see the [NixOS VM guide](nix/VM-EXAMPLE.md). It builds a QEMU VM from this flake and also shows how to activate the same
 configuration on an existing NixOS host with `nixos-rebuild`.
 
 Pass a custom config path as the first argument:
@@ -178,8 +159,7 @@ deno task start /etc/blossom/config.yml
 
 ## Configuration
 
-Configuration is loaded from a YAML file (default: `config.yml` in the working
-directory). Environment variables can be substituted anywhere in the file using
+Configuration is loaded from a YAML file (default: `config.yml` in the working directory). Environment variables can be substituted anywhere in the file using
 `${VAR_NAME}` syntax.
 
 ### Key Options
@@ -213,14 +193,11 @@ directory). Environment variables can be substituted anywhere in the file using
 | `landing.title`              | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
 | `dashboard.enabled`          | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
 
-For all options with inline documentation, see
-[`config.example.yml`](config.example.yml).
+For all options with inline documentation, see [`config.example.yml`](config.example.yml).
 
-Existing configurations with a `media` section that omit
-`media.requirePubkeyInRule` temporarily inherit `upload.requirePubkeyInRule` and
-log a migration warning. Set the media option explicitly to avoid the
-compatibility fallback. New configurations default it to `true` so media
-processing is limited to pubkeys named by matching storage rules.
+Existing configurations with a `media` section that omit `media.requirePubkeyInRule` temporarily inherit `upload.requirePubkeyInRule` and log a migration
+warning. Set the media option explicitly to avoid the compatibility fallback. New configurations default it to `true` so media processing is limited to pubkeys
+named by matching storage rules.
 
 ### S3 Storage Backend
 
@@ -241,9 +218,8 @@ storage:
 
 ### Storage Retention Rules
 
-Rules serve as both an upload allowlist and a retention policy. The first
-matching rule governs a blob's expiry. When the list is non-empty, blobs whose
-MIME type matches no rule are rejected with `415 Unsupported Media Type`.
+Rules serve as both an upload allowlist and a retention policy. The first matching rule governs a blob's expiry. When the list is non-empty, blobs whose MIME
+type matches no rule are rejected with `415 Unsupported Media Type`.
 
 ```yaml
 storage:
@@ -256,8 +232,7 @@ storage:
       expiration: 1 week
 ```
 
-Rules can be scoped to specific Nostr pubkeys (hex) to give certain users
-different retention:
+Rules can be scoped to specific Nostr pubkeys (hex) to give certain users different retention:
 
 ```yaml
 storage:
@@ -274,8 +249,7 @@ storage:
 
 ## Authentication (BUD-11)
 
-All authenticated endpoints expect a Nostr-signed event in the `Authorization`
-header:
+All authenticated endpoints expect a Nostr-signed event in the `Authorization` header:
 
 ```
 Authorization: Nostr <base64-encoded-JSON-event>
@@ -337,8 +311,7 @@ Example event (before signing):
 | ------ | --------- | ---- | ------------------------------------------------------------------------- |
 | `PUT`  | `/report` | None | Submit a NIP-56 kind:1984 Nostr event to flag a blob for operator review. |
 
-_\* Auth requirement is configurable per-endpoint via `requireAuth` in the
-config._
+_\* Auth requirement is configurable per-endpoint via `requireAuth` in the config._
 
 ### Response Format
 
@@ -364,13 +337,11 @@ Successful upload, mirror, and media responses return a `BlobDescriptor`:
 
 ### Error Responses
 
-All error responses use `Content-Type: text/plain`. The reason is included in
-both the response body and an `X-Reason` header.
+All error responses use `Content-Type: text/plain`. The reason is included in both the response body and an `X-Reason` header.
 
 ## Admin Dashboard
 
-Enable the server-rendered admin dashboard (Hono JSX, no separate SPA) to manage
-blobs, users, rules, and reports:
+Enable the server-rendered admin dashboard (Hono JSX, no separate SPA) to manage blobs, users, rules, and reports:
 
 ```yaml
 dashboard:
@@ -384,8 +355,7 @@ dashboard:
     - wss://indexer.coracle.social
 ```
 
-The dashboard is available at `http://localhost:3000/admin` and is protected by
-HTTP Basic Auth. It provides pages for:
+The dashboard is available at `http://localhost:3000/admin` and is protected by HTTP Basic Auth. It provides pages for:
 
 - **Blobs** — browse, search, and force-delete blobs
 - **Users** — list uploaders with Nostr profile metadata lookup
@@ -418,15 +388,13 @@ deno fmt
 
 ## Migrating from the Legacy Node.js Server
 
-If you have an existing database from the original Node.js blossom-server, the
-migration script imports all blob metadata atomically:
+If you have an existing database from the original Node.js blossom-server, the migration script imports all blob metadata atomically:
 
 ```sh
 deno task migrate-from-legacy
 ```
 
-The script reads the legacy SQLite database, imports all records into the Deno
-server's schema, and performs an atomic file swap. Blob files on disk are left
+The script reads the legacy SQLite database, imports all records into the Deno server's schema, and performs an atomic file swap. Blob files on disk are left
 untouched.
 
 ## License

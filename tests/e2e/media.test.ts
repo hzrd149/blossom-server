@@ -17,11 +17,7 @@ import { encodeBase64Url } from "@std/encoding/base64url";
 import { encodeHex } from "@std/encoding/hex";
 import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
-import {
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-} from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
@@ -69,9 +65,7 @@ function makeMediaAuth(
 
 /** Encode event as Base64url for the Authorization header. */
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${
-    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
-  }`;
+  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -483,9 +483,7 @@ export function buildMediaRouter(
         tmpPath = null;
         debug(
           debugPrefix,
-          `dedup hit (derivative) — optimizedHash=${
-            existingOptimizedHash.slice(0, 8)
-          }`,
+          `dedup hit (derivative) — optimizedHash=${existingOptimizedHash.slice(0, 8)}`,
         );
         const existing = await getBlob(db, existingOptimizedHash);
         if (existing) {
@@ -553,9 +551,7 @@ export function buildMediaRouter(
         ));
         debug(
           debugPrefix,
-          `re-hash complete — optimizedHash=${
-            optimizedHash.slice(0, 8)
-          } size=${optimizedSize}`,
+          `re-hash complete — optimizedHash=${optimizedHash.slice(0, 8)} size=${optimizedSize}`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Hash failed";
@@ -631,9 +627,7 @@ export function buildMediaRouter(
         optimizedTmpPath = null;
       }
 
-      const optimizedType = optimizedMime !== "application/octet-stream"
-        ? optimizedMime
-        : null;
+      const optimizedType = optimizedMime !== "application/octet-stream" ? optimizedMime : null;
       const dim = await extractDimensions(optPath, optimizedType);
       debug(debugPrefix, `dim=${dim ?? "none"}`);
 

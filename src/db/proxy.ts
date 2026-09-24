@@ -11,12 +11,7 @@
 
 import type { DbRequest, DbResponse } from "./bridge.ts";
 import type { IDbHandle } from "./handle.ts";
-import type {
-  AdminBlobRecord,
-  AdminUserRecord,
-  BlobRecord,
-  BlobStats,
-} from "./blobs.ts";
+import type { AdminBlobRecord, AdminUserRecord, BlobRecord, BlobStats } from "./blobs.ts";
 import type { ReportRecord } from "./reports.ts";
 
 interface PendingRequest {

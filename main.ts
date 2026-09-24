@@ -174,16 +174,12 @@ const server = Deno.serve(
       console.log(
         "  Prune:   storage rules          " +
           (pruneEnabled
-            ? `active (${config.storage.rules.length} rules, first run in ${
-              config.prune.initialDelayMs / 1000
-            }s)`
+            ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
             : "disabled (no rules configured)"),
       );
       console.log(
         "  Admin:   dashboard              " +
-          (config.dashboard.enabled
-            ? `ready (user=${config.dashboard.username}) — http://${hostname}:${port}/admin`
-            : "disabled"),
+          (config.dashboard.enabled ? `ready (user=${config.dashboard.username}) — http://${hostname}:${port}/admin` : "disabled"),
       );
     },
   },

@@ -157,9 +157,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `PUT /mirror — url=${mirrorUrl.toString()} pubkey=${
-        auth?.pubkey?.slice(0, 8) ?? "anon"
-      }`,
+      `PUT /mirror — url=${mirrorUrl.toString()} pubkey=${auth?.pubkey?.slice(0, 8) ?? "anon"}`,
     );
 
     if (mirrorUrl.protocol !== "http:" && mirrorUrl.protocol !== "https:") {
@@ -234,9 +232,7 @@ export function buildMirrorRouter(
     } catch (err) {
       const t1 = Date.now();
       // Normalise error message — DOMException.message can be empty.
-      const reason = err instanceof Error
-        ? err.message || `Fetch aborted (${err.name})`
-        : `Failed to fetch from origin: ${String(err)}`;
+      const reason = err instanceof Error ? err.message || `Fetch aborted (${err.name})` : `Failed to fetch from origin: ${String(err)}`;
       debug(debugPrefix, `fetch failed elapsed=${t1 - t0}ms — ${reason}`);
       return errorResponse(ctx, 502, reason);
     }
@@ -255,9 +251,7 @@ export function buildMirrorRouter(
     }
 
     const contentLengthHeader = originResponse.headers.get("content-length");
-    const contentLength = contentLengthHeader
-      ? parseInt(contentLengthHeader, 10)
-      : null;
+    const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
     if (
       contentLength !== null && !isNaN(contentLength) &&
       contentLength > config.upload.maxSize
@@ -281,9 +275,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `origin content-type=${mimeType} content-length=${
-        contentLength ?? "unknown"
-      }`,
+      `origin content-type=${mimeType} content-length=${contentLength ?? "unknown"}`,
     );
 
     const mimeRule = getFileRule(
@@ -351,9 +343,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `dispatching to worker — size=${
-        contentLength ?? "unknown"
-      } mime=${mimeType}`,
+      `dispatching to worker — size=${contentLength ?? "unknown"} mime=${mimeType}`,
     );
 
     // Pass null as xSha256 — the hash is unknown pre-download. The x-tag
@@ -397,14 +387,10 @@ export function buildMirrorRouter(
       // DOMException (e.g. TimeoutError from AbortSignal) has a non-empty
       // .name but may have an empty .message — use name as fallback.
       const errName = err instanceof Error ? err.name : "";
-      const errMsg = err instanceof Error
-        ? err.message || err.name
-        : String(err);
+      const errMsg = err instanceof Error ? err.message || err.name : String(err);
       const isBodyTimeout = errName === "TimeoutError" &&
         config.mirror.bodyTimeout > 0;
-      const msg = isBodyTimeout
-        ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`
-        : errMsg || "Mirror failed";
+      const msg = isBodyTimeout ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms` : errMsg || "Mirror failed";
       debug(debugPrefix, `worker error — ${msg}`);
       return errorResponse(ctx, 502, msg);
     }
@@ -427,9 +413,7 @@ export function buildMirrorRouter(
         await storage.abortWrite(session).catch(() => {});
         debug(
           debugPrefix,
-          `rejected: x tag mismatch — hash=${
-            hash.slice(0, 8)
-          } not in auth tags`,
+          `rejected: x tag mismatch — hash=${hash.slice(0, 8)} not in auth tags`,
         );
         return errorResponse(
           ctx,
@@ -505,9 +489,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `mirror complete — ${hash} (${size} bytes, ${
-        blobRecord.type ?? "application/octet-stream"
-      })`,
+      `mirror complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`,
     );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     const url = getBlobUrl(hash, blobRecord.type, baseUrl);

@@ -18,12 +18,7 @@
 import type { Client } from "@libsql/client";
 import type { StorageRule } from "../config/schema.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
-import {
-  deleteBlob,
-  getBlobsForPrune,
-  getMediaThumbnailsForParent,
-  getOwnerlessBlobSha256s,
-} from "../db/blobs.ts";
+import { deleteBlob, getBlobsForPrune, getMediaThumbnailsForParent, getOwnerlessBlobSha256s } from "../db/blobs.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { mimeToSqlLike, parseDuration } from "./rules.ts";
 

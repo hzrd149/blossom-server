@@ -40,8 +40,7 @@ export async function getBlob(
   sha256: string,
 ): Promise<BlobRecord | null> {
   const rs = await db.execute({
-    sql:
-      "SELECT sha256, size, type, uploaded, nip94 FROM blobs WHERE sha256 = ?",
+    sql: "SELECT sha256, size, type, uploaded, nip94 FROM blobs WHERE sha256 = ?",
     args: [sha256],
   });
   const row = rs.rows[0];
@@ -71,8 +70,7 @@ export async function insertBlob(
   await db.batch(
     [
       {
-        sql:
-          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
+        sql: `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
         args: [
           blob.sha256,
           blob.size,
@@ -101,8 +99,7 @@ export async function insertBlobRecord(
   await db.batch(
     [
       {
-        sql:
-          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
+        sql: `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
         args: [
           blob.sha256,
           blob.size,
@@ -244,8 +241,7 @@ export async function getMediaDerivative(
   originalSha256: string,
 ): Promise<string | null> {
   const rs = await db.execute({
-    sql:
-      "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
+    sql: "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
     args: [originalSha256],
   });
   const row = rs.rows[0];
@@ -260,8 +256,7 @@ export async function insertMediaDerivative(
   optimizedSha256: string,
 ): Promise<void> {
   await db.execute({
-    sql:
-      "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
+    sql: "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
     args: [originalSha256, optimizedSha256],
   });
 }
@@ -295,8 +290,7 @@ export async function insertMediaThumbnail(
   thumbnailSha256: string,
 ): Promise<void> {
   await db.execute({
-    sql:
-      "INSERT OR REPLACE INTO media_thumbnails (parent_sha256, thumbnail_sha256) VALUES (?, ?)",
+    sql: "INSERT OR REPLACE INTO media_thumbnails (parent_sha256, thumbnail_sha256) VALUES (?, ?)",
     args: [parentSha256, thumbnailSha256],
   });
 }
@@ -425,9 +419,7 @@ export async function listAllBlobs(
     args.push(`%${opts.filter.q}%`, `%${opts.filter.q}%`);
   }
   if (opts.filter?.type !== undefined) {
-    const types = Array.isArray(opts.filter.type)
-      ? opts.filter.type
-      : [opts.filter.type];
+    const types = Array.isArray(opts.filter.type) ? opts.filter.type : [opts.filter.type];
     if (types.length === 1) {
       conditions.push("b.type = ?");
       args.push(types[0]);
@@ -437,9 +429,7 @@ export async function listAllBlobs(
     }
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const [sortCol, sortDir] = opts.sort ?? ["uploaded", "DESC"];
   const safeCol = BLOB_SORT_COLUMNS.has(sortCol) ? sortCol : "uploaded";
@@ -501,9 +491,7 @@ export async function countBlobs(
     }
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const rs = await db.execute({
     sql: `SELECT COUNT(*) FROM blobs ${where}`,
     args,
@@ -545,9 +533,7 @@ export async function listAllUsers(
     args.push(opts.filter.pubkey);
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const [sortCol, sortDir] = opts.sort ?? ["pubkey", "ASC"];
   const safeCol = USER_SORT_COLUMNS.has(sortCol) ? sortCol : "pubkey";
@@ -597,9 +583,7 @@ export async function countUsers(
     args.push(filter.pubkey);
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const rs = await db.execute({
     sql: `SELECT COUNT(DISTINCT pubkey) FROM owners ${where}`,
     args,
