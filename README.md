@@ -53,7 +53,7 @@ cd blossom-server
 # 2. Copy and edit the config
 cp config.example.yml config.yml
 
-# 3. Build the landing page client bundle
+# 3. Build the landing page client and stylesheet
 deno task build
 
 # 4. Start in development mode (file-watching)
@@ -70,7 +70,7 @@ deno task start
 ## Quick Start — Nix
 
 This repository includes a flake that builds the server reproducibly with a pinned Nixpkgs input and a fixed-output Deno dependency cache. The build also
-pre-builds the landing page client bundle into the package output. The pinned cache is currently provided for `x86_64-linux`.
+pre-builds the landing page client bundle and Tailwind stylesheet into the package output. The pinned cache is currently provided for `x86_64-linux`.
 
 ```sh
 # Build the package
@@ -368,9 +368,9 @@ The dashboard is available at `http://localhost:3000/admin` and is protected by 
 ## Development
 
 ```sh
-# Build the landing page client bundle (output: public/client.js)
-# Required before running `deno task dev` or `deno task start` when the
-# landing page is enabled.
+# Build the landing page assets (outputs: public/client.js and public/styles.css)
+# Required before running `deno task dev` or `deno task start` when the landing
+# page or admin dashboard is enabled.
 deno task build
 
 # Start with file-watching

@@ -23,6 +23,17 @@ let
     hash = "sha256-3aTe6unYpZZj/YBYEMQrXSqVZoqUfPI7W/Mb5FwGDjo=";
   };
 
+  styles = pkgs.runCommand "blossom-server-styles-${version}.css" {
+    nativeBuildInputs = [ pkgs.tailwindcss ];
+  } ''
+    cd ${src}
+    tailwindcss \
+      -c tailwind.config.js \
+      -i src/landing/styles/input.css \
+      -o "$out" \
+      --minify
+  '';
+
   blossom-server = pkgs.buildDenoApplication {
     pname = "blossom-server";
     inherit version src;
@@ -34,11 +45,15 @@ let
 
     postPatch = ''
       client_bundle="${builtins.placeholder "out"}/share/blossom-server/public/client.js"
+      stylesheet="${builtins.placeholder "out"}/share/blossom-server/public/styles.css"
       substituteInPlace src/routes/landing.tsx \
         --replace-fail 'const CLIENT_BUNDLE_PATH = "./public/client.js";' \
-                       "const CLIENT_BUNDLE_PATH = \"$client_bundle\";"
+                       "const CLIENT_BUNDLE_PATH = \"$client_bundle\";" \
+        --replace-fail 'const STYLESHEET_PATH = "./public/styles.css";' \
+                       "const STYLESHEET_PATH = \"$stylesheet\";"
 
       cp ${clientBundle}/client.js public/client.js
+      cp ${styles} public/styles.css
     '';
 
     meta = {
@@ -50,6 +65,6 @@ let
 in
 {
   default = blossom-server;
-  inherit blossom-server clientBundle;
+  inherit blossom-server clientBundle styles;
   denoDeps = blossom-server.denoDeps;
 }

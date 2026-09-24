@@ -3,7 +3,7 @@
  *
  * Renders GET / via Hono JSX SSR.
  *
- * The landing client bundle must exist at public/client.js before startup.
+ * The generated UI assets must exist in public/ before startup.
  * Static files in public/ are served by the top-level app via Hono serveStatic.
  */
 
@@ -14,6 +14,27 @@ import { DirectDbHandle } from "../db/direct.ts";
 import { LandingPage } from "../landing/page.tsx";
 
 const CLIENT_BUNDLE_PATH = "./public/client.js";
+const STYLESHEET_PATH = "./public/styles.css";
+
+/** Refuse to enable an HTML UI when its compiled stylesheet is unavailable. */
+export async function assertStylesheetPresent(): Promise<void> {
+  try {
+    const stat = await Deno.stat(STYLESHEET_PATH);
+    if (!stat.isFile) {
+      throw new Error(
+        `[ui] ${STYLESHEET_PATH} exists but is not a file; run \`deno task build\` before starting the server.`,
+      );
+    }
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) {
+      throw new Error(
+        `[ui] ${STYLESHEET_PATH} not found; run \`deno task build\` before starting the server.`,
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+}
 
 /** Warn at startup if the prebuilt landing client bundle is missing. */
 async function warnIfClientBundleMissing(): Promise<void> {

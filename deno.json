@@ -13,8 +13,9 @@
     "start": "deno run -P --env-file=.env main.ts",
     "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/ && deno task test:client",
     "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/identity.test.ts",
-    "build": "deno task build:client",
+    "build": "deno task build:client && deno task build:styles",
     "build:client": "deno bundle --frozen --lock=src/landing/client/deno.lock --config src/landing/client/deno.json --minify --platform browser -o public/client.js src/landing/client/index.tsx",
+    "build:styles": "deno run --frozen --lock=src/landing/styles/deno.lock --config=src/landing/styles/deno.json -A npm:tailwindcss@3.4.17 -c tailwind.config.js -i src/landing/styles/input.css -o public/styles.css --minify",
     "check:nix": "bash nix/check.sh",
     "update:nix-hashes": "bash nix/update-hashes.sh",
     "scan": "deno run --allow-env --allow-sys --allow-write --allow-read --allow-run --deny-net npm:aislop scan"

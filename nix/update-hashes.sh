@@ -67,8 +67,8 @@ refresh_hash() {
   replace_hash "$attribute" "$mismatch_hash"
 }
 
-refresh_hash ".#denoDeps" "denoDepsHash"
-refresh_hash ".#clientBundle" "hash"
+refresh_hash "path:.#denoDeps" "denoDepsHash"
+refresh_hash "path:.#clientBundle" "hash"
 
 echo "Verifying updated Nix outputs"
 bash nix/check.sh

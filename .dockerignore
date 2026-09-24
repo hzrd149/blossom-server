@@ -21,5 +21,6 @@ blossom/
 # Top-level node_modules (none should exist, but guard against accidental copy)
 /node_modules/
 
-# Ignore just the built client.js — it will be built in the container
+# Ignore generated landing assets — they will be built in the container
 public/client.js
+public/styles.css
