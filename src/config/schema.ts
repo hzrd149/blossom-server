@@ -516,6 +516,14 @@ const PruneSchema = z.object({
     .describe(
       "Minimum gap in milliseconds between the end of one prune run and the start of the next. Uses recursive setTimeout, so the next run begins only after the current one completes. Default: 30 seconds.",
     ),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .default(1000)
+    .describe(
+      "Maximum blobs examined per rule per prune cycle. Bounds the cost of a cycle by configuration rather than by the size of the store; any remainder is picked up on the next cycle. Default: 1000.",
+    ),
 });
 
 export const DatabaseSchema = z.object({

@@ -335,44 +335,89 @@ export interface BlobPruneRecord extends BlobRecord {
 }
 
 /**
- * Fetch blobs matching a SQL LIKE type pattern, with their last-access timestamp.
- * Used by the prune engine to evaluate rule-based expiry.
+ * Fetch up to `limit` blobs that match a type pattern and are already expired:
+ * last accessed (or, if never accessed, uploaded) before `cutoff`.
+ *
+ * ## Why this is not one `COALESCE(a.timestamp, b.uploaded) < ?`
+ *
+ * That reads better and is unusably slow. SQLite cannot drive an index from an
+ * expression spanning two tables, so it evaluates the COALESCE for every row in
+ * `blobs` — and because `LIMIT` can only stop early once it has found matching
+ * rows, a store where nothing is expiring pays for a full scan every time. On a
+ * 1.07M blob store that is ~22s, against ~33s for fetching every row and
+ * filtering in JS: barely an improvement, and still long enough to stall the
+ * event loop.
+ *
+ * Splitting the fallback into its two disjoint cases gives SQLite something it
+ * can seek on, and the same store answers in ~1ms:
+ *
+ *   - blobs WITH an `accessed` row, expired by `accessed.timestamp`
+ *     (driven by the `accessed_timestamp` index)
+ *   - blobs WITHOUT one, expired by `blobs.uploaded`
+ *     (driven by the `blobs_uploaded` index, added in 006)
+ *
+ * The two arms are mutually exclusive by construction — a blob either has an
+ * `accessed` row or it does not — so `UNION ALL` cannot produce duplicates.
+ *
+ * `EXISTS` is used for the owner and thumbnail conditions rather than joins so
+ * that one row out means one blob out. A blob with several matching owners
+ * would otherwise appear several times and consume the caller's batch.
  *
  * @param typePattern  SQL LIKE pattern (e.g. "image/%", "%"). Use mimeToSqlLike() to derive this.
+ * @param cutoff       Unix seconds. Blobs last seen strictly before this are returned.
+ * @param limit        Maximum rows to return, bounding the caller's work per cycle.
  * @param pubkeys      If provided, only blobs owned by one of these pubkeys are returned.
  */
 export async function getBlobsForPrune(
   db: Client,
   typePattern: string,
+  cutoff: number,
+  limit: number,
   pubkeys?: string[],
 ): Promise<BlobPruneRecord[]> {
-  let sql: string;
-  let args: (string | number)[];
+  const cols = "b.sha256, b.size, b.type, b.uploaded, b.nip94";
+
+  // Shared per-arm conditions. Thumbnails are owned by their parent blob and
+  // are removed with it, so they are never pruned in their own right.
+  const notThumbnail =
+    "NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256)";
+
+  const args: (string | number)[] = [];
+  let ownedBy = "";
+  const ownerArgs: string[] = [];
 
   if (pubkeys && pubkeys.length > 0) {
     const placeholders = pubkeys.map(() => "?").join(", ");
-    sql = `
-      SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94, a.timestamp AS accessed
-      FROM blobs b
-      JOIN owners o ON o.blob = b.sha256
-      LEFT JOIN accessed a ON a.blob = b.sha256
-      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-      WHERE b.type LIKE ?
-        AND o.pubkey IN (${placeholders})
-        AND mt.thumbnail_sha256 IS NULL
-    `;
-    args = [typePattern, ...pubkeys];
-  } else {
-    sql = `
-      SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94, a.timestamp AS accessed
-      FROM blobs b
-      LEFT JOIN accessed a ON a.blob = b.sha256
-      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-      WHERE b.type LIKE ?
-        AND mt.thumbnail_sha256 IS NULL
-    `;
-    args = [typePattern];
+    ownedBy =
+      `AND EXISTS (SELECT 1 FROM owners o WHERE o.blob = b.sha256 AND o.pubkey IN (${placeholders}))`;
+    ownerArgs.push(...pubkeys);
   }
+
+  const sql = `
+    SELECT ${cols}, a.timestamp AS accessed
+    FROM blobs b
+    JOIN accessed a ON a.blob = b.sha256
+    WHERE a.timestamp < ?
+      AND b.type LIKE ?
+      ${ownedBy}
+      AND ${notThumbnail}
+
+    UNION ALL
+
+    SELECT ${cols}, NULL AS accessed
+    FROM blobs b
+    WHERE b.uploaded < ?
+      AND NOT EXISTS (SELECT 1 FROM accessed a WHERE a.blob = b.sha256)
+      AND b.type LIKE ?
+      ${ownedBy}
+      AND ${notThumbnail}
+
+    LIMIT ?
+  `;
+
+  args.push(cutoff, typePattern, ...ownerArgs);
+  args.push(cutoff, typePattern, ...ownerArgs);
+  args.push(limit);
 
   const rs = await db.execute({ sql, args });
   return rs.rows.map((row) => ({
@@ -631,15 +676,20 @@ export async function countBlobsByPubkey(
 
 export async function getOwnerlessBlobSha256s(
   db: Client,
+  limit: number,
 ): Promise<{ sha256: string; type: string | null }[]> {
-  const rs = await db.execute(`
-    SELECT b.sha256, b.type
-    FROM blobs b
-    LEFT JOIN owners o ON o.blob = b.sha256
-    LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-    WHERE o.blob IS NULL
-      AND mt.thumbnail_sha256 IS NULL
-  `);
+  const rs = await db.execute({
+    sql: `
+      SELECT b.sha256, b.type
+      FROM blobs b
+      LEFT JOIN owners o ON o.blob = b.sha256
+      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
+      WHERE o.blob IS NULL
+        AND mt.thumbnail_sha256 IS NULL
+      LIMIT ?
+    `,
+    args: [limit],
+  });
   return rs.rows.map((row) => ({
     sha256: row[0] as string,
     type: row[1] as string | null,
