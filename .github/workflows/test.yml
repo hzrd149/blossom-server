@@ -22,5 +22,8 @@ jobs:
           deno-version: v2.x
           cache: true
 
+      - name: Build UI assets
+        run: deno task build
+
       - name: Run tests
         run: deno task test
