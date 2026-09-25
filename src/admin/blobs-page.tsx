@@ -67,17 +67,13 @@ export const BlobsPage: FC<BlobsPageProps> = async (
     db.countBlobs(filter),
   ]);
 
-  const baseUrl = q
-    ? `/admin/blobs?q=${encodeURIComponent(q)}`
-    : "/admin/blobs";
+  const baseUrl = q ? `/admin/blobs?q=${encodeURIComponent(q)}` : "/admin/blobs";
 
   return (
     <AdminLayout title="Blobs" section="blobs">
       <PageHeader
         title="Blobs"
-        subtitle={`${total.toLocaleString()} total blob${
-          total !== 1 ? "s" : ""
-        }`}
+        subtitle={`${total.toLocaleString()} total blob${total !== 1 ? "s" : ""}`}
       />
 
       {/* Search form */}

@@ -16,7 +16,7 @@ import { onError } from "./middleware/errors.ts";
 import { requestLogger } from "./middleware/logger.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
-import { buildLandingRouter } from "./routes/landing.tsx";
+import { assertStylesheetPresent, buildLandingRouter, PUBLIC_DIR } from "./routes/landing.tsx";
 
 export async function buildApp(
   db: Client,
@@ -41,7 +41,11 @@ export async function buildApp(
 
   // Serve any file from the public directory at its root-relative URL.
   // Requests that do not map to a file fall through to the app routes below.
-  app.use("*", serveStatic({ root: "./public" }));
+  app.use("*", serveStatic({ root: PUBLIC_DIR }));
+
+  if (config.landing.enabled || config.dashboard.enabled) {
+    await assertStylesheetPresent();
+  }
 
   // Landing page: GET / and GET /client.js (disabled by default)
   // Mounted first so GET / is claimed before the Blossom blob catch-all.

@@ -28,6 +28,7 @@ import type { IBlobStorage } from "../storage/interface.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
+import { byteCapGuard } from "../utils/streams.ts";
 import type { Config } from "../config/schema.ts";
 
 interface BlobDescriptor {
@@ -265,10 +266,10 @@ export function buildMediaRouter(
       const mimeRule = getFileRule(
         { mimeType, pubkey: ctx.get("auth")?.pubkey },
         config.storage.rules,
-        config.upload.requirePubkeyInRule,
+        config.media.requirePubkeyInRule,
       );
       if (!mimeRule) {
-        if (config.upload.requirePubkeyInRule) {
+        if (config.media.requirePubkeyInRule) {
           return errorResponse(
             ctx,
             401,
@@ -361,7 +362,7 @@ export function buildMediaRouter(
       const mimeRule = getFileRule(
         { mimeType, pubkey: auth?.pubkey },
         config.storage.rules,
-        config.upload.requirePubkeyInRule,
+        config.media.requirePubkeyInRule,
       );
       if (!mimeRule) {
         await ctx.req.raw.body?.cancel();
@@ -369,7 +370,7 @@ export function buildMediaRouter(
           debugPrefix,
           `rejected: no storage rule matches — mime=${mimeType}`,
         );
-        if (config.upload.requirePubkeyInRule) {
+        if (config.media.requirePubkeyInRule) {
           return errorResponse(
             ctx,
             401,
@@ -414,9 +415,18 @@ export function buildMediaRouter(
         `dispatching to worker — size=${contentLength} mime=${mimeType}`,
       );
 
-      const jobPromise = pool.dispatch(body, tmpPath, contentLength, xSha256);
+      // Stream-side size cap — the Content-Length gate above only validates
+      // the DECLARED size; a client can lie and stream more.
+      const cappedBody = body.pipeThrough(byteCapGuard(config.media.maxSize));
+
+      const jobPromise = pool.dispatch(
+        cappedBody,
+        tmpPath,
+        contentLength,
+        xSha256,
+      );
       if (!jobPromise) {
-        await body.cancel().catch(() => {});
+        await cappedBody.cancel().catch(() => {});
         await storage.abortWrite(session).catch(() => {});
         tmpPath = null;
         debug(
@@ -446,6 +456,13 @@ export function buildMediaRouter(
           err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH"
         ) {
           return errorResponse(ctx, 409, msg);
+        }
+        if (err instanceof WorkerJobError && err.errorType === "BYTE_LIMIT") {
+          return errorResponse(
+            ctx,
+            413,
+            `File too large. Maximum allowed size is ${config.media.maxSize} bytes`,
+          );
         }
         return errorResponse(ctx, 400, msg);
       }
@@ -483,9 +500,7 @@ export function buildMediaRouter(
         tmpPath = null;
         debug(
           debugPrefix,
-          `dedup hit (derivative) — optimizedHash=${
-            existingOptimizedHash.slice(0, 8)
-          }`,
+          `dedup hit (derivative) — optimizedHash=${existingOptimizedHash.slice(0, 8)}`,
         );
         const existing = await getBlob(db, existingOptimizedHash);
         if (existing) {
@@ -553,9 +568,7 @@ export function buildMediaRouter(
         ));
         debug(
           debugPrefix,
-          `re-hash complete — optimizedHash=${
-            optimizedHash.slice(0, 8)
-          } size=${optimizedSize}`,
+          `re-hash complete — optimizedHash=${optimizedHash.slice(0, 8)} size=${optimizedSize}`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Hash failed";
@@ -631,9 +644,7 @@ export function buildMediaRouter(
         optimizedTmpPath = null;
       }
 
-      const optimizedType = optimizedMime !== "application/octet-stream"
-        ? optimizedMime
-        : null;
+      const optimizedType = optimizedMime !== "application/octet-stream" ? optimizedMime : null;
       const dim = await extractDimensions(optPath, optimizedType);
       debug(debugPrefix, `dim=${dim ?? "none"}`);
 

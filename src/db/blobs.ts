@@ -40,8 +40,7 @@ export async function getBlob(
   sha256: string,
 ): Promise<BlobRecord | null> {
   const rs = await db.execute({
-    sql:
-      "SELECT sha256, size, type, uploaded, nip94 FROM blobs WHERE sha256 = ?",
+    sql: "SELECT sha256, size, type, uploaded, nip94 FROM blobs WHERE sha256 = ?",
     args: [sha256],
   });
   const row = rs.rows[0];
@@ -71,8 +70,7 @@ export async function insertBlob(
   await db.batch(
     [
       {
-        sql:
-          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
+        sql: `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
         args: [
           blob.sha256,
           blob.size,
@@ -101,8 +99,7 @@ export async function insertBlobRecord(
   await db.batch(
     [
       {
-        sql:
-          `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
+        sql: `INSERT OR IGNORE INTO blobs (sha256, size, type, uploaded, nip94) VALUES (?, ?, ?, ?, ?)`,
         args: [
           blob.sha256,
           blob.size,
@@ -244,8 +241,7 @@ export async function getMediaDerivative(
   originalSha256: string,
 ): Promise<string | null> {
   const rs = await db.execute({
-    sql:
-      "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
+    sql: "SELECT optimized_sha256 FROM media_derivatives WHERE original_sha256 = ? LIMIT 1",
     args: [originalSha256],
   });
   const row = rs.rows[0];
@@ -260,8 +256,7 @@ export async function insertMediaDerivative(
   optimizedSha256: string,
 ): Promise<void> {
   await db.execute({
-    sql:
-      "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
+    sql: "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
     args: [originalSha256, optimizedSha256],
   });
 }
@@ -295,8 +290,7 @@ export async function insertMediaThumbnail(
   thumbnailSha256: string,
 ): Promise<void> {
   await db.execute({
-    sql:
-      "INSERT OR REPLACE INTO media_thumbnails (parent_sha256, thumbnail_sha256) VALUES (?, ?)",
+    sql: "INSERT OR REPLACE INTO media_thumbnails (parent_sha256, thumbnail_sha256) VALUES (?, ?)",
     args: [parentSha256, thumbnailSha256],
   });
 }
@@ -338,47 +332,48 @@ export async function isOwner(
 export interface BlobPruneRecord extends BlobRecord {
   /** Unix timestamp from the accessed table, or null if the blob has never been accessed. */
   accessed: number | null;
+  owners: string[];
+  thumbnail: boolean;
+  pruneSource: PruneSource;
 }
 
-/**
- * Fetch blobs matching a SQL LIKE type pattern, with their last-access timestamp.
- * Used by the prune engine to evaluate rule-based expiry.
- *
- * @param typePattern  SQL LIKE pattern (e.g. "image/%", "%"). Use mimeToSqlLike() to derive this.
- * @param pubkeys      If provided, only blobs owned by one of these pubkeys are returned.
- */
+export type PruneSource = "accessed" | "uploaded";
+
+export interface PruneCursor {
+  timestamp: number;
+  sha256: string;
+}
+
 export async function getBlobsForPrune(
   db: Client,
-  typePattern: string,
-  pubkeys?: string[],
+  cutoff: number,
+  limit: number,
+  source: PruneSource,
+  cursor?: PruneCursor,
 ): Promise<BlobPruneRecord[]> {
-  let sql: string;
-  let args: (string | number)[];
+  const timestamp = source === "accessed" ? "a.timestamp" : "b.uploaded";
+  const tieBreaker = source === "accessed" ? "a.blob" : "b.sha256";
+  const joinAccessed = source === "accessed" ? "JOIN accessed a ON a.blob = b.sha256" : "";
+  const conditions = [`${timestamp} < ?`];
+  const args: (string | number)[] = [cutoff];
 
-  if (pubkeys && pubkeys.length > 0) {
-    const placeholders = pubkeys.map(() => "?").join(", ");
-    sql = `
-      SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94, a.timestamp AS accessed
-      FROM blobs b
-      JOIN owners o ON o.blob = b.sha256
-      LEFT JOIN accessed a ON a.blob = b.sha256
-      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-      WHERE b.type LIKE ?
-        AND o.pubkey IN (${placeholders})
-        AND mt.thumbnail_sha256 IS NULL
-    `;
-    args = [typePattern, ...pubkeys];
-  } else {
-    sql = `
-      SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94, a.timestamp AS accessed
-      FROM blobs b
-      LEFT JOIN accessed a ON a.blob = b.sha256
-      LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-      WHERE b.type LIKE ?
-        AND mt.thumbnail_sha256 IS NULL
-    `;
-    args = [typePattern];
+  if (cursor) {
+    conditions.push(`(${timestamp}, ${tieBreaker}) > (?, ?)`);
+    args.push(cursor.timestamp, cursor.sha256);
   }
+
+  const sql = `
+    SELECT b.sha256, b.size, b.type, b.uploaded, b.nip94,
+           ${source === "accessed" ? "a.timestamp" : "(SELECT a.timestamp FROM accessed a WHERE a.blob = b.sha256)"} AS accessed,
+           COALESCE((SELECT GROUP_CONCAT(o.pubkey, ',') FROM owners o WHERE o.blob = b.sha256), '') AS owners,
+           EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS thumbnail
+    FROM blobs b
+    ${joinAccessed}
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY ${timestamp} ASC, ${tieBreaker} ASC
+    LIMIT ?
+  `;
+  args.push(limit);
 
   const rs = await db.execute({ sql, args });
   return rs.rows.map((row) => ({
@@ -388,6 +383,9 @@ export async function getBlobsForPrune(
     uploaded: row[3] as number,
     nip94: parseNip94(row[4]),
     accessed: row[5] as number | null,
+    owners: row[6] ? (row[6] as string).split(",") : [],
+    thumbnail: Boolean(row[7]),
+    pruneSource: source,
   }));
 }
 
@@ -425,9 +423,7 @@ export async function listAllBlobs(
     args.push(`%${opts.filter.q}%`, `%${opts.filter.q}%`);
   }
   if (opts.filter?.type !== undefined) {
-    const types = Array.isArray(opts.filter.type)
-      ? opts.filter.type
-      : [opts.filter.type];
+    const types = Array.isArray(opts.filter.type) ? opts.filter.type : [opts.filter.type];
     if (types.length === 1) {
       conditions.push("b.type = ?");
       args.push(types[0]);
@@ -437,9 +433,7 @@ export async function listAllBlobs(
     }
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const [sortCol, sortDir] = opts.sort ?? ["uploaded", "DESC"];
   const safeCol = BLOB_SORT_COLUMNS.has(sortCol) ? sortCol : "uploaded";
@@ -501,9 +495,7 @@ export async function countBlobs(
     }
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const rs = await db.execute({
     sql: `SELECT COUNT(*) FROM blobs ${where}`,
     args,
@@ -545,9 +537,7 @@ export async function listAllUsers(
     args.push(opts.filter.pubkey);
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const [sortCol, sortDir] = opts.sort ?? ["pubkey", "ASC"];
   const safeCol = USER_SORT_COLUMNS.has(sortCol) ? sortCol : "pubkey";
@@ -597,9 +587,7 @@ export async function countUsers(
     args.push(filter.pubkey);
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const rs = await db.execute({
     sql: `SELECT COUNT(DISTINCT pubkey) FROM owners ${where}`,
     args,
@@ -645,19 +633,33 @@ export async function countBlobsByPubkey(
   return (rs.rows[0]?.[0] as number) ?? 0;
 }
 
-export async function getOwnerlessBlobSha256s(
+export interface OwnerlessScanRecord {
+  sha256: string;
+  type: string | null;
+  prunable: boolean;
+}
+
+export async function getOwnerlessBlobCandidates(
   db: Client,
-): Promise<{ sha256: string; type: string | null }[]> {
-  const rs = await db.execute(`
-    SELECT b.sha256, b.type
-    FROM blobs b
-    LEFT JOIN owners o ON o.blob = b.sha256
-    LEFT JOIN media_thumbnails mt ON mt.thumbnail_sha256 = b.sha256
-    WHERE o.blob IS NULL
-      AND mt.thumbnail_sha256 IS NULL
-  `);
+  limit: number,
+  cursor?: string,
+): Promise<OwnerlessScanRecord[]> {
+  const cursorCondition = cursor ? "WHERE b.sha256 > ?" : "";
+  const rs = await db.execute({
+    sql: `
+      SELECT b.sha256, b.type,
+             NOT EXISTS (SELECT 1 FROM owners o WHERE o.blob = b.sha256)
+             AND NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS prunable
+      FROM blobs b
+      ${cursorCondition}
+      ORDER BY b.sha256 ASC
+      LIMIT ?
+    `,
+    args: cursor ? [cursor, limit] : [limit],
+  });
   return rs.rows.map((row) => ({
     sha256: row[0] as string,
     type: row[1] as string | null,
+    prunable: Boolean(row[2]),
   }));
 }

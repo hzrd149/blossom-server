@@ -1,18 +1,6 @@
 import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
-import {
-  AdminLayout,
-  Badge,
-  EmptyState,
-  PageHeader,
-  Pagination,
-  Table,
-  Tbody,
-  Td,
-  Th,
-  Thead,
-  truncateHash,
-} from "./layout.tsx";
+import { AdminLayout, Badge, EmptyState, PageHeader, Pagination, Table, Tbody, Td, Th, Thead, truncateHash } from "./layout.tsx";
 
 const PAGE_SIZE = 50;
 
@@ -31,17 +19,13 @@ export const UsersPage: FC<UsersPageProps> = async ({ db, page, q }) => {
     db.countUsers(filter),
   ]);
 
-  const baseUrl = q
-    ? `/admin/users?q=${encodeURIComponent(q)}`
-    : "/admin/users";
+  const baseUrl = q ? `/admin/users?q=${encodeURIComponent(q)}` : "/admin/users";
 
   return (
     <AdminLayout title="Users" section="users">
       <PageHeader
         title="Users"
-        subtitle={`${total.toLocaleString()} distinct pubkey${
-          total !== 1 ? "s" : ""
-        }`}
+        subtitle={`${total.toLocaleString()} distinct pubkey${total !== 1 ? "s" : ""}`}
       />
 
       {/* Search form */}

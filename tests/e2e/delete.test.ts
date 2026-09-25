@@ -59,9 +59,7 @@ function makeDeleteAuth(hash: string, secretKey = sk): NostrEvent {
 
 /** Encode a Nostr event as Base64url for the Authorization header. */
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${
-    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
-  }`;
+  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
 }
 
 /** Build a BUD-11 kind 24242 upload auth event (open token). */

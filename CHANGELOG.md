@@ -1,5 +1,28 @@
 # blossom-server
 
+## Unreleased
+
+### Minor Changes
+
+- Add an independent `media.requirePubkeyInRule` setting, enabled by default, with a warned compatibility fallback for existing media configurations.
+- Add opt-in strict config loading through `BLOSSOM_REQUIRE_CONFIG`, enabled by default in the Docker Compose example and NixOS module.
+- Allow landing-page uploads and mirrors without signing in first by generating a persistent browser-local Nostr identity. Add controls to back up the local
+  secret key, sign in with a NIP-07 or NIP-46 signer, and safely switch or sign out of identities.
+
+### Patch Changes
+
+- Compile, package, and serve the landing and admin Tailwind stylesheet locally instead of loading Tailwind's development CDN at runtime.
+- Upgrade Applesauce dependencies to 6.2 and adapt admin Nostr profile loading to the updated profile model.
+- Add deterministic Nix rebuild validation for dependencies, the landing-page bundle, and the final server package.
+- Add a `deno task update:nix-hashes` command that refreshes stale fixed-output hashes and verifies the resulting Nix builds.
+- Run Deno tests on pushes and pull requests, verify multi-architecture Docker builds on non-`master` branches, and limit image publishing to `master` and
+  release tags.
+- Bound expiry and ownerless pruning with cursor-based batches while preserving ordered first-match retention rules and allowing later blobs to progress past
+  deletion failures.
+- Reject mirror requests from pubkeys absent from every storage-rule allowlist before fetching the remote origin.
+- Enforce configured upload and media size limits against streamed bytes, even when clients or mirror origins underreport `Content-Length`.
+- Harden mirror fetching against SSRF through DNS-resolved local addresses, IPv6 address variants, and redirect destinations.
+
 ## 6.3.1
 
 ### Patch Changes
@@ -11,67 +34,52 @@
 
 ### Minor Changes
 
-- Add reproducible Nix flake packaging with a development shell, package build,
-  app wrapper, and CI flake checks.
-- Add a configurable media temporary directory and make local storage commits
-  work across filesystems.
-- Clean up scanner-reported AI slop and lint findings without changing runtime
-  behavior.
+- Add reproducible Nix flake packaging with a development shell, package build, app wrapper, and CI flake checks.
+- Add a configurable media temporary directory and make local storage commits work across filesystems.
+- Clean up scanner-reported AI slop and lint findings without changing runtime behavior.
 
 ## 6.2.1
 
 ### Patch Changes
 
-- Drain request bodies on `/upload` dedup hits instead of cancelling them so
-  large re-uploads can receive the successful 200 response reliably.
+- Drain request bodies on `/upload` dedup hits instead of cancelling them so large re-uploads can receive the successful 200 response reliably.
 
 ## 6.2.0
 
 ### Minor Changes
 
-- Add NIP-94 file metadata tags to blob descriptors returned by `/upload`,
-  `/mirror`, `/media`, and `/list/:pubkey`, including `url`, `m`, `x`, `size`,
-  optional `dim`, and transformed-media `ox` tags.
-- Persist NIP-94 metadata with blob records so descriptors can preserve derived
-  metadata across deduped uploads and list responses.
-- Add best-effort media thumbnail generation for `/media` uploads. Thumbnails
-  are generated for images and videos when possible, returned as NIP-94 `thumb`
-  tags, stored as ownerless blobs, and kept tied to their parent media blob for
-  prune/delete cleanup.
+- Add NIP-94 file metadata tags to blob descriptors returned by `/upload`, `/mirror`, `/media`, and `/list/:pubkey`, including `url`, `m`, `x`, `size`, optional
+  `dim`, and transformed-media `ox` tags.
+- Persist NIP-94 metadata with blob records so descriptors can preserve derived metadata across deduped uploads and list responses.
+- Add best-effort media thumbnail generation for `/media` uploads. Thumbnails are generated for images and videos when possible, returned as NIP-94 `thumb`
+  tags, stored as ownerless blobs, and kept tied to their parent media blob for prune/delete cleanup.
 
 ## 6.1.5
 
 ### Patch Changes
 
-- `HEAD /upload` now returns **200** when the upload would be accepted (was
-  204). The 204 status code is no longer used on the HEAD endpoint.
+- `HEAD /upload` now returns **200** when the upload would be accepted (was 204). The 204 status code is no longer used on the HEAD endpoint.
 
 ## 6.1.4
 
 ### Patch Changes
 
-- Honor `X-Forwarded-Proto` (and RFC 7239 `Forwarded`) when building blob
-  descriptor URLs so `url` fields use `https://` when the original client
-  request was HTTPS through a TLS-terminating reverse proxy
+- Honor `X-Forwarded-Proto` (and RFC 7239 `Forwarded`) when building blob descriptor URLs so `url` fields use `https://` when the original client request was
+  HTTPS through a TLS-terminating reverse proxy
 
 ## 6.1.3
 
 ### Patch Changes
 
-- Replace landing-page WebCrypto hashing with `@noble/hashes` and remove
-  `crypto.randomUUID()` usage so the client works better on insecure origins
-- Add `window.nostr.js` to the landing bundle to provide a NIP-46 fallback when
-  no NIP-07 browser extension is installed
-- Stop runtime client bundling, document the prebuilt `public/client.js`
-  requirement, and serve the entire `public/` directory through Hono static
-  middleware
+- Replace landing-page WebCrypto hashing with `@noble/hashes` and remove `crypto.randomUUID()` usage so the client works better on insecure origins
+- Add `window.nostr.js` to the landing bundle to provide a NIP-46 fallback when no NIP-07 browser extension is installed
+- Stop runtime client bundling, document the prebuilt `public/client.js` requirement, and serve the entire `public/` directory through Hono static middleware
 
 ## 6.1.1
 
 ### Patch Changes
 
-- Fix bug with auth event validation errors not being passed through to the
-  client
+- Fix bug with auth event validation errors not being passed through to the client
 
 ## 6.1.0
 
@@ -79,24 +87,19 @@
 
 - More specific HTTP status codes across endpoints:
   - `PUT /upload` returns **201** for newly created blobs
-  - `HEAD /upload` return **204** when the upload would be accepted **200** when
-    the blob already exists
+  - `HEAD /upload` return **204** when the upload would be accepted **200** when the blob already exists
   - `DELETE /:sha256` returns **204** on success
   - Upload and media endpoints return **409** on SHA-256 hash mismatch (was 400)
   - `/media` optimization failures return **422** (was 500)
-- `HEAD /media` now checks `X-Content-Length` (413) and `X-Content-Type` (415)
-  before accepting the upload stream
-- Landing page upload and mirror UI now preflights, retries on 429/503, and
-  shows user-friendly status messages
+- `HEAD /media` now checks `X-Content-Length` (413) and `X-Content-Type` (415) before accepting the upload stream
+- Landing page upload and mirror UI now preflights, retries on 429/503, and shows user-friendly status messages
 
 ## 6.0.3
 
 ### Patch Changes
 
-- Return full blob URLs using the incoming request protocol when `publicDomain`
-  is configured
-- Add end-to-end coverage that validates returned blob descriptor URLs are
-  absolute valid URLs
+- Return full blob URLs using the incoming request protocol when `publicDomain` is configured
+- Add end-to-end coverage that validates returned blob descriptor URLs are absolute valid URLs
 
 ## 6.0.2
 

@@ -38,7 +38,7 @@ import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
-import { drainBody } from "../utils/streams.ts";
+import { byteCapGuard, drainBody } from "../utils/streams.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
@@ -252,10 +252,20 @@ export function buildUploadRouter(
     if (xSha256 && (await hasBlob(db, xSha256))) {
       const existing = await getBlob(db, xSha256);
       if (existing) {
-        // Drain, don't cancel — this returns 200 and the client may still be
-        // sending. See drainBody(). Only reached when the client skipped the
-        // BUD-06 preflight that exists to avoid this transfer.
-        await drainBody(ctx.req.raw.body);
+        // Drain rather than cancel while the body remains within maxSize so a
+        // successful 200 response does not reset a client that is still sending.
+        // Only reached when the client skipped the BUD-06 dedup preflight.
+        const withinLimit = await drainBody(
+          ctx.req.raw.body,
+          config.upload.maxSize,
+        );
+        if (!withinLimit) {
+          return errorResponse(
+            ctx,
+            413,
+            `File too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+          );
+        }
         debug(
           debugPrefix,
           `dedup hit — returning existing blob ${xSha256.slice(0, 8)}`,
@@ -307,13 +317,17 @@ export function buildUploadRouter(
 
     debug(
       debugPrefix,
-      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${
-        xSha256?.slice(0, 8) ?? "unknown"
-      }`,
+      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${xSha256?.slice(0, 8) ?? "unknown"}`,
     );
 
+    // Stream-side size cap: the Content-Length check above only validates
+    // the DECLARED size — a client can lie and stream more. The guard errors
+    // the stream the moment the cap is exceeded; the worker classifies it as
+    // BYTE_LIMIT and we map it to 413 below.
+    const cappedBody = body.pipeThrough(byteCapGuard(config.upload.maxSize));
+
     const jobPromise = pool.dispatch(
-      body,
+      cappedBody,
       session.tmpPath,
       contentLength,
       xSha256,
@@ -321,7 +335,7 @@ export function buildUploadRouter(
     if (!jobPromise) {
       // Race condition: another request claimed the last worker between
       // pool.available check and dispatch(). Rare but safe to handle.
-      await body.cancel().catch(() => {});
+      await cappedBody.cancel().catch(() => {});
       await storage.abortWrite(session).catch(() => {});
       debug(
         debugPrefix,
@@ -353,6 +367,13 @@ export function buildUploadRouter(
       debug(debugPrefix, `worker error — ${msg}`);
       if (err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH") {
         return errorResponse(ctx, 409, msg);
+      }
+      if (err instanceof WorkerJobError && err.errorType === "BYTE_LIMIT") {
+        return errorResponse(
+          ctx,
+          413,
+          `File too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+        );
       }
       return errorResponse(ctx, 400, msg);
     }
@@ -402,9 +423,7 @@ export function buildUploadRouter(
 
     debug(
       debugPrefix,
-      `upload complete — ${hash} (${size} bytes, ${
-        blobRecord.type ?? "application/octet-stream"
-      })`,
+      `upload complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`,
     );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     const url = getBlobUrl(hash, blobRecord.type, baseUrl);

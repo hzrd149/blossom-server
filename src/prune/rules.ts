@@ -1,9 +1,7 @@
 /**
  * Storage rule helpers — pure functions, no I/O.
  *
- * Used at two callsites:
- *   1. Upload time — getFileRule() gates whether a blob is accepted
- *   2. Prune time  — mimeToSqlLike() + parseDuration() drive expiry queries
+ * Used at upload time to select a rule and at prune time to evaluate retention.
  */
 
 import type { StorageRule } from "../config/schema.ts";
@@ -44,6 +42,27 @@ export function parseDuration(s: string): number {
 }
 
 /**
+ * Whether a pubkey would be allowed by ANY rule under requirePubkeyInRule
+ * semantics — i.e. it appears in at least one rule's pubkeys allowlist.
+ *
+ * Used by PUT /mirror to reject non-allowlisted uploaders BEFORE fetching
+ * the origin: without this, a non-allowlisted authenticated key could make
+ * the server issue outbound HTTP requests (SSRF-guarded, but still an
+ * unintended capability) whose results it would never be allowed to store.
+ */
+export function pubkeyAllowedByRules(
+  pubkey: string | undefined,
+  rules: StorageRule[],
+  requirePubkeyInRule: boolean,
+): boolean {
+  if (!requirePubkeyInRule) return true;
+  if (!pubkey) return false;
+  return rules.some(
+    (rule) => rule.pubkeys !== undefined && rule.pubkeys.includes(pubkey),
+  );
+}
+
+/**
  * Returns true if a MIME type matches a rule's type pattern.
  *
  * Pattern semantics (mirrors legacy getFileRule logic):
@@ -64,20 +83,6 @@ export function mimeMatchesRule(
     return mimeType.startsWith(prefix + "/");
   }
   return false;
-}
-
-/**
- * Convert a rule type pattern to a SQL LIKE operand.
- * Used in getBlobsForPrune() to pre-filter blobs by type at the DB level.
- *
- *   "*"       → "%"
- *   "image/*" → "image/%"
- *   exact     → unchanged (still a valid LIKE pattern, no wildcards)
- */
-export function mimeToSqlLike(ruleType: string): string {
-  if (ruleType === "*") return "%";
-  if (ruleType.endsWith("/*")) return ruleType.slice(0, -1) + "%"; // "image/*" → "image/%"
-  return ruleType;
 }
 
 /**

@@ -212,6 +212,11 @@ media:
   # Require a valid BUD-11 Nostr auth event for media uploads.
   requireAuth: true
 
+  # Require the uploader's Nostr pubkey to appear in the matching storage rule's
+  # "pubkeys" list. Enabled by default to prevent unrestricted media processing.
+  # Add authorized pubkeys to image/video rules before enabling the endpoint.
+  requirePubkeyInRule: true
+
   # Maximum input file size in bytes before reading the body. Default: 1 GB.
   maxSize: 1073741824 # 1 GB
 
@@ -313,6 +318,10 @@ prune:
   # Minimum gap (ms) between the end of one prune run and the start of the next.
   # Uses recursive setTimeout — the next run begins only after the current one completes.
   intervalMs: 30000 # 30 seconds
+
+  # Maximum blobs examined per rule and during ownerless cleanup in one cycle.
+  # Cursors continue from the previous cycle, so larger stores are scanned incrementally.
+  batchSize: 1000
 
 # ---------------------------------------------------------------------------
 # Landing page

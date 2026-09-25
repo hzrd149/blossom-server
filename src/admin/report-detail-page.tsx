@@ -1,14 +1,6 @@
 import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
-import {
-  AdminLayout,
-  Badge,
-  DangerButton,
-  formatDate,
-  PageHeader,
-  SecondaryButton,
-  truncateHash,
-} from "./layout.tsx";
+import { AdminLayout, Badge, DangerButton, formatDate, PageHeader, SecondaryButton, truncateHash } from "./layout.tsx";
 
 function reportTypeColor(type: string | null): string {
   switch (type) {
@@ -39,8 +31,7 @@ export const ReportDetailPage: FC<ReportDetailPageProps> = async (
       <AdminLayout title="Report not found" section="reports">
         <PageHeader title="Report not found" />
         <p class="text-gray-400 text-sm">
-          No report with ID{" "}
-          <code class="font-mono text-purple-400">#{reportId}</code> exists.
+          No report with ID <code class="font-mono text-purple-400">#{reportId}</code> exists.
         </p>
         <a
           href="/admin/reports"

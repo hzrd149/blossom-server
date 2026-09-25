@@ -21,4 +21,4 @@ CREATE TABLE IF NOT EXISTS accessed (
   timestamp INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS accessed_timestamp ON accessed (timestamp);
+CREATE INDEX IF NOT EXISTS accessed_timestamp_blob ON accessed (timestamp, blob);

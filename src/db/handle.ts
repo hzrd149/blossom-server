@@ -6,12 +6,7 @@
  * Worker code imports only this type and is unaware of which backend is active.
  */
 
-import type {
-  AdminBlobRecord,
-  AdminUserRecord,
-  BlobRecord,
-  BlobStats,
-} from "./blobs.ts";
+import type { AdminBlobRecord, AdminUserRecord, BlobRecord, BlobStats } from "./blobs.ts";
 import type { ReportRecord } from "./reports.ts";
 
 export type { AdminBlobRecord, AdminUserRecord, BlobRecord, BlobStats };

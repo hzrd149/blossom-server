@@ -67,7 +67,10 @@ in
       wants = [ "network-online.target" ];
       after = [ "network-online.target" ];
 
-      environment.DENO_DIR = "/var/cache/blossom-server/deno";
+      environment = {
+        DENO_DIR = "/var/cache/blossom-server/deno";
+        BLOSSOM_REQUIRE_CONFIG = "1";
+      };
       restartTriggers = [ configFile ];
 
       serviceConfig = {

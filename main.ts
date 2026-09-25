@@ -20,7 +20,7 @@ import { LocalStorage } from "./src/storage/local.ts";
 import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
 import { buildApp } from "./src/server.ts";
-import { pruneStorage } from "./src/prune/prune.ts";
+import { createPruneState, pruneStorage } from "./src/prune/prune.ts";
 
 const configPath = Deno.args[0] ?? "config.yml";
 const config = await loadConfig(configPath);
@@ -118,6 +118,7 @@ const pruneEnabled = config.storage.rules.length > 0 ||
   config.storage.removeWhenNoOwners;
 let pruneTimeout: ReturnType<typeof setTimeout> | undefined;
 if (pruneEnabled) {
+  const pruneState = createPruneState();
   const runPrune = async () => {
     try {
       const result = await pruneStorage(
@@ -125,6 +126,8 @@ if (pruneEnabled) {
         storage,
         config.storage.rules,
         config.storage.removeWhenNoOwners,
+        config.prune.batchSize,
+        pruneState,
       );
       if (result.deleted > 0 || result.errors > 0) {
         console.log(
@@ -174,16 +177,12 @@ const server = Deno.serve(
       console.log(
         "  Prune:   storage rules          " +
           (pruneEnabled
-            ? `active (${config.storage.rules.length} rules, first run in ${
-              config.prune.initialDelayMs / 1000
-            }s)`
+            ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
             : "disabled (no rules configured)"),
       );
       console.log(
         "  Admin:   dashboard              " +
-          (config.dashboard.enabled
-            ? `ready (user=${config.dashboard.username}) — http://${hostname}:${port}/admin`
-            : "disabled"),
+          (config.dashboard.enabled ? `ready (user=${config.dashboard.username}) — http://${hostname}:${port}/admin` : "disabled"),
       );
     },
   },

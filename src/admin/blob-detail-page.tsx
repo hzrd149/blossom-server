@@ -2,15 +2,7 @@ import type { FC } from "@hono/hono/jsx";
 import type { IDbHandle } from "../db/handle.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
-import {
-  AdminLayout,
-  Badge,
-  DangerButton,
-  formatBytes,
-  formatDate,
-  PageHeader,
-  truncateHash,
-} from "./layout.tsx";
+import { AdminLayout, Badge, DangerButton, formatBytes, formatDate, PageHeader, truncateHash } from "./layout.tsx";
 
 function getBlobUrl(
   sha256: string,
@@ -42,8 +34,7 @@ export const BlobDetailPage: FC<BlobDetailPageProps> = async (
       <AdminLayout title="Blob not found" section="blobs">
         <PageHeader title="Blob not found" />
         <p class="text-gray-400 text-sm">
-          No blob with hash{" "}
-          <code class="font-mono text-purple-400">{sha256}</code> exists.
+          No blob with hash <code class="font-mono text-purple-400">{sha256}</code> exists.
         </p>
         <a
           href="/admin/blobs"
@@ -59,9 +50,7 @@ export const BlobDetailPage: FC<BlobDetailPageProps> = async (
     filter: { q: sha256 },
     limit: 1,
   });
-  const owners = blobsWithOwners[0]?.sha256 === sha256
-    ? blobsWithOwners[0].owners
-    : [];
+  const owners = blobsWithOwners[0]?.sha256 === sha256 ? blobsWithOwners[0].owners : [];
 
   const blobUrl = getBlobUrl(blob.sha256, blob.type, config, host);
   const deleteUrl = `/admin/api/blobs/${blob.sha256}`;
@@ -101,9 +90,7 @@ export const BlobDetailPage: FC<BlobDetailPageProps> = async (
             <div>
               <dt class="text-xs text-gray-500 mb-0.5">MIME Type</dt>
               <dd>
-                {blob.type
-                  ? <Badge color="purple">{blob.type}</Badge>
-                  : <span class="text-gray-600 text-sm">—</span>}
+                {blob.type ? <Badge color="purple">{blob.type}</Badge> : <span class="text-gray-600 text-sm">—</span>}
               </dd>
             </div>
             <div>
@@ -119,20 +106,18 @@ export const BlobDetailPage: FC<BlobDetailPageProps> = async (
                 Owners ({owners.length})
               </dt>
               <dd class="space-y-1 mt-1">
-                {owners.length === 0
-                  ? <span class="text-gray-600 text-sm">No owners</span>
-                  : (
-                    owners.map((pk) => (
-                      <div key={pk}>
-                        <a
-                          href={`/admin/users?q=${pk}`}
-                          class="font-mono text-xs text-purple-400 hover:text-purple-300 hover:underline break-all"
-                        >
-                          {pk}
-                        </a>
-                      </div>
-                    ))
-                  )}
+                {owners.length === 0 ? <span class="text-gray-600 text-sm">No owners</span> : (
+                  owners.map((pk) => (
+                    <div key={pk}>
+                      <a
+                        href={`/admin/users?q=${pk}`}
+                        class="font-mono text-xs text-purple-400 hover:text-purple-300 hover:underline break-all"
+                      >
+                        {pk}
+                      </a>
+                    </div>
+                  ))
+                )}
               </dd>
             </div>
           </dl>

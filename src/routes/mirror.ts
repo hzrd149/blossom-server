@@ -6,9 +6,12 @@
  *   2.  BUD-11 auth check (t="upload") → 401/403
  *   3.  Parse JSON body { url } → 400
  *   4.  Validate URL scheme (http/https only) → 400
- *   5.  SSRF guard: reject bare private/loopback IP addresses → 400
- *   6.  Pre-fetch pool check (pool.available === 0) → 503
- *   7.  Outbound fetch with AbortSignal.timeout → 502 on error/timeout
+ *   5.  Pre-fetch pubkey allowlist and worker-capacity checks
+ *   6.  SSRF guard per fetch hop: literal-IP check (full IPv4/IPv6 incl.
+ *       IPv4-mapped/NAT64/6to4/ULA/link-local) + resolve-then-validate of
+ *       A/AAAA records; redirects followed manually (≤ 3 hops, re-validated
+ *       each hop) → 400 on disallowed target, 502 on redirect excess
+ *   7.  Outbound fetch (manual redirects) bounded by connect timeout → 502 on error/timeout
  *   8.  Non-2xx origin response → 502
  *   9.  Content-Length > maxSize → 413 (body never streamed to worker)
  *  10.  Content-Type allowlist check → 415
@@ -25,7 +28,7 @@
  *
  * Spam / overload protection layers:
  *   L1 — Pre-fetch pool check: no TCP connection opened when workers are full
- *   L2 — Fetch timeout (AbortSignal.timeout): hung origins release worker slots
+ *   L2 — DNS/connect timeout: hung origins release worker slots
  *   L3 — Content-Length gate: 413 before any body bytes flow to the worker
  *   L4 — No-queue pool policy: dispatch() → null → 503, zero accumulation
  */
@@ -33,20 +36,23 @@
 import { Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
+import { lookup } from "node:dns/promises";
 import { ulid } from "@std/ulid";
 import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
 import { errorResponse } from "../middleware/errors.ts";
-import type { IBlobStorage } from "../storage/interface.ts";
-import { getPool } from "../workers/pool.ts";
+import type { IBlobStorage, WriteSession } from "../storage/interface.ts";
+import { getPool, WorkerJobError } from "../workers/pool.ts";
+import { byteCapGuard } from "../utils/streams.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
-import { getFileRule } from "../prune/rules.ts";
+import { getFileRule, pubkeyAllowedByRules } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
+import { checkLiteralHost, parseIPv4, parseIPv6, validateResolvedRecords } from "../utils/ip-guard.ts";
 
 /** BUD-02 Blob Descriptor (same shape as upload route) */
 interface BlobDescriptor {
@@ -59,46 +65,147 @@ interface BlobDescriptor {
   nip94?: Nip94Tag[];
 }
 
-/** Returns true if a dotted-decimal IPv4 string falls in a private/loopback range. */
-function isPrivateIPv4(ip: string): boolean {
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) {
-    return false; // not a valid IPv4 — let the fetch attempt fail naturally
+/**
+ * Full SSRF guard for a mirror target hostname.
+ *
+ * 1. Literal-IP check — every IPv4/IPv6 spelling, including IPv4-mapped,
+ *    IPv4-compatible, NAT64, 6to4, ULA and link-local encodings
+ *    (see utils/ip-guard.ts for the full matrix).
+ * 2. Resolve-then-validate — reject when ANY A/AAAA record for the hostname
+ *    points at a non-public address. This closes the "hostname that
+ *    statically resolves to an internal address" class of SSRF. A DNS rebind
+ *    between this check and the fetch itself is a documented residual race —
+ *    Deno's fetch cannot pin a resolved address.
+ *
+ * Returns an error string when disallowed, or null when OK. Lookup failures
+ * throw so callers fail closed rather than fetching an unvalidated hostname.
+ */
+async function checkSsrf(
+  hostname: string,
+  lookupHost: MirrorNetwork["lookup"],
+): Promise<string | null> {
+  const bare = hostname.replace(/^\[|\]$/g, "");
+  const isLiteral = parseIPv4(bare) !== null || parseIPv6(bare) !== null;
+  if (isLiteral) {
+    const reason = checkLiteralHost(bare);
+    return reason ? `Mirror URL points to a non-public address: ${hostname} (${reason})` : null;
   }
-  const [a, b] = parts;
-  return (
-    a === 127 || // 127.0.0.0/8   loopback
-    a === 10 || // 10.0.0.0/8    RFC-1918
-    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 RFC-1918
-    (a === 192 && b === 168) || // 192.168.0.0/16 RFC-1918
-    (a === 169 && b === 254) || // 169.254.0.0/16 link-local
-    a === 0 // 0.0.0.0/8
+  const records = await lookupHost(bare);
+  if (records.length === 0) {
+    throw new Error(`DNS lookup returned no addresses for ${hostname}`);
+  }
+  const reason = validateResolvedRecords(
+    records.filter((record) => record.family === 4).map((record) => record.address),
+    records.filter((record) => record.family === 6).map((record) => record.address),
   );
+  return reason ? `Mirror URL ${reason}` : null;
 }
 
-/** Returns true if a colon-hex IPv6 string is loopback (::1) or unspecified (::). */
-function isPrivateIPv6(ip: string): boolean {
-  // Normalise: strip brackets if present (e.g. [::1])
-  const bare = ip.replace(/^\[|\]$/g, "");
-  return bare === "::1" || bare === "::" ||
-    bare.toLowerCase() === "0:0:0:0:0:0:0:1";
+/** Maximum redirect hops followed on a mirror fetch (each hop re-validated). */
+const MAX_REDIRECT_HOPS = 3;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+interface LookupAddress {
+  address: string;
+  family: number;
 }
+
+export interface MirrorNetwork {
+  lookup(hostname: string): Promise<LookupAddress[]>;
+  fetch(input: string, init: RequestInit): Promise<Response>;
+}
+
+export class MirrorFetchError extends Error {
+  constructor(
+    public readonly status: 400 | 502,
+    message: string,
+  ) {
+    super(message);
+    this.name = "MirrorFetchError";
+  }
+}
+
+const DEFAULT_MIRROR_NETWORK: MirrorNetwork = {
+  lookup: (hostname) => lookup(hostname, { all: true, verbatim: true }),
+  fetch: (input, init) => fetch(input, init),
+};
 
 /**
- * Best-effort SSRF guard for literal IP addresses in the URL hostname.
- * Hostname-based DNS rebinding is out of scope — the fetch timeout is the
- * primary mitigation for that class of attack.
- *
- * Returns an error string if the hostname is a disallowed IP, or null if OK.
+ * Single validated fetch attempt with the connect-timeout race. The timeout
+ * covers both DNS validation and receipt of response headers.
  */
-function checkSsrf(hostname: string): string | null {
-  if (isPrivateIPv4(hostname)) {
-    return `Mirror URL points to a private IPv4 address: ${hostname}`;
+async function fetchWithConnectTimeout(
+  url: URL,
+  connectTimeoutMs: number,
+  network: MirrorNetwork,
+): Promise<Response> {
+  const connectAbort = new AbortController();
+  const fetchPromise = (async () => {
+    const ssrfError = await checkSsrf(url.hostname, network.lookup);
+    if (ssrfError) throw new MirrorFetchError(400, ssrfError);
+    if (connectAbort.signal.aborted) throw connectAbort.signal.reason;
+    return await network.fetch(url.toString(), {
+      redirect: "manual",
+      signal: connectAbort.signal,
+    });
+  })();
+  if (connectTimeoutMs <= 0) return await fetchPromise;
+
+  let connectTimerId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    connectTimerId = setTimeout(() => {
+      const error = new MirrorFetchError(
+        502,
+        `Origin server did not respond within ${connectTimeoutMs}ms`,
+      );
+      connectAbort.abort(error);
+      reject(error);
+    }, connectTimeoutMs);
+  });
+  try {
+    fetchPromise.catch(() => {});
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } finally {
+    if (connectTimerId) clearTimeout(connectTimerId);
   }
-  if (isPrivateIPv6(hostname)) {
-    return `Mirror URL points to a loopback IPv6 address: ${hostname}`;
+}
+
+/** Fetch a mirror origin while re-validating every redirect destination. */
+export async function fetchMirrorOrigin(
+  initialUrl: URL,
+  connectTimeoutMs: number,
+  network: MirrorNetwork = DEFAULT_MIRROR_NETWORK,
+): Promise<Response> {
+  let currentUrl = initialUrl;
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const response = await fetchWithConnectTimeout(
+      currentUrl,
+      connectTimeoutMs,
+      network,
+    );
+    if (!REDIRECT_STATUSES.has(response.status)) return response;
+
+    const location = response.headers.get("location");
+    await response.body?.cancel();
+    if (!location) {
+      throw new MirrorFetchError(
+        502,
+        `Origin server returned ${response.status} without a Location header`,
+      );
+    }
+    const next = new URL(location, currentUrl);
+    if (next.protocol !== "http:" && next.protocol !== "https:") {
+      throw new MirrorFetchError(
+        400,
+        `Redirect to unsupported URL scheme: ${next.protocol}. Only http and https are allowed`,
+      );
+    }
+    currentUrl = next;
   }
-  return null;
+  throw new MirrorFetchError(
+    502,
+    `Origin server redirect chain exceeded ${MAX_REDIRECT_HOPS} hops`,
+  );
 }
 
 export function buildMirrorRouter(
@@ -157,9 +264,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `PUT /mirror — url=${mirrorUrl.toString()} pubkey=${
-        auth?.pubkey?.slice(0, 8) ?? "anon"
-      }`,
+      `PUT /mirror — url=${mirrorUrl.toString()} pubkey=${auth?.pubkey?.slice(0, 8) ?? "anon"}`,
     );
 
     if (mirrorUrl.protocol !== "http:" && mirrorUrl.protocol !== "https:") {
@@ -174,10 +279,22 @@ export function buildMirrorRouter(
       );
     }
 
-    const ssrfError = checkSsrf(mirrorUrl.hostname);
-    if (ssrfError) {
-      debug(debugPrefix, `rejected: SSRF guard — ${ssrfError}`);
-      return errorResponse(ctx, 400, ssrfError);
+    // Pre-fetch allowlist gate: with requirePubkeyInRule, a non-allowlisted
+    // uploader must be rejected BEFORE the origin fetch — otherwise they can
+    // make the server issue outbound requests it would never store for them.
+    if (
+      config.upload.requirePubkeyInRule &&
+      !pubkeyAllowedByRules(auth?.pubkey, config.storage.rules, true)
+    ) {
+      debug(
+        debugPrefix,
+        `rejected: pubkey not authorized by any storage rule (pre-fetch)`,
+      );
+      return errorResponse(
+        ctx,
+        401,
+        "Pubkey not authorized by any storage rule",
+      );
     }
 
     if (getPool().available === 0) {
@@ -196,36 +313,10 @@ export function buildMirrorRouter(
     const t0 = Date.now();
     let originResponse: Response;
     try {
-      if (config.mirror.connectTimeout > 0) {
-        // Race fetch against a timeout. The AbortController is only used to
-        // cancel the network request when the timeout wins — it is never
-        // associated with the response body stream.
-        const connectAbort = new AbortController();
-        let connectTimerId: ReturnType<typeof setTimeout>;
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          connectTimerId = setTimeout(() => {
-            connectAbort.abort();
-            reject(
-              new Error(
-                `Origin server did not respond within ${config.mirror.connectTimeout}ms`,
-              ),
-            );
-          }, config.mirror.connectTimeout);
-        });
-        try {
-          const fetchPromise = fetch(mirrorUrl.toString(), {
-            signal: connectAbort.signal,
-          });
-          // Suppress the unhandled rejection that occurs when the timeout wins
-          // and connectAbort cancels the in-flight fetch.
-          fetchPromise.catch(() => {});
-          originResponse = await Promise.race([fetchPromise, timeoutPromise]);
-        } finally {
-          clearTimeout(connectTimerId!);
-        }
-      } else {
-        originResponse = await fetch(mirrorUrl.toString());
-      }
+      originResponse = await fetchMirrorOrigin(
+        mirrorUrl,
+        config.mirror.connectTimeout,
+      );
       const t1 = Date.now();
       debug(
         debugPrefix,
@@ -234,10 +325,11 @@ export function buildMirrorRouter(
     } catch (err) {
       const t1 = Date.now();
       // Normalise error message — DOMException.message can be empty.
-      const reason = err instanceof Error
-        ? err.message || `Fetch aborted (${err.name})`
-        : `Failed to fetch from origin: ${String(err)}`;
+      const reason = err instanceof Error ? err.message || `Fetch aborted (${err.name})` : `Failed to fetch from origin: ${String(err)}`;
       debug(debugPrefix, `fetch failed elapsed=${t1 - t0}ms — ${reason}`);
+      if (err instanceof MirrorFetchError) {
+        return errorResponse(ctx, err.status, reason);
+      }
       return errorResponse(ctx, 502, reason);
     }
 
@@ -255,9 +347,7 @@ export function buildMirrorRouter(
     }
 
     const contentLengthHeader = originResponse.headers.get("content-length");
-    const contentLength = contentLengthHeader
-      ? parseInt(contentLengthHeader, 10)
-      : null;
+    const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
     if (
       contentLength !== null && !isNaN(contentLength) &&
       contentLength > config.upload.maxSize
@@ -281,9 +371,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `origin content-type=${mimeType} content-length=${
-        contentLength ?? "unknown"
-      }`,
+      `origin content-type=${mimeType} content-length=${contentLength ?? "unknown"}`,
     );
 
     const mimeRule = getFileRule(
@@ -317,6 +405,14 @@ export function buildMirrorRouter(
       return errorResponse(ctx, 502, "Origin server returned an empty body");
     }
 
+    let session: WriteSession;
+    try {
+      session = await storage.beginWrite(contentLength);
+    } catch (err) {
+      await body.cancel().catch(() => {});
+      throw err;
+    }
+
     // Apply bodyTimeout: if configured, wrap the stream with an AbortController
     // that fires after bodyTimeout ms. This is separate from connectTimeout so
     // that large blobs are not aborted mid-stream by the connection timeout.
@@ -347,19 +443,21 @@ export function buildMirrorRouter(
     }
 
     const pool = getPool();
-    const session = await storage.beginWrite(contentLength);
 
     debug(
       debugPrefix,
-      `dispatching to worker — size=${
-        contentLength ?? "unknown"
-      } mime=${mimeType}`,
+      `dispatching to worker — size=${contentLength ?? "unknown"} mime=${mimeType}`,
     );
 
     // Pass null as xSha256 — the hash is unknown pre-download. The x-tag
     // verification happens post-hash (step 13) after the worker returns.
+    // Stream-side size cap — the origin's Content-Length gate only validated
+    // the DECLARED size; a malicious origin can lie and stream more.
+    const cappedStream = streamForWorker.pipeThrough(
+      byteCapGuard(config.upload.maxSize),
+    );
     const jobPromise = pool.dispatch(
-      streamForWorker,
+      cappedStream,
       session.tmpPath,
       contentLength,
       null,
@@ -367,7 +465,7 @@ export function buildMirrorRouter(
     if (!jobPromise) {
       // Race: another request claimed the last worker between step 6 and now.
       if (bodyAbortTimer) clearTimeout(bodyAbortTimer);
-      await streamForWorker.cancel().catch(() => {});
+      await cappedStream.cancel().catch(() => {});
       await storage.abortWrite(session).catch(() => {});
       debug(
         debugPrefix,
@@ -397,15 +495,18 @@ export function buildMirrorRouter(
       // DOMException (e.g. TimeoutError from AbortSignal) has a non-empty
       // .name but may have an empty .message — use name as fallback.
       const errName = err instanceof Error ? err.name : "";
-      const errMsg = err instanceof Error
-        ? err.message || err.name
-        : String(err);
+      const errMsg = err instanceof Error ? err.message || err.name : String(err);
       const isBodyTimeout = errName === "TimeoutError" &&
         config.mirror.bodyTimeout > 0;
-      const msg = isBodyTimeout
-        ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms`
-        : errMsg || "Mirror failed";
+      const msg = isBodyTimeout ? `Body transfer from origin exceeded ${config.mirror.bodyTimeout}ms` : errMsg || "Mirror failed";
       debug(debugPrefix, `worker error — ${msg}`);
+      if (err instanceof WorkerJobError && err.errorType === "BYTE_LIMIT") {
+        return errorResponse(
+          ctx,
+          413,
+          `Remote blob too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+        );
+      }
       return errorResponse(ctx, 502, msg);
     }
 
@@ -427,9 +528,7 @@ export function buildMirrorRouter(
         await storage.abortWrite(session).catch(() => {});
         debug(
           debugPrefix,
-          `rejected: x tag mismatch — hash=${
-            hash.slice(0, 8)
-          } not in auth tags`,
+          `rejected: x tag mismatch — hash=${hash.slice(0, 8)} not in auth tags`,
         );
         return errorResponse(
           ctx,
@@ -505,9 +604,7 @@ export function buildMirrorRouter(
 
     debug(
       debugPrefix,
-      `mirror complete — ${hash} (${size} bytes, ${
-        blobRecord.type ?? "application/octet-stream"
-      })`,
+      `mirror complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`,
     );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     const url = getBlobUrl(hash, blobRecord.type, baseUrl);
