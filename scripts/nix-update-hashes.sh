@@ -71,4 +71,4 @@ refresh_hash "path:.#denoDeps" "denoDepsHash"
 refresh_hash "path:.#clientBundle" "hash"
 
 echo "Verifying updated Nix outputs"
-bash nix/check.sh
+bash scripts/nix-check.sh

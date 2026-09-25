@@ -19,8 +19,8 @@
     },
     "build:client": "deno bundle --frozen --lock=src/landing/client/deno.lock --config src/landing/client/deno.json --minify --platform browser -o public/client.js src/landing/client/index.tsx",
     "build:styles": "deno run --frozen --lock=src/landing/styles/deno.lock --config=src/landing/styles/deno.json -A npm:tailwindcss@3.4.17 -c tailwind.config.js -i src/landing/styles/input.css -o public/styles.css --minify",
-    "nix:check": "bash nix/check.sh",
-    "nix:update": "bash nix/update-hashes.sh",
+    "nix:check": "bash scripts/nix-check.sh",
+    "nix:update": "bash scripts/nix-update-hashes.sh",
     "scan": "deno run --allow-env --allow-sys --allow-write --allow-read --allow-run --deny-net npm:aislop scan"
   },
   "permissions": {
