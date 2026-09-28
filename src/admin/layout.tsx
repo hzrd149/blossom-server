@@ -38,7 +38,7 @@ export const AdminLayout: FC<LayoutProps> = ({ title, section, children }) => (
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>{title} — Blossom Admin</title>
-      <script src="https://cdn.tailwindcss.com/3.4.17" />
+      <link rel="stylesheet" href="/styles.css" />
       {/* deno-fmt-ignore */}
       <script dangerouslySetInnerHTML={{ __html: ACTION_SCRIPT }} />
     </head>
@@ -104,13 +104,9 @@ export const Thead: FC<{ children?: Child }> = ({ children }) => (
   </thead>
 );
 
-export const Tbody: FC<{ children?: Child }> = ({ children }) => (
-  <tbody class="divide-y divide-gray-800 bg-gray-950">{children}</tbody>
-);
+export const Tbody: FC<{ children?: Child }> = ({ children }) => <tbody class="divide-y divide-gray-800 bg-gray-950">{children}</tbody>;
 
-export const Th: FC<{ children?: Child }> = ({ children }) => (
-  <th class="px-4 py-3 text-left font-medium">{children}</th>
-);
+export const Th: FC<{ children?: Child }> = ({ children }) => <th class="px-4 py-3 text-left font-medium">{children}</th>;
 
 export const Td: FC<{ children?: Child; mono?: boolean }> = (
   { children, mono },
@@ -133,9 +129,7 @@ export const Badge: FC<{ children?: Child; color?: string }> = (
   };
   return (
     <span
-      class={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-        colors[color] ?? colors.gray
-      }`}
+      class={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[color] ?? colors.gray}`}
     >
       {children}
     </span>
@@ -181,9 +175,7 @@ export const SecondaryButton: FC<ButtonProps> = ({ onclick, children }) => (
   </ActionButton>
 );
 
-export const EmptyState: FC<{ message: string }> = ({ message }) => (
-  <div class="py-16 text-center text-gray-500 text-sm">{message}</div>
-);
+export const EmptyState: FC<{ message: string }> = ({ message }) => <div class="py-16 text-center text-gray-500 text-sm">{message}</div>;
 
 // ── Pagination ───────────────────────────────────────────────────────────────
 
@@ -202,9 +194,7 @@ export const Pagination: FC<PaginationProps> = (
 
   const sep = baseUrl.includes("?") ? "&" : "?";
   const prevHref = page > 1 ? `${baseUrl}${sep}page=${page - 1}` : null;
-  const nextHref = page < totalPages
-    ? `${baseUrl}${sep}page=${page + 1}`
-    : null;
+  const nextHref = page < totalPages ? `${baseUrl}${sep}page=${page + 1}` : null;
   const start = (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, total);
 

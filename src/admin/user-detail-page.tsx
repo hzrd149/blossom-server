@@ -68,8 +68,7 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
   if (total === 0 && page === 1) {
     return (
       <UserNotFound>
-        No blobs found for pubkey{" "}
-        <code class="font-mono text-purple-400 break-all">{pubkey}</code>
+        No blobs found for pubkey <code class="font-mono text-purple-400 break-all">{pubkey}</code>
       </UserNotFound>
     );
   }
@@ -146,9 +145,7 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
         {/* About / bio */}
         {profile?.about && (
           <p class="text-sm text-gray-400 italic leading-relaxed line-clamp-3">
-            {profile.about.length > 280
-              ? profile.about.slice(0, 280) + "…"
-              : profile.about}
+            {profile.about.length > 280 ? profile.about.slice(0, 280) + "…" : profile.about}
           </p>
         )}
 
@@ -229,9 +226,7 @@ export const UserDetailPage: FC<UserDetailPageProps> = async (
                     </a>
                   </Td>
                   <Td>
-                    {blob.type
-                      ? <Badge color="blue">{blob.type}</Badge>
-                      : <span class="text-gray-600 text-xs">—</span>}
+                    {blob.type ? <Badge color="blue">{blob.type}</Badge> : <span class="text-gray-600 text-xs">—</span>}
                   </Td>
                   <Td>{formatBytes(blob.size)}</Td>
                   <Td>{formatDate(blob.uploaded)}</Td>

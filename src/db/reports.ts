@@ -44,8 +44,7 @@ export async function insertReport(
   report: Omit<ReportRecord, "id">,
 ): Promise<void> {
   await db.execute({
-    sql:
-      `INSERT OR IGNORE INTO reports (event_id, reporter, blob, type, content, created)
+    sql: `INSERT OR IGNORE INTO reports (event_id, reporter, blob, type, content, created)
           VALUES (?, ?, ?, ?, ?, ?)`,
     args: [
       report.event_id,
@@ -97,9 +96,7 @@ export async function listAllReports(
     args.push(opts.filter.type);
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const [sortCol, sortDir] = opts.sort ?? ["created", "DESC"];
   const safeCol = REPORT_SORT_COLUMNS.has(sortCol) ? sortCol : "created";
@@ -157,9 +154,7 @@ export async function countReports(
     args.push(filter.type);
   }
 
-  const where = conditions.length > 0
-    ? `WHERE ${conditions.join(" AND ")}`
-    : "";
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const rs = await db.execute({
     sql: `SELECT COUNT(*) FROM reports ${where}`,
     args,
@@ -173,8 +168,7 @@ export async function getReport(
   id: number,
 ): Promise<ReportRecord | null> {
   const rs = await db.execute({
-    sql:
-      `SELECT id, event_id, reporter, blob, type, content, created FROM reports WHERE id = ?`,
+    sql: `SELECT id, event_id, reporter, blob, type, content, created FROM reports WHERE id = ?`,
     args: [id],
   });
   const row = rs.rows[0];

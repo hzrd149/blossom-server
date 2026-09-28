@@ -26,14 +26,7 @@ import {
   listAllUsers,
   listBlobsByPubkeyAdmin,
 } from "./blobs.ts";
-import {
-  countReports,
-  deleteReport,
-  deleteReportsByBlob,
-  getReport,
-  listAllReports,
-  type ReportRecord,
-} from "./reports.ts";
+import { countReports, deleteReport, deleteReportsByBlob, getReport, listAllReports, type ReportRecord } from "./reports.ts";
 import type { IDbHandle } from "./handle.ts";
 
 export class DirectDbHandle implements IDbHandle {

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/denoland/deno/refs/heads/main/cli/schemas/config-file.v1.json",
   "name": "@hzrd149/blossom-server",
   "version": "6.3.1",
   "exports": "./main.ts",
@@ -11,9 +12,15 @@
   "tasks": {
     "dev": "deno run -P --env-file=.env --watch main.ts",
     "start": "deno run -P --env-file=.env main.ts",
-    "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/",
-    "build": "deno task build:client",
+    "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/ && deno task test:client",
+    "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/identity.test.ts",
+    "build": {
+      "dependencies": ["build:client", "build:styles"]
+    },
     "build:client": "deno bundle --frozen --lock=src/landing/client/deno.lock --config src/landing/client/deno.json --minify --platform browser -o public/client.js src/landing/client/index.tsx",
+    "build:styles": "deno run --frozen --lock=src/landing/styles/deno.lock --config=src/landing/styles/deno.json -A npm:tailwindcss@3.4.17 -c tailwind.config.js -i src/landing/styles/input.css -o public/styles.css --minify",
+    "nix:check": "bash scripts/nix-check.sh",
+    "nix:update": "bash scripts/nix-update-hashes.sh",
     "scan": "deno run --allow-env --allow-sys --allow-write --allow-read --allow-run --deny-net npm:aislop scan"
   },
   "permissions": {
@@ -27,6 +34,9 @@
       "run": true
     }
   },
+  "fmt": {
+    "lineWidth": 160
+  },
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
     "@hono/hono": "jsr:@hono/hono@^4.12.7",
@@ -38,17 +48,15 @@
     "@std/path": "jsr:@std/path@^1.1.4",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
     "@std/yaml": "jsr:@std/yaml@^1.0.12",
-    "applesauce-common": "npm:applesauce-common@^6",
-    "applesauce-core": "npm:applesauce-core@^6",
-    "applesauce-loaders": "npm:applesauce-loaders@^6",
-    "applesauce-relay": "npm:applesauce-relay@^6",
+    "applesauce-common": "npm:applesauce-common@^6.2.0",
+    "applesauce-core": "npm:applesauce-core@^6.2.0",
+    "applesauce-loaders": "npm:applesauce-loaders@^6.2.0",
+    "applesauce-relay": "npm:applesauce-relay@^6.2.0",
     "rxjs": "npm:rxjs@^7.8.0",
     "nostr-tools": "npm:nostr-tools@^2.23.3",
     "sharp": "npm:sharp@^0.35.3",
     "file-type": "npm:file-type@^19.6.0",
     "zod": "npm:zod@^4.3.6"
   },
-  "exclude": ["src/landing/client"],
-  "nodeModulesDir": "auto",
-  "vendor": true
+  "exclude": ["src/landing/client"]
 }

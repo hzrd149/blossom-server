@@ -3,17 +3,44 @@
  *
  * Renders GET / via Hono JSX SSR.
  *
- * The landing client bundle must exist at public/client.js before startup.
- * Static files in public/ are served by the top-level app via Hono serveStatic.
+ * Generated UI assets are served from public/ by the top-level app. Missing
+ * assets produce startup warnings so blob APIs remain available.
  */
 
 import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
+import { fromFileUrl, join } from "@std/path";
 import type { Config } from "../config/schema.ts";
 import { DirectDbHandle } from "../db/direct.ts";
 import { LandingPage } from "../landing/page.tsx";
 
-const CLIENT_BUNDLE_PATH = "./public/client.js";
+export const PUBLIC_DIR = fromFileUrl(new URL("../../public", import.meta.url));
+const CLIENT_BUNDLE_PATH = join(PUBLIC_DIR, "client.js");
+const STYLESHEET_PATH = join(PUBLIC_DIR, "styles.css");
+
+/** Warn when the UI stylesheet is unavailable without blocking API startup. */
+export async function warnIfStylesheetMissing(
+  path = STYLESHEET_PATH,
+): Promise<boolean> {
+  try {
+    const stat = await Deno.stat(path);
+    if (!stat.isFile) {
+      console.warn(
+        `[ui] ${path} exists but is not a file; pages will be unstyled until \`deno task build\` is run.`,
+      );
+      return false;
+    }
+    return true;
+  } catch (err) {
+    if (err instanceof Deno.errors.NotFound) {
+      console.warn(
+        `[ui] ${path} not found; pages will be unstyled until \`deno task build\` is run.`,
+      );
+      return false;
+    }
+    throw err;
+  }
+}
 
 /** Warn at startup if the prebuilt landing client bundle is missing. */
 async function warnIfClientBundleMissing(): Promise<void> {

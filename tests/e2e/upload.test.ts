@@ -14,11 +14,7 @@ import { encodeBase64Url } from "@std/encoding/base64url";
 import { encodeHex } from "@std/encoding/hex";
 import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
-import {
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-} from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
@@ -71,9 +67,7 @@ function makeUploadAuth(
 
 /** Encode event as Base64url for the Authorization header. */
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${
-    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
-  }`;
+  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
 }
 
 function findNip94Tag(
@@ -228,6 +222,58 @@ Deno.test({
     assertEquals(res.status, 413);
     await res.body?.cancel();
     smallDb.close();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: streamed bytes exceeding maxSize return 413 and release the worker",
+  async fn() {
+    const smallDb = await initDb({ path: join(tmpDir, "stream-maxsize.db") });
+    const smallStorage = new LocalStorage(join(tmpDir, "blobs-stream-maxsize"));
+    await smallStorage.setup();
+    const smallConfig = ConfigSchema.parse({
+      publicDomain: "localhost",
+      storage: { rules: [{ type: "*", expiration: "1 month" }] },
+      upload: { requireAuth: false, enabled: true, maxSize: 100 },
+    });
+    const smallApp = await buildApp(smallDb, smallStorage, smallConfig);
+
+    try {
+      const oversized = await smallApp.fetch(
+        new Request("http://localhost/upload", {
+          method: "PUT",
+          headers: {
+            "Content-Length": "100",
+            "Content-Type": "application/octet-stream",
+          },
+          body: new Uint8Array(101),
+        }),
+      );
+      assertEquals(oversized.status, 413);
+      await oversized.body?.cancel();
+
+      const atLimit = await smallApp.fetch(
+        new Request("http://localhost/upload", {
+          method: "PUT",
+          headers: {
+            "Content-Length": "100",
+            "Content-Type": "application/octet-stream",
+          },
+          body: new Uint8Array(100),
+        }),
+      );
+      assertEquals(atLimit.status, 201);
+      await atLimit.body?.cancel();
+
+      const tempFiles = [];
+      for await (const entry of Deno.readDir(smallStorage.tmpDir)) {
+        tempFiles.push(entry.name);
+      }
+      assertEquals(tempFiles, []);
+    } finally {
+      smallDb.close();
+    }
   },
   ...testOpts,
 });
@@ -455,8 +501,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
+  name: "PUT /upload: mismatched X-SHA-256 returns 409 with X-Reason containing mismatch info",
   async fn() {
     const body = new TextEncoder().encode("conflict test content");
     const wrongHash = "c".repeat(64);
@@ -581,8 +626,7 @@ Deno.test({
 // ---------------------------------------------------------------------------
 
 Deno.test({
-  name:
-    "PUT /upload: same content uploaded twice returns same descriptor (dedup)",
+  name: "PUT /upload: same content uploaded twice returns same descriptor (dedup)",
   async fn() {
     const body = new TextEncoder().encode("deduplicated content abc123");
     const hash = await sha256Hex(body);
@@ -667,6 +711,56 @@ Deno.test({
     await res.json();
     assertEquals(cancelled, false);
     assertEquals(offset >= body.byteLength, true);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: dedup hit returns 413 when streamed bytes exceed maxSize",
+  async fn() {
+    const smallDb = await initDb({ path: join(tmpDir, "dedup-maxsize.db") });
+    const smallStorage = new LocalStorage(join(tmpDir, "blobs-dedup-maxsize"));
+    await smallStorage.setup();
+    const smallConfig = ConfigSchema.parse({
+      publicDomain: "localhost",
+      storage: { rules: [{ type: "*", expiration: "1 month" }] },
+      upload: { requireAuth: false, enabled: true, maxSize: 32 },
+    });
+    const smallApp = await buildApp(smallDb, smallStorage, smallConfig);
+    const seedBody = new TextEncoder().encode("dedup seed");
+    const hash = await sha256Hex(seedBody);
+
+    try {
+      const seed = await smallApp.fetch(
+        new Request("http://localhost/upload", {
+          method: "PUT",
+          headers: {
+            "Content-Length": String(seedBody.byteLength),
+            "Content-Type": "application/octet-stream",
+            "X-SHA-256": hash,
+          },
+          body: seedBody,
+        }),
+      );
+      assertEquals(seed.status, 201);
+      await seed.body?.cancel();
+
+      const oversized = await smallApp.fetch(
+        new Request("http://localhost/upload", {
+          method: "PUT",
+          headers: {
+            "Content-Length": "32",
+            "Content-Type": "application/octet-stream",
+            "X-SHA-256": hash,
+          },
+          body: new Uint8Array(33),
+        }),
+      );
+      assertEquals(oversized.status, 413);
+      await oversized.body?.cancel();
+    } finally {
+      smallDb.close();
+    }
   },
   ...testOpts,
 });
@@ -802,8 +896,7 @@ Deno.test({
 });
 
 Deno.test({
-  name:
-    "HEAD /upload: existing blob with X-SHA-256 returns 200 with dedup reason",
+  name: "HEAD /upload: existing blob with X-SHA-256 returns 200 with dedup reason",
   async fn() {
     // Upload the blob first
     const body = new TextEncoder().encode("preflight dedup test xyz");

@@ -1,16 +1,6 @@
 import type { FC } from "@hono/hono/jsx";
 import type { Config } from "../config/schema.ts";
-import {
-  AdminLayout,
-  Badge,
-  EmptyState,
-  PageHeader,
-  Table,
-  Tbody,
-  Td,
-  Th,
-  Thead,
-} from "./layout.tsx";
+import { AdminLayout, Badge, EmptyState, PageHeader, Table, Tbody, Td, Th, Thead } from "./layout.tsx";
 
 interface RulesPageProps {
   config: Config;
@@ -50,69 +40,59 @@ export const RulesPage: FC<RulesPageProps> = ({ config }) => {
     <AdminLayout title="Rules" section="rules">
       <PageHeader
         title="Storage Rules"
-        subtitle={`${rules.length} rule${
-          rules.length !== 1 ? "s" : ""
-        } configured`}
+        subtitle={`${rules.length} rule${rules.length !== 1 ? "s" : ""} configured`}
       />
 
       <div class="mb-4 p-4 bg-gray-900 border border-gray-800 rounded-lg text-sm text-gray-400">
-        Rules are evaluated in order. The first matching rule wins. Rules are
-        defined in <code class="font-mono text-purple-400">config.yml</code>
-        {" "}
-        under <code class="font-mono text-purple-400">storage.rules</code>.
+        Rules are evaluated in order. The first matching rule wins. Rules are defined in <code class="font-mono text-purple-400">config.yml</code> under{" "}
+        <code class="font-mono text-purple-400">storage.rules</code>.
       </div>
 
-      {rules.length === 0
-        ? (
-          <EmptyState message="No storage rules configured. All uploads are accepted by default." />
-        )
-        : (
-          <Table>
-            <Thead>
-              <tr>
-                <Th>#</Th>
-                <Th>Type</Th>
-                <Th>MIME Pattern</Th>
-                <Th>Pubkeys</Th>
-                <Th>Expiration</Th>
+      {rules.length === 0 ? <EmptyState message="No storage rules configured. All uploads are accepted by default." /> : (
+        <Table>
+          <Thead>
+            <tr>
+              <Th>#</Th>
+              <Th>Type</Th>
+              <Th>MIME Pattern</Th>
+              <Th>Pubkeys</Th>
+              <Th>Expiration</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {rules.map((rule, idx) => (
+              <tr key={idx} class="hover:bg-gray-900 transition-colors">
+                <Td>
+                  <span class="text-gray-500 font-mono text-xs">
+                    {idx + 1}
+                  </span>
+                </Td>
+                <Td>
+                  <Badge color={ruleTypeColor(rule.type)}>{rule.type}</Badge>
+                </Td>
+                <Td mono>
+                  <span class="text-gray-200">{rule.type}</span>
+                </Td>
+                <Td>
+                  <PubkeyList pubkeys={rule.pubkeys} />
+                </Td>
+                <Td>
+                  <Badge color="yellow">{rule.expiration}</Badge>
+                </Td>
+                <Td>
+                  <span class="text-gray-600">—</span>
+                </Td>
+                <Td>
+                  <PubkeyList pubkeys={rule.pubkeys} />
+                </Td>
+                <Td>
+                  {rule.expiration ? <Badge color="yellow">{rule.expiration}</Badge> : <span class="text-gray-600">—</span>}
+                </Td>
               </tr>
-            </Thead>
-            <Tbody>
-              {rules.map((rule, idx) => (
-                <tr key={idx} class="hover:bg-gray-900 transition-colors">
-                  <Td>
-                    <span class="text-gray-500 font-mono text-xs">
-                      {idx + 1}
-                    </span>
-                  </Td>
-                  <Td>
-                    <Badge color={ruleTypeColor(rule.type)}>{rule.type}</Badge>
-                  </Td>
-                  <Td mono>
-                    <span class="text-gray-200">{rule.type}</span>
-                  </Td>
-                  <Td>
-                    <PubkeyList pubkeys={rule.pubkeys} />
-                  </Td>
-                  <Td>
-                    <Badge color="yellow">{rule.expiration}</Badge>
-                  </Td>
-                  <Td>
-                    <span class="text-gray-600">—</span>
-                  </Td>
-                  <Td>
-                    <PubkeyList pubkeys={rule.pubkeys} />
-                  </Td>
-                  <Td>
-                    {rule.expiration
-                      ? <Badge color="yellow">{rule.expiration}</Badge>
-                      : <span class="text-gray-600">—</span>}
-                  </Td>
-                </tr>
-              ))}
-            </Tbody>
-          </Table>
-        )}
+            ))}
+          </Tbody>
+        </Table>
+      )}
 
       {/* Global settings */}
       <div class="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-5">

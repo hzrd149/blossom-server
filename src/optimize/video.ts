@@ -89,9 +89,7 @@ export async function optimizeVideo(
 
   // Probe original FPS; clamp to min(originalFps, maxFps)
   const originalFps = await probeFps(inputPath);
-  const targetFps = originalFps !== null
-    ? Math.min(originalFps, opts.maxFps)
-    : opts.maxFps;
+  const targetFps = originalFps !== null ? Math.min(originalFps, opts.maxFps) : opts.maxFps;
 
   const args = [
     "-i",

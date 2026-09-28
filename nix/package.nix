@@ -20,25 +20,36 @@ let
       "--platform=browser"
     ];
 
-    hash = "sha256-sI3XH0PqG0+2O9Sgdf4KDfInX5pleyXjyIILARub9P0=";
+    hash = "sha256-f6m9WuXk0BFxstULgQHyAdWPPGv7uvYHXqEfFAEnXqY=";
   };
+
+  styles = pkgs.runCommand "blossom-server-styles-${version}.css" {
+    nativeBuildInputs = [ pkgs.tailwindcss ];
+  } ''
+    cd ${src}
+    tailwindcss \
+      -c tailwind.config.js \
+      -i src/landing/styles/input.css \
+      -o "$out" \
+      --minify
+  '';
 
   blossom-server = pkgs.buildDenoApplication {
     pname = "blossom-server";
     inherit version src;
 
     entrypoint = "main.ts";
-    denoDepsHash = "sha256-0Z0hloRWc3QVK2Kn2fctc1bz9TV1y/vTNo2sNYi65Yg=";
+    denoDepsHash = "sha256-C4ACwnUpS3EqOfczefKQDi7HckZwGfRWbggeccuUQfs=";
     runtimeInputs = [ pkgs.ffmpeg ];
-    runFlags = [ "-P" ];
+    runFlags = [
+      "-P"
+      "--vendor"
+      "--node-modules-dir=auto"
+    ];
 
     postPatch = ''
-      client_bundle="${builtins.placeholder "out"}/share/blossom-server/public/client.js"
-      substituteInPlace src/routes/landing.tsx \
-        --replace-fail 'const CLIENT_BUNDLE_PATH = "./public/client.js";' \
-                       "const CLIENT_BUNDLE_PATH = \"$client_bundle\";"
-
       cp ${clientBundle}/client.js public/client.js
+      cp ${styles} public/styles.css
     '';
 
     meta = {
@@ -50,6 +61,6 @@ let
 in
 {
   default = blossom-server;
-  inherit blossom-server clientBundle;
+  inherit blossom-server clientBundle styles;
   denoDeps = blossom-server.denoDeps;
 }

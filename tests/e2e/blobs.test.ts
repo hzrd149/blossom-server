@@ -57,9 +57,7 @@ function makeUploadAuth(hash?: string): NostrEvent {
 }
 
 function encodeAuth(event: NostrEvent): string {
-  return `Nostr ${
-    encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))
-  }`;
+  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
 }
 
 // ---------------------------------------------------------------------------

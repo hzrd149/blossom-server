@@ -61,17 +61,13 @@ export const ReportsPage: FC<ReportsPageProps> = async (
     db.countReports(filter),
   ]);
 
-  const baseUrl = typeFilter
-    ? `/admin/reports?type=${encodeURIComponent(typeFilter)}`
-    : "/admin/reports";
+  const baseUrl = typeFilter ? `/admin/reports?type=${encodeURIComponent(typeFilter)}` : "/admin/reports";
 
   return (
     <AdminLayout title="Reports" section="reports">
       <PageHeader
         title="Reports"
-        subtitle={`${total.toLocaleString()} report${total !== 1 ? "s" : ""}${
-          typeFilter ? ` of type "${typeFilter}"` : ""
-        }`}
+        subtitle={`${total.toLocaleString()} report${total !== 1 ? "s" : ""}${typeFilter ? ` of type "${typeFilter}"` : ""}`}
       />
 
       {/* Type filter tabs */}
@@ -114,8 +110,7 @@ export const ReportsPage: FC<ReportsPageProps> = async (
             <Tbody>
               {reports.map((report) => {
                 const dismissUrl = `/admin/api/reports/${report.id}/dismiss`;
-                const deleteBlobUrl =
-                  `/admin/api/reports/${report.id}/delete-blob`;
+                const deleteBlobUrl = `/admin/api/reports/${report.id}/delete-blob`;
                 return (
                   <tr
                     key={report.id}
@@ -157,9 +152,7 @@ export const ReportsPage: FC<ReportsPageProps> = async (
                         class="text-gray-400 max-w-xs truncate block"
                         title={report.content}
                       >
-                        {report.content || (
-                          <em class="text-gray-600">no content</em>
-                        )}
+                        {report.content || <em class="text-gray-600">no content</em>}
                       </span>
                     </Td>
                     <Td>{formatDate(report.created)}</Td>

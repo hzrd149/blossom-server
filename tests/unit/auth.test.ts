@@ -8,18 +8,9 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { HTTPException } from "@hono/hono/http-exception";
-import {
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-} from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
-import {
-  extractHostname,
-  parseAuthEvent,
-  requireAuth,
-  requireXTag,
-} from "../../src/middleware/auth.ts";
+import { extractHostname, parseAuthEvent, requireAuth, requireXTag } from "../../src/middleware/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers

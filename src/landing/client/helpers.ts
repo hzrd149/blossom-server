@@ -137,7 +137,7 @@ export function isMediaFile(file: File): boolean {
 }
 
 const STATUS_MESSAGES: Record<number, string> = {
-  401: "Authorization required \u2014 connect a Nostr signing extension",
+  401: "Authorization required \u2014 try signing out and uploading again",
   402: "Payment required",
   409: "Hash mismatch \u2014 the file changed during upload",
   413: "File too large for this server",
