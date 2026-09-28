@@ -19,13 +19,16 @@ import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
+import sharp from "sharp";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
 import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import type { Hono } from "@hono/hono";
+import type { Client } from "@libsql/client";
 import type { BlossomVariables } from "../../src/middleware/auth.ts";
+import { getMediaDerivative } from "../../src/db/blobs.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,6 +80,7 @@ const testOpts = { sanitizeOps: false, sanitizeResources: false } as const;
 
 let app: Hono<{ Variables: BlossomVariables }>;
 let restrictedApp: Hono<{ Variables: BlossomVariables }>;
+let db: Client;
 let tmpDir: string;
 let cleanup: () => Promise<void>;
 
@@ -88,7 +92,7 @@ Deno.test({
     const storageDir = join(tmpDir, "blobs");
     const dbConfig = { path: dbPath };
 
-    const db = await initDb(dbConfig);
+    db = await initDb(dbConfig);
     const storage = new LocalStorage(storageDir);
     await storage.setup();
 
@@ -114,6 +118,7 @@ Deno.test({
         requireAuth: false,
         requirePubkeyInRule: false,
         maxSize: 10_000_000,
+        tmpDir: join(tmpDir, "media-tmp"),
       },
     });
 
@@ -141,6 +146,51 @@ Deno.test({
       db.close();
       await Deno.remove(tmpDir, { recursive: true });
     };
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /media: stale derivative mapping is replaced after re-optimization",
+  async fn() {
+    const png = new Uint8Array(
+      await sharp({
+        create: {
+          width: 1,
+          height: 1,
+          channels: 4,
+          background: { r: 255, g: 0, b: 0, alpha: 1 },
+        },
+      }).png().toBuffer(),
+    );
+    const originalHash = await sha256Hex(png);
+    const staleOptimizedHash = "d".repeat(64);
+
+    await db.execute("PRAGMA foreign_keys=OFF");
+    await db.execute({
+      sql: "INSERT OR REPLACE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
+      args: [originalHash, staleOptimizedHash],
+    });
+    await db.execute("PRAGMA foreign_keys=ON");
+
+    const res = await app.fetch(
+      new Request("http://localhost/media", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(png.byteLength),
+          "Content-Type": "image/png",
+          "X-SHA-256": originalHash,
+        },
+        body: png,
+      }),
+    );
+
+    assertEquals(res.status, 201);
+    const descriptor = await res.json() as { sha256: string };
+    assertEquals(
+      await getMediaDerivative(db, originalHash),
+      descriptor.sha256,
+    );
   },
   ...testOpts,
 });

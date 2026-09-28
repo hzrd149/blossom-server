@@ -11,6 +11,9 @@
 
 ### Patch Changes
 
+- Recover stale media derivative mappings by re-optimizing the uploaded file and replacing the dangling mapping.
+- Avoid a mirror deduplication race by confirming the existing blob record before discarding staged data.
+- Allow the blob API to start with a warning when compiled UI styles are missing instead of refusing startup.
 - Compile, package, and serve the landing and admin Tailwind stylesheet locally instead of loading Tailwind's development CDN at runtime.
 - Upgrade Applesauce dependencies to 6.2 and adapt admin Nostr profile loading to the updated profile model.
 - Add deterministic Nix rebuild validation for dependencies, the landing-page bundle, and the final server package.

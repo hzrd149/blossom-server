@@ -496,14 +496,14 @@ export function buildMediaRouter(
 
       const existingOptimizedHash = await getMediaDerivative(db, originalHash);
       if (existingOptimizedHash) {
-        await Deno.remove(tmpPath).catch(() => {});
-        tmpPath = null;
         debug(
           debugPrefix,
           `dedup hit (derivative) — optimizedHash=${existingOptimizedHash.slice(0, 8)}`,
         );
         const existing = await getBlob(db, existingOptimizedHash);
         if (existing) {
+          await Deno.remove(tmpPath).catch(() => {});
+          tmpPath = null;
           if (
             auth && !(await isOwner(db, existingOptimizedHash, auth.pubkey))
           ) {
@@ -539,7 +539,13 @@ export function buildMediaRouter(
             201,
           );
         }
-        // Derivative record exists but blob was pruned — fall through to re-optimize
+        // The mapping is stale (possible when a remote database does not enforce
+        // foreign-key cascades). Keep the uploaded temp file and re-optimize it;
+        // insertMediaDerivative() will replace the dangling mapping afterward.
+        debug(
+          debugPrefix,
+          `stale derivative mapping — optimized blob ${existingOptimizedHash.slice(0, 8)} is missing; re-optimizing`,
+        );
       }
 
       const origTmpPath = tmpPath!;

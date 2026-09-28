@@ -3,8 +3,8 @@
  *
  * Renders GET / via Hono JSX SSR.
  *
- * The generated UI assets must exist in public/ before startup.
- * Static files in public/ are served by the top-level app via Hono serveStatic.
+ * Generated UI assets are served from public/ by the top-level app. Missing
+ * assets produce startup warnings so blob APIs remain available.
  */
 
 import { Hono } from "@hono/hono";
@@ -18,21 +18,25 @@ export const PUBLIC_DIR = fromFileUrl(new URL("../../public", import.meta.url));
 const CLIENT_BUNDLE_PATH = join(PUBLIC_DIR, "client.js");
 const STYLESHEET_PATH = join(PUBLIC_DIR, "styles.css");
 
-/** Refuse to enable an HTML UI when its compiled stylesheet is unavailable. */
-export async function assertStylesheetPresent(): Promise<void> {
+/** Warn when the UI stylesheet is unavailable without blocking API startup. */
+export async function warnIfStylesheetMissing(
+  path = STYLESHEET_PATH,
+): Promise<boolean> {
   try {
-    const stat = await Deno.stat(STYLESHEET_PATH);
+    const stat = await Deno.stat(path);
     if (!stat.isFile) {
-      throw new Error(
-        `[ui] ${STYLESHEET_PATH} exists but is not a file; run \`deno task build\` before starting the server.`,
+      console.warn(
+        `[ui] ${path} exists but is not a file; pages will be unstyled until \`deno task build\` is run.`,
       );
+      return false;
     }
+    return true;
   } catch (err) {
     if (err instanceof Deno.errors.NotFound) {
-      throw new Error(
-        `[ui] ${STYLESHEET_PATH} not found; run \`deno task build\` before starting the server.`,
-        { cause: err },
+      console.warn(
+        `[ui] ${path} not found; pages will be unstyled until \`deno task build\` is run.`,
       );
+      return false;
     }
     throw err;
   }

@@ -42,7 +42,8 @@ deno fmt --check
 deno fmt
 
 # Pre-build the landing page assets (outputs: public/client.js and public/styles.css)
-# Required before running the server when the landing page or dashboard is enabled.
+# Recommended when the landing page or dashboard is enabled. Missing assets
+# produce startup warnings, while blob API routes remain available.
 deno task build
 
 # Rebuild all Nix artifacts in sandboxes, bypass cached outputs, and check the flake.

@@ -38,7 +38,7 @@ import { HTTPException } from "@hono/hono/http-exception";
 import type { Client } from "@libsql/client";
 import { lookup } from "node:dns/promises";
 import { ulid } from "@std/ulid";
-import { getBlob, hasBlob, insertBlob, isOwner } from "../db/blobs.ts";
+import { getBlob, insertBlob, isOwner } from "../db/blobs.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
 import { debug } from "../middleware/debug.ts";
@@ -540,37 +540,38 @@ export function buildMirrorRouter(
 
     const ext = mimeToExt(mimeType);
 
-    if (await hasBlob(db, hash)) {
+    // Use one lookup for both existence and descriptor data. A separate
+    // hasBlob() check creates a race where the row can disappear after the temp
+    // file is discarded but before getBlob() returns.
+    const existing = await getBlob(db, hash);
+    if (existing) {
       await storage.abortWrite(session).catch(() => {});
-      const existing = await getBlob(db, hash);
-      if (existing) {
-        debug(
-          debugPrefix,
-          `dedup hit — returning existing blob ${hash.slice(0, 8)}`,
-        );
-        if (auth && !(await isOwner(db, hash, auth.pubkey))) {
-          await insertBlob(db, existing, auth.pubkey);
-        }
-        const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
-        const url = getBlobUrl(existing.sha256, existing.type, baseUrl);
-        const type = existing.type ?? "application/octet-stream";
-        return ctx.json(
-          {
+      debug(
+        debugPrefix,
+        `dedup hit — returning existing blob ${hash.slice(0, 8)}`,
+      );
+      if (auth && !(await isOwner(db, hash, auth.pubkey))) {
+        await insertBlob(db, existing, auth.pubkey);
+      }
+      const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
+      const url = getBlobUrl(existing.sha256, existing.type, baseUrl);
+      const type = existing.type ?? "application/octet-stream";
+      return ctx.json(
+        {
+          url,
+          sha256: existing.sha256,
+          size: existing.size,
+          type,
+          uploaded: existing.uploaded,
+          nip94: nip94Tags({
             url,
             sha256: existing.sha256,
             size: existing.size,
             type,
-            uploaded: existing.uploaded,
-            nip94: nip94Tags({
-              url,
-              sha256: existing.sha256,
-              size: existing.size,
-              type,
-              tags: existing.nip94,
-            }),
-          } satisfies BlobDescriptor,
-        );
-      }
+            tags: existing.nip94,
+          }),
+        } satisfies BlobDescriptor,
+      );
     }
 
     const blobType = mimeType !== "application/octet-stream" ? mimeType : null;

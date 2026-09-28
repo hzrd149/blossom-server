@@ -256,7 +256,8 @@ export async function insertMediaDerivative(
   optimizedSha256: string,
 ): Promise<void> {
   await db.execute({
-    sql: "INSERT OR IGNORE INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)",
+    sql: `INSERT INTO media_derivatives (original_sha256, optimized_sha256) VALUES (?, ?)
+          ON CONFLICT(original_sha256) DO UPDATE SET optimized_sha256 = excluded.optimized_sha256`,
     args: [originalSha256, optimizedSha256],
   });
 }

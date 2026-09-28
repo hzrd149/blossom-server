@@ -177,3 +177,67 @@ Deno.test({
   },
   ...testOpts,
 });
+
+Deno.test({
+  name: "PUT /mirror: confirmed dedup hit returns the existing blob and discards staging data",
+  async fn() {
+    const tmpDir = await Deno.makeTempDir({
+      prefix: "blossom_e2e_mirrordedup_",
+    });
+    const dbPath = join(tmpDir, "test.db");
+    const db = await initDb({ path: dbPath });
+    const storage = new LocalStorage(join(tmpDir, "blobs"));
+    await storage.setup();
+    const pool = initPool(1, 4, 500, db, { path: dbPath });
+    const config = ConfigSchema.parse({
+      publicDomain: "localhost",
+      upload: { requireAuth: false, enabled: true },
+      mirror: { enabled: true, requireAuth: false },
+      storage: { rules: [{ type: "*", expiration: "1 month" }] },
+    });
+    const app: Hono<{ Variables: BlossomVariables }> = await buildApp(
+      db,
+      storage,
+      config,
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.resolve(
+        new Response("same mirrored bytes", {
+          headers: { "Content-Type": "text/plain" },
+        }),
+      );
+
+    try {
+      const mirror = () =>
+        app.fetch(
+          new Request("http://localhost/mirror", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: "https://1.1.1.1/blob" }),
+          }),
+        );
+
+      const first = await mirror();
+      assertEquals(first.status, 200);
+      const firstDescriptor = await first.json() as { sha256: string };
+
+      const second = await mirror();
+      assertEquals(second.status, 200);
+      const secondDescriptor = await second.json() as { sha256: string };
+      assertEquals(secondDescriptor.sha256, firstDescriptor.sha256);
+
+      const tempFiles = [];
+      for await (const entry of Deno.readDir(storage.tmpDir)) {
+        tempFiles.push(entry.name);
+      }
+      assertEquals(tempFiles, []);
+    } finally {
+      globalThis.fetch = originalFetch;
+      pool.shutdown();
+      db.close();
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+  ...testOpts,
+});

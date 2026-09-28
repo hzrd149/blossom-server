@@ -16,7 +16,7 @@ import { onError } from "./middleware/errors.ts";
 import { requestLogger } from "./middleware/logger.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
-import { assertStylesheetPresent, buildLandingRouter, PUBLIC_DIR } from "./routes/landing.tsx";
+import { buildLandingRouter, PUBLIC_DIR, warnIfStylesheetMissing } from "./routes/landing.tsx";
 
 export async function buildApp(
   db: Client,
@@ -44,7 +44,7 @@ export async function buildApp(
   app.use("*", serveStatic({ root: PUBLIC_DIR }));
 
   if (config.landing.enabled || config.dashboard.enabled) {
-    await assertStylesheetPresent();
+    await warnIfStylesheetMissing();
   }
 
   // Landing page: GET / and GET /client.js (disabled by default)

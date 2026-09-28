@@ -369,8 +369,9 @@ The dashboard is available at `http://localhost:3000/admin` and is protected by 
 
 ```sh
 # Build the landing page assets (outputs: public/client.js and public/styles.css)
-# Required before running `deno task dev` or `deno task start` when the landing
-# page or admin dashboard is enabled.
+# Recommended before running `deno task dev` or `deno task start` when the
+# landing page or admin dashboard is enabled. Missing assets produce warnings;
+# blob API routes still start normally.
 deno task build
 
 # Start with file-watching
