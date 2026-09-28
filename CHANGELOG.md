@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 6.4.0
+
 ### Minor Changes
 
 - Add an independent `media.requirePubkeyInRule` setting, enabled by default, with a warned compatibility fallback for existing media configurations.
