@@ -65,14 +65,31 @@ export function buildBlobsRouter(
     touchBlob(db, hash, now).catch((err) => console.warn("touchBlob failed:", err));
 
     const mimeType = blob.type ?? "application/octet-stream";
+    // Active-content types are served as downloads, never inline: HTML/SVG
+    // (and XML dialects via stylesheet-attached XSLT) navigated to directly
+    // would execute script with application-origin privileges. Normalize
+    // before the check (lowercase, strip "; charset=…" parameters) and set
+    // nosniff on everything to guard against MIME-sniffing drift.
+    const normalizedType = mimeType.toLowerCase().split(";")[0].trim();
+    const activeDocument = normalizedType === "image/svg+xml" ||
+      normalizedType === "text/html" ||
+      normalizedType === "application/xhtml+xml" ||
+      normalizedType === "text/xml" ||
+      normalizedType === "application/xml" ||
+      normalizedType === "text/xsl" ||
+      normalizedType === "application/xslt+xml";
     const headers: Record<string, string> = {
       "Content-Type": mimeType,
       "Content-Length": String(blob.size),
       "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
       ETag: `"${hash}"`,
       "Last-Modified": new Date(blob.uploaded * 1000).toUTCString(),
     };
+    if (activeDocument) {
+      headers["Content-Disposition"] = `attachment; filename="${hash.slice(0, 12)}${ext ? `.${ext}` : ""}"`;
+    }
 
     // Conditional request: If-None-Match (RFC 9110 §13.1.2)
     // The SHA-256 hash is a perfect ETag — content-addressed, immutable, already computed.
