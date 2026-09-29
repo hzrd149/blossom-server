@@ -43,7 +43,7 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
 /** Build a BUD-11 kind 24242 upload auth event. */
 function makeUploadAuth(
   opts: {
-    hash?: string; // x tag value — omit for open token
+    hash?: string; // x tag value — REQUIRED: untagged tokens are rejected server-side
     expiration?: number;
     tTag?: string;
   } = {},
@@ -425,10 +425,10 @@ Deno.test({
 });
 
 Deno.test({
-  name: "PUT /upload: with correct auth and open x-tag returns 201",
+  name: "PUT /upload: auth without x tags → 400 (untagged token rejected)",
   async fn() {
     const body = new TextEncoder().encode("authenticated upload");
-    // Open token — no x tags, permits any blob
+    // Zero x tags would authorize any blob — untagged tokens are rejected
     const auth = makeUploadAuth({});
 
     const res = await fetchWithAuth("/upload", {
@@ -440,10 +440,7 @@ Deno.test({
       },
       body,
     });
-    assertEquals(res.status, 201);
-    const json = await res.json();
-    assertEquals(typeof json.sha256, "string");
-    assertEquals(json.sha256.length, 64);
+    assertEquals(res.status, 400);
   },
   ...testOpts,
 });
@@ -780,7 +777,7 @@ Deno.test({
 
     const body = new TextEncoder().encode("list url coverage");
     const hash = await sha256Hex(body);
-    const auth = makeUploadAuth({});
+    const auth = makeUploadAuth({ hash });
 
     const uploadRes = await listApp.fetch(
       new Request("https://localhost/upload", {
