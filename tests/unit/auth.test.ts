@@ -123,6 +123,54 @@ Deno.test("parseAuthEvent: rejects event with expired expiration tag", () => {
   );
 });
 
+Deno.test("parseAuthEvent: rejects non-numeric expiration (NaN must not bypass expiry)", () => {
+  // parseInt("abc") → NaN; NaN < now is false — the old check let this pass
+  // and the token would never expire.
+  const event = makeEvent({
+    tags: [["t", "upload"], ["expiration", "never"]],
+  });
+  assertThrows(
+    () => parseAuthEvent(encodeEvent(event), null),
+    HTTPException,
+    "unix-seconds",
+  );
+});
+
+Deno.test("parseAuthEvent: rejects float-style and suffixed expiration strings", () => {
+  for (const bad of ["1e12", "123abc", "-5", "0x10", " "]) {
+    const event = makeEvent({
+      tags: [["t", "upload"], ["expiration", bad]],
+    });
+    assertThrows(
+      () => parseAuthEvent(encodeEvent(event), null),
+      HTTPException,
+      "unix-seconds",
+    );
+  }
+});
+
+Deno.test("parseAuthEvent: rejects far-future expiration beyond the TTL cap", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const farFuture = now + 31 * 24 * 60 * 60; // 31 days > 30-day cap
+  const event = makeEvent({
+    tags: [["t", "upload"], ["expiration", String(farFuture)]],
+  });
+  assertThrows(
+    () => parseAuthEvent(encodeEvent(event), null),
+    HTTPException,
+    "too far",
+  );
+});
+
+Deno.test("parseAuthEvent: accepts expiration within the TTL cap", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const event = makeEvent({
+    tags: [["t", "upload"], ["expiration", String(now + 600)]],
+  });
+  const parsed = parseAuthEvent(encodeEvent(event), null);
+  assertEquals(parsed.kind, 24242);
+});
+
 // ---------------------------------------------------------------------------
 // parseAuthEvent — t tag
 // ---------------------------------------------------------------------------
@@ -265,10 +313,19 @@ Deno.test("requireAuth: returns event when auth and type match", () => {
 const TEST_HASH = "a".repeat(64);
 const OTHER_HASH = "b".repeat(64);
 
-Deno.test("requireXTag: no x tags → no throw (open auth event)", () => {
+Deno.test("requireXTag: no x tags → throws 400 (untagged event must not pass)", () => {
   const event = makeEvent({});
-  // Should not throw — open upload token
-  requireXTag(event, TEST_HASH);
+  // Zero x tags would authorize ANY owned blob — the server requires the
+  // targeted hash's tag (BUD-02).
+  assertThrows(
+    () => requireXTag(event, TEST_HASH),
+    HTTPException,
+  );
+  try {
+    requireXTag(event, TEST_HASH);
+  } catch (err) {
+    assertEquals((err as HTTPException).status, 400);
+  }
 });
 
 Deno.test("requireXTag: x tag present and hash matches → no throw", () => {

@@ -62,17 +62,20 @@ function encodeAuth(event: NostrEvent): string {
   return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)))}`;
 }
 
-/** Build a BUD-11 kind 24242 upload auth event (open token). */
-function makeUploadAuth(secretKey = sk): NostrEvent {
+/** Build a BUD-11 kind 24242 upload auth event, x-tagged with the blob hash
+ * (required now that untagged auth events are rejected). */
+function makeUploadAuth(secretKey = sk, xHash?: string): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
+  const tags = [
+    ["t", "upload"],
+    ["expiration", String(now + 600)],
+  ] as string[][];
+  if (xHash) tags.push(["x", xHash]);
   return finalizeEvent(
     {
       kind: 24242,
       created_at: now,
-      tags: [
-        ["t", "upload"],
-        ["expiration", String(now + 600)],
-      ],
+      tags,
       content: "Upload blob",
     },
     secretKey,
@@ -117,7 +120,7 @@ Deno.test({
     // Upload a test blob owned by `sk` so we can test deletion
     const blobData = new TextEncoder().encode("delete test blob content");
     blobHash = await sha256Hex(blobData);
-    const uploadAuth = makeUploadAuth();
+    const uploadAuth = makeUploadAuth(sk, blobHash);
 
     const uploadRes = await appWithAuth.fetch(
       new Request("http://localhost/upload", {
@@ -189,7 +192,7 @@ Deno.test({
     // Upload a fresh blob so it exists in the DB
     const freshData = new TextEncoder().encode("auth required test blob xyz");
     const freshHash = await sha256Hex(freshData);
-    const uploadAuth = makeUploadAuth();
+    const uploadAuth = makeUploadAuth(sk, freshHash);
 
     const uploadRes = await appWithAuth.fetch(
       new Request("http://localhost/upload", {
@@ -225,7 +228,7 @@ Deno.test({
     const sk2 = generateSecretKey();
     const blobData2 = new TextEncoder().encode("non-owner test blob abc");
     const hash2 = await sha256Hex(blobData2);
-    const uploadAuth2 = makeUploadAuth(sk2);
+    const uploadAuth2 = makeUploadAuth(sk2, hash2);
 
     const uploadRes = await appWithAuth.fetch(
       new Request("http://localhost/upload", {
@@ -251,6 +254,58 @@ Deno.test({
     );
     assertEquals(res.status, 403);
     await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "DELETE blob: auth with NO x tags → 400 (untagged token must not delete)",
+  async fn() {
+    // A zero-x t=delete event used to pass requireXTag and could delete any
+    // blob the key owns until expiry. Unique content so this test never
+    // touches the shared blobHash other tests rely on.
+    const target = new TextEncoder().encode("untagged-delete-target v1");
+    const targetHash = await sha256Hex(target);
+    const up = makeUploadAuth(sk, targetHash);
+    const upRes = await appWithAuth.fetch(
+      new Request("http://localhost/upload", {
+        method: "PUT",
+        headers: {
+          "Content-Length": String(target.byteLength),
+          "Content-Type": "text/plain",
+          Authorization: encodeAuth(up),
+        },
+        body: target,
+      }),
+    );
+    assertEquals(upRes.status, 201);
+    await upRes.body?.cancel();
+
+    const now = Math.floor(Date.now() / 1000);
+    const noX = finalizeEvent(
+      {
+        kind: 24242,
+        created_at: now,
+        tags: [["t", "delete"], ["expiration", String(now + 600)]],
+        content: "untagged delete attempt",
+      },
+      sk,
+    );
+    const res = await appWithAuth.fetch(
+      new Request(`http://localhost/${targetHash}`, {
+        method: "DELETE",
+        headers: { Authorization: encodeAuth(noX) },
+      }),
+    );
+    assertEquals(res.status, 400);
+    await res.body?.cancel();
+
+    // The blob must still exist (deletion did not happen)
+    const still = await appWithAuth.fetch(
+      new Request(`http://localhost/${targetHash}`, { method: "HEAD" }),
+    );
+    assertEquals(still.status, 200);
+    await still.body?.cancel();
   },
   ...testOpts,
 });
