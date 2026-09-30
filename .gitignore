@@ -9,7 +9,6 @@ dist
 public/client.js
 public/styles.css
 result
-.planning
 .claude
 vendor
 blossom-vm.qcow2
