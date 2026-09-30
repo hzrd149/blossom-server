@@ -53,6 +53,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Roadmap]: v6.4.1 is a patch-level hardening release built from PRs #53, #54, #62, #63, and #64.
 - [Phase 2]: PR #62 must retain hash scoping and strict expiration parsing but omit the proposed fixed 30-day cap.
 - [Scope]: PR #55 and PR #60 remain deferred to v6.5 and are not part of this roadmap.
+- [Workflow]: Release milestones use a dedicated `v<version>` branch; all selected contributions merge into it.
+- [Release]: Ship through a green GitHub PR from `v<version>` to `master`, then tag and publish only from merged `master`.
 
 ### Pending Todos
 
@@ -63,6 +65,7 @@ None yet.
 - [Phase 1]: PR #54 conflicts with current master and requires careful adaptation around route/static-file ordering.
 - [Phase 2]: PR #62 couples a valid authorization fix to an incompatible lifetime cap that must be separated.
 - [Phase 4]: Build and Nix verification must avoid stale generated or fixed-output artifacts.
+- [Phase 5]: Tagging or Deno publishing before the release PR merges to `master` is prohibited.
 
 ## Deferred Items
 

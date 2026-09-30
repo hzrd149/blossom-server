@@ -18,6 +18,8 @@ Requirements for the v6.4.1 hardening release. Each requirement maps to exactly 
 - [ ] **INTK-05**: Maintainer can integrate PR #63 so active HTML, SVG, XML, and XSLT content cannot execute in the server's application origin.
 - [ ] **INTK-06**: Maintainer can integrate PR #64 so request logs omit query strings while retaining useful method, path, status, timing, and error
       information.
+- [ ] **INTK-07**: Maintainer can develop the milestone on `v6.4.1` and merge every selected contribution into that release-candidate branch rather than
+      directly into `master`.
 
 ### Verification
 
@@ -32,6 +34,8 @@ Requirements for the v6.4.1 hardening release. Each requirement maps to exactly 
 - [ ] **RELS-02**: Maintainer can bump all authoritative package-version references from 6.4.0 to 6.4.1.
 - [ ] **RELS-03**: Maintainer can produce and verify the v6.4.1 release artifacts using a documented, repeatable release checklist.
 - [ ] **RELS-04**: Maintainer can close the milestone with traceability from selected PRs through implementation, tests, changelog entries, and release output.
+- [ ] **RELS-05**: Maintainer can open a GitHub release PR from `v6.4.1` to `master` and merge it only after all required CI checks pass.
+- [ ] **RELS-06**: Maintainer can create and push the `v6.4.1` tag and publish the Deno package only from the merged `master` state.
 
 ## v2 Requirements
 
@@ -63,6 +67,7 @@ Roadmap phase assignments are populated during roadmap creation.
 | INTK-04     | Phase 2 | Pending |
 | INTK-05     | Phase 3 | Pending |
 | INTK-06     | Phase 3 | Pending |
+| INTK-07     | Phase 1 | Pending |
 | VERI-01     | Phase 4 | Pending |
 | VERI-02     | Phase 4 | Pending |
 | VERI-03     | Phase 4 | Pending |
@@ -71,11 +76,13 @@ Roadmap phase assignments are populated during roadmap creation.
 | RELS-02     | Phase 5 | Pending |
 | RELS-03     | Phase 5 | Pending |
 | RELS-04     | Phase 5 | Pending |
+| RELS-05     | Phase 5 | Pending |
+| RELS-06     | Phase 5 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 14 total
-- Mapped to phases: 14
+- v1 requirements: 17 total
+- Mapped to phases: 17
 - Unmapped: 0 ✓
 
 ---

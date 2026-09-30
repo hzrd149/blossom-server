@@ -33,7 +33,9 @@ backends.
 - [ ] Prevent uploaded active document types from executing in the application origin (PR #63)
 - [ ] Exclude request query strings from persisted request logs (PR #64)
 - [ ] Review and integrate each selected contribution with explicit compatibility analysis, changelog coverage, and regression tests
+- [ ] Build the milestone on the `v6.4.1` release-candidate branch and merge every selected contribution into that branch
 - [ ] Verify the integrated v6.4.1 candidate through the Deno quality gates and all build/package checks affected by the changes
+- [ ] Open a release PR from `v6.4.1` to `master`, require green CI before merge, and only then tag and publish v6.4.1 from `master`
 - [ ] Cut and document v6.4.1 using a repeatable release procedure that can be reused for later milestones
 
 ### Out of Scope
@@ -69,6 +71,9 @@ backends.
 - **Quality gates**: Run `deno fmt`, `deno lint`, and `deno task test`; run build or Nix checks whenever affected inputs or generated client assets require
   them.
 - **Release notes**: Every user-visible fix must be recorded under `CHANGELOG.md` → `Unreleased` before cutting v6.4.1.
+- **Branching**: Each release milestone is developed on `v<version>` from `master`; selected contribution PRs merge into that release-candidate branch.
+- **Release gate**: A GitHub release PR from `v<version>` to `master` must pass required CI before merge; tagging and Deno publishing happen only afterward from
+  the merged `master` state.
 
 ## Key Decisions
 
@@ -78,6 +83,8 @@ backends.
 | Scope PRs #53, #54, #62, #63, and #64                            | These changes fit a focused hardening release; #55 and #60 introduce minor-version features                | — Pending |
 | Revise PR #62 before integration                                 | Matching `x` tags and strict integer parsing are correct, but a fixed 30-day cap is not mandated by BUD-11 | — Pending |
 | Treat contribution intake and release as explicit milestone work | The milestone should establish a reusable workflow, not only produce a version bump                        | — Pending |
+| Use one `v<version>` branch per release milestone                | Keeps milestone work and incoming contributions isolated from `master` until the candidate is verified     | — Pending |
+| Ship through a green release PR before tagging or publishing     | CI validates the candidate merged to `master`; published artifacts originate from the canonical state      | — Pending |
 
 ## Evolution
 
