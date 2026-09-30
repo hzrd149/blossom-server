@@ -119,8 +119,9 @@ candidacy), with each accepted contribution's code, tests, credited changelog en
 - Every route continues to call `requireAuth()` or `optionalAuth()` explicitly after boundary admission. [VERIFIED: AGENTS.md:302-305]
 - Place pure tests under `tests/unit/` and full-app tests under `tests/e2e/`; E2E tests call `app.fetch()` without a real HTTP port, use in-memory LibSQL, and
   clean temporary files in `finally`. [VERIFIED: AGENTS.md:68-69,338-365]
-- `ARCHITECTURE.md` and `TESTING.md` are named as required reading, but neither file exists in the current checkout; planning must rely on AGENTS.md and
-  live-code patterns or add a documentation follow-up. [VERIFIED: AGENTS.md:68-69,91-100; local filesystem check, 2026-09-30]
+- `ARCHITECTURE.md` and `TESTING.md` are named as required reading, but neither file exists in the current checkout. For this phase, the accepted fallback is
+  AGENTS.md plus live implementation and test patterns; do not invent or block on those missing documents. [RESOLVED: user decision, 2026-09-30; VERIFIED:
+  AGENTS.md:68-69,91-100; local filesystem check, 2026-09-30]
 - This phase does not change JSX, Nix inputs, dependencies, bundled client code, S3 commit behavior, worker queuing, or video optimization; do not broaden it
   into those systems. [VERIFIED: AGENTS.md:71-73,230-298,317-334; .planning/REQUIREMENTS.md:42-56]
 
@@ -290,8 +291,8 @@ behavior. [VERIFIED: src/server.ts:42-67; .planning/phases/01-request-intake-bou
 backslashes, C0/C1 controls, DEL, empty interior segments, exact `.`/`..` segments, segment overflow, and whole-path overflow. Allow ordinary Unicode, spaces,
 and safe nesting. [VERIFIED: .planning/phases/01-request-intake-boundaries/01-CONTEXT.md:37-42]
 
-Count Unicode code points (`[...text].length`) for the locked word “characters,” not UTF-16 code units. This interpretation is not specified explicitly and must
-be confirmed before it becomes a locked implementation decision. [ASSUMED]
+Count Unicode code points (`[...text].length`) for the locked word “characters,” not UTF-16 code units or UTF-8 bytes. The 255-character segment limit and
+2,048-character decoded-path limit both use this metric. [RESOLVED: user decision, 2026-09-30]
 
 ### Anti-Patterns to Avoid
 
@@ -429,25 +430,23 @@ fallthrough while preventing Hono's filesystem adapter from running for noncandi
 describes Deno support, but dependency migration is separate from the locked contribution scope. [CITED: https://hono.dev/docs/getting-started/deno] [VERIFIED:
 deno.lock:3-7,32-34; .planning/REQUIREMENTS.md:42-56]
 
-## Assumptions Log
+## Resolved Decision Log
 
-| #  | Claim                                                                                                             | Section                                  | Risk if Wrong                                                                                       |
-| -- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| A1 | “Characters” in D-11 means Unicode code points rather than JavaScript UTF-16 code units or UTF-8 bytes. [ASSUMED] | Architecture Patterns / Static candidacy | Boundary tests for non-BMP filenames could differ; confirm before locking exact counting semantics. |
+| #  | Decision                                                                                                                                                      | Section                                  | Planning consequence                                                                                     |
+| -- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| A1 | “Characters” in D-11 means Unicode code points via `[...text].length`, not JavaScript UTF-16 code units or UTF-8 bytes. [RESOLVED: user decision, 2026-09-30] | Architecture Patterns / Static candidacy | Plan 01-03 implements this exact metric and tests non-BMP input plus the 255/256 and 2,048/2,049 limits. |
 
-## Open Questions
+## Resolved Questions
 
 1. **How should D-11 count Unicode characters?**
-   - What we know: ordinary decoded Unicode must be allowed, each segment is capped at 255 characters, and the full decoded path at 2,048 characters. [VERIFIED:
+   - Resolution: count Unicode code points with `[...text].length` for both the 255-character segment cap and the 2,048-character decoded-path cap. [RESOLVED:
+     user decision, 2026-09-30]
+   - Evidence carried forward: ordinary decoded Unicode remains allowed, and Plan 01-03 must test non-BMP input plus both exact boundaries. [VERIFIED:
      .planning/phases/01-request-intake-boundaries/01-CONTEXT.md:37-42]
-   - What's unclear: the decision does not define code points, UTF-16 code units, or UTF-8 bytes.
-   - Recommendation: use Unicode code points and add a discuss/plan confirmation checkpoint because this is the only remaining semantic assumption. [ASSUMED]
 
 2. **Where are the referenced architecture and testing documents?**
-   - What we know: AGENTS.md requires `ARCHITECTURE.md` and `TESTING.md`, but both are absent from this checkout. [VERIFIED: AGENTS.md:68-69,91-100; local
-     filesystem check, 2026-09-30]
-   - What's unclear: whether they were omitted intentionally or should be restored before implementation.
-   - Recommendation: do not block Phase 1; use the explicit AGENTS.md rules and live test patterns, and record the documentation gap.
+   - Resolution: `ARCHITECTURE.md` and `TESTING.md` are absent in this checkout; AGENTS.md plus live implementation and test patterns are the accepted Phase 1
+     fallback. Do not invent the missing files. [RESOLVED: user decision, 2026-09-30; VERIFIED: local filesystem check, 2026-09-30]
 
 ## Environment Availability
 
@@ -566,10 +565,6 @@ No framework installation or new test configuration is needed. [VERIFIED: deno.j
 - [Hono Deno documentation](https://hono.dev/docs/getting-started/deno) — current framework setup guidance.
 - Local Deno/Hono probes on 2026-09-30 — trailing-slash routing, encoded-path handling, ASCII header enforcement, tool availability, and test baselines.
 
-### Tertiary (LOW confidence)
-
-- Unicode code-point interpretation of D-11 only; explicitly logged as A1 and requires confirmation.
-
 ## Metadata
 
 **Confidence breakdown:**
@@ -577,7 +572,7 @@ No framework installation or new test configuration is needed. [VERIFIED: deno.j
 - Standard stack: HIGH — versions read from the lockfile and local runtime; no dependency changes proposed.
 - Architecture: HIGH — middleware and route order verified from live source, with Hono adapter behavior checked against the pinned upstream tag.
 - Pitfalls: HIGH — derived from the live execution path, upstream contribution diffs, official Blossom specifications, and local probes.
-- Unicode length semantics: LOW — locked wording says “characters” but does not define the counting model.
+- Unicode length semantics: HIGH — the user locked D-11 to Unicode code points via `[...text].length` for both decoded-path and segment limits.
 
 **Research date:** 2026-09-30 **Valid until:** 2026-10-07 because PR state and branch history are fast-moving; the pinned source analysis remains valid until
 those inputs change.

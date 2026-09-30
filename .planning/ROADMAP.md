@@ -43,7 +43,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 **Plans:** 3 plans
 
-- [ ] 01-01-PLAN.md — Record five-PR dispositions, branch policy, and the unresolved Unicode length decision.
+- [ ] 01-01-PLAN.md — Record five-PR dispositions, branch policy, and the locked Unicode code-point rule.
 - [ ] 01-02-PLAN.md — Integrate revised PR #53 with pre-auth envelope rejection, streaming tests, changelog credit, and commit traceability.
 - [ ] 01-03-PLAN.md — Integrate revised PR #54 with exact blob grammar, pre-filesystem static screening, regression coverage, and commit traceability.
 
