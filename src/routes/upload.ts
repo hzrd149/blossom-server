@@ -103,8 +103,11 @@ export function buildUploadRouter(
       return errorResponse(ctx, 411, "Missing X-Content-Length header");
     }
 
-    const size = parseInt(xContentLength, 10);
-    if (isNaN(size) || size < 0) {
+    if (!/^\d+$/.test(xContentLength)) {
+      return errorResponse(ctx, 400, "Invalid X-Content-Length header");
+    }
+    const size = Number(xContentLength);
+    if (!Number.isSafeInteger(size)) {
       return errorResponse(ctx, 400, "Invalid X-Content-Length header");
     }
 

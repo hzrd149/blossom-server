@@ -1003,6 +1003,20 @@ Deno.test({
 });
 
 Deno.test({
+  name: "HEAD /upload: malformed X-Content-Length returns 400",
+  async fn() {
+    for (const length of ["100junk", "1.5", "1e12", "-1", "+1", "9007199254740992"]) {
+      const res = await fetchNoAuth("/upload", {
+        method: "HEAD",
+        headers: { "X-Content-Length": length },
+      });
+      assertEquals(res.status, 400, `length=${JSON.stringify(length)}`);
+    }
+  },
+  ...testOpts,
+});
+
+Deno.test({
   name: "HEAD /upload: X-Content-Length exceeds maxSize returns 413",
   async fn() {
     // Build a one-off app with a tiny maxSize (100 bytes) so a 1 KB X-Content-Length triggers 413.
