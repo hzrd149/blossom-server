@@ -50,6 +50,11 @@ function encodeEvent(event: NostrEvent): string {
   return encodeBase64Url(new TextEncoder().encode(JSON.stringify(event)));
 }
 
+/** Encode any JSON value as Base64url for malformed-event tests. */
+function encodeJson(value: unknown): string {
+  return encodeBase64Url(new TextEncoder().encode(JSON.stringify(value)));
+}
+
 // ---------------------------------------------------------------------------
 // parseAuthEvent — valid event
 // ---------------------------------------------------------------------------
@@ -80,6 +85,28 @@ Deno.test("parseAuthEvent: rejects non-base64 raw string", () => {
     () => parseAuthEvent("!!!not-base64!!!", null),
     HTTPException,
   );
+});
+
+Deno.test("parseAuthEvent: rejects decodable JSON that is not a valid event", () => {
+  const valid = makeEvent({});
+  const { tags: _tags, ...withoutTags } = valid;
+  const malformedValues: unknown[] = [
+    null,
+    true,
+    42,
+    "event",
+    withoutTags,
+    { ...valid, tags: null },
+    { ...valid, tags: [["t", "upload"], [42]] },
+  ];
+
+  for (const value of malformedValues) {
+    const error = assertThrows(
+      () => parseAuthEvent(encodeJson(value), null),
+      HTTPException,
+    );
+    assertEquals(error.status, 400, `value=${JSON.stringify(value)}`);
+  }
 });
 
 // ---------------------------------------------------------------------------

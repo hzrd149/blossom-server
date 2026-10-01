@@ -2,7 +2,7 @@ import type { Context, MiddlewareHandler } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import { decodeBase64 } from "@std/encoding/base64";
 import { decodeBase64Url } from "@std/encoding/base64url";
-import { verifyEvent } from "nostr-tools/pure";
+import { validateEvent, verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { debug } from "./debug.ts";
 
@@ -21,6 +21,12 @@ export interface BlossomVariables {
   auth: NostrEvent | undefined;
   authType: string | undefined;
   authExpiration: number | undefined;
+}
+
+function isNostrEvent(value: unknown): value is NostrEvent {
+  if (!validateEvent(value)) return false;
+  const candidate = value as Partial<NostrEvent>;
+  return typeof candidate.id === "string" && typeof candidate.sig === "string";
 }
 
 /**
@@ -65,7 +71,7 @@ export function parseAuthEvent(
 ): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
 
-  let auth: NostrEvent;
+  let parsed: unknown;
   try {
     // BUD-11 specifies Base64url; fall back to standard Base64 for
     // clients that encode with the standard alphabet (e.g. older nak versions).
@@ -75,12 +81,19 @@ export function parseAuthEvent(
     } catch {
       decoded = new TextDecoder().decode(decodeBase64(raw));
     }
-    auth = JSON.parse(decoded) as NostrEvent;
+    parsed = JSON.parse(decoded);
   } catch {
     throw new HTTPException(400, {
       message: "Invalid Authorization header encoding",
     });
   }
+
+  if (!isNostrEvent(parsed)) {
+    throw new HTTPException(400, {
+      message: "Invalid Authorization event",
+    });
+  }
+  const auth = parsed;
 
   // BUD-11 validation
   if (auth.kind !== 24242) {
