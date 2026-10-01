@@ -564,7 +564,8 @@ Deno.test({
     const body = new TextEncoder().encode("authenticated upload denied after hashing");
     const hash = await sha256Hex(body);
     const auth = makeUploadAuth({});
-    const entriesBefore = Array.fromAsync(Deno.readDir(storageDir)).then((entries) => entries.map((entry) => entry.name).sort());
+    const stagingDir = join(storageDir, ".tmp");
+    const entriesBefore = (await Array.fromAsync(Deno.readDir(stagingDir))).map((entry) => entry.name).sort();
 
     const res = await fetchWithAuth("/upload", {
       method: "PUT",
@@ -578,8 +579,8 @@ Deno.test({
     assertEquals(res.status, 403);
     await res.body?.cancel();
 
-    const entriesAfter = Array.fromAsync(Deno.readDir(storageDir)).then((entries) => entries.map((entry) => entry.name).sort());
-    assertEquals(await entriesAfter, await entriesBefore);
+    const entriesAfter = (await Array.fromAsync(Deno.readDir(stagingDir))).map((entry) => entry.name).sort();
+    assertEquals(entriesAfter, entriesBefore);
 
     const blob = await fetchWithAuth(`/${hash}`);
     assertEquals(blob.status, 404);
