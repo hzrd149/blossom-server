@@ -15,7 +15,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Request Intake Boundaries** - Review the selected contributions and integrate PRs #53 and #54 safely. (completed 2026-10-01)
-- [ ] **Phase 2: Authorization Compatibility** - Integrate the protocol-safe parts of PR #62 without a fixed lifetime cap.
+- [x] **Phase 2: Authorization Compatibility** - Integrate the protocol-safe parts of PR #62 without a fixed lifetime cap. (completed 2026-10-01)
 - [ ] **Phase 3: Content and Logging Boundaries** - Integrate PRs #63 and #64 to protect the application origin and logs.
 - [ ] **Phase 4: Integrated Candidate Verification** - Prove the combined candidate across protocol, storage, and build gates.
 - [ ] **Phase 5: v6.4.1 Release** - Version, document, package, and close the traceable hardening release.
@@ -75,7 +75,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
    days away.
 3. Focused PR #62 regression tests pass without changing authentication behavior for valid existing Blossom clients.
 
-**Plans:** 1/1 plans executed
+**Plans:** 1/1 plans complete
 
 **Wave 1**
 
@@ -151,7 +151,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 | Phase                                | Plans Complete | Status      | Completed  |
 | ------------------------------------ | -------------- | ----------- | ---------- |
 | 1. Request Intake Boundaries         | 4/4            | Complete    | 2026-10-01 |
-| 2. Authorization Compatibility       | 1/1            | In Progress |            |
+| 2. Authorization Compatibility       | 1/1 | Complete    | 2026-10-01 |
 | 3. Content and Logging Boundaries    | 0/TBD          | Not started | -          |
 | 4. Integrated Candidate Verification | 0/TBD          | Not started | -          |
 | 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |
