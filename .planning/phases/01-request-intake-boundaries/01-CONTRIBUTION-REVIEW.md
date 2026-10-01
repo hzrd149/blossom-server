@@ -43,8 +43,8 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
 - **Regression evidence:** Passed on 2026-10-01 with `deno test -A tests/unit/envelope.test.ts tests/e2e/upload.test.ts tests/e2e/media.test.ts`: 63 passed, 0
   failed. Plan 01-02 also runs its format, lint, and full-suite gates before completion.
 - **Resulting phase:** Phase 1 — Request Intake Boundaries; requirements INTK-02 and INTK-07.
-- **Integration commit:** Pending Plan 01-02 execution. Backfill the final 40-character SHA after the single non-merge `Contribution-PR: #53` commit exists on
-  `v6.4.1`.
+- **Integration commit:** Revised implementation landed on `v6.4.1` as non-merge commit `3c1045f68a7e0b7e30f6f478ea2bddf60d2a5801` with the
+  `Contribution-PR: #53` trailer and the credited Unreleased changelog entry above.
 
 ## PR #54 — Reject mangled blob URLs cleanly; skip static-file stat for non-asset paths
 
