@@ -42,9 +42,16 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 5. The milestone and every selected contribution are integrated on `v6.4.1`, with no milestone implementation committed directly to `master`.
 
 **Plans:** 3 plans
+**Wave 1**
 
 - [ ] 01-01-PLAN.md — Record five-PR dispositions, branch policy, and the locked Unicode code-point rule.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 01-02-PLAN.md — Integrate revised PR #53 with pre-auth envelope rejection, streaming tests, changelog credit, and commit traceability.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 01-03-PLAN.md — Integrate revised PR #54 with exact blob grammar, pre-filesystem static screening, regression coverage, and commit traceability.
 
 ### Phase 2: Authorization Compatibility
