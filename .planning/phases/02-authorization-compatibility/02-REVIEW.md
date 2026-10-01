@@ -1,6 +1,6 @@
 ---
 phase: 02-authorization-compatibility
-reviewed: 2026-10-01T17:49:13Z
+reviewed: 2026-10-01T18:09:43Z
 depth: standard
 files_reviewed: 7
 files_reviewed_list:
@@ -12,93 +12,55 @@ files_reviewed_list:
   - tests/e2e/list.test.ts
   - CHANGELOG.md
 findings:
-  critical: 2
-  warning: 5
+  critical: 0
+  warning: 2
   info: 0
-  total: 7
+  total: 2
 status: issues_found
 ---
 
 # Phase 02: Code Review Report
 
-**Reviewed:** 2026-10-01T17:49:13Z
+**Reviewed:** 2026-10-01T18:09:43Z
 **Depth:** standard
 **Files Reviewed:** 7
 **Status:** issues_found
 
 ## Summary
 
-The intended authorization policy is present: expiration is checked as a complete decimal safe integer, expired tokens return 401, no future-lifetime cap was added, required `x` scope uses exact matching and returns 403 for both missing and mismatched scope, and authenticated headerless HEAD preflight remains accepted. The focused suite passes all 88 tests.
+Iteration 3 confirms the Phase 2 regressions remain resolved and no source changes were made after the five review fixes. Standard Base64 decodes through UTF-8 bytes, decoded JSON is structurally validated before dereference, HEAD preflight length parsing is whole-string and safe-integer checked, deferred authorization cleanup failures propagate as 500 errors, and the cleanup regression snapshots the real staging directory before and after the request. The focused authorization suite passes all 91 tests when run with the required LibSQL system permission; scoped formatting, lint, and diff checks also pass.
 
-The implementation is not ready to ship because two malformed/compatible authorization inputs still take incorrect paths: valid standard-Base64 UTF-8 events can fail signature verification, and decodable non-event JSON can trigger 500 responses. The review also found weak numeric preflight validation, cleanup failures that are suppressed, a cleanup regression test that never inspects staged files, filter-unsafe E2E fixtures, and a storage/metadata consistency gap.
+No active finding is attributable to the Phase 2 authorization compatibility changes. The two findings below are retained pre-existing warnings: their phase-boundary rationale correctly prevents an unsafe opportunistic fix, but the defects remain observable in the explicitly reviewed files.
 
 ## Narrative Findings (AI reviewer)
 
-## Critical Issues
-
-### CR-01: Standard-Base64 fallback corrupts UTF-8 event JSON
-
-**Classification:** BLOCKER
-**File:** `src/middleware/auth.ts:69-76`
-**Issue:** When Base64url decoding rejects a standard-Base64 token containing `+` or `/`, the fallback uses `atob(raw)` directly as a JavaScript string. `atob()` returns the encoded bytes as Latin-1 code units; it does not UTF-8-decode them. A valid signed event whose `content` contains non-ASCII text is therefore parsed with corrupted content and rejected as an invalid signature. This violates the locked standard-Base64 compatibility behavior. The new test at `tests/unit/auth.test.ts:63-68` does not expose the defect because its generated encoding contains neither `+` nor `/`, so the Base64url decoder handles it and the fallback is never exercised.
-**Fix:** Decode both alphabets to bytes and pass both through `TextDecoder`, then add a signed UTF-8 fixture whose standard-Base64 text is asserted to contain `+` or `/`:
-
-```ts
-import { decodeBase64 } from "@std/encoding/base64";
-
-try {
-  decoded = new TextDecoder().decode(decodeBase64Url(raw));
-} catch {
-  decoded = new TextDecoder().decode(decodeBase64(raw));
-}
-```
-
-### CR-02: Decodable malformed auth JSON escapes validation as a 500
-
-**Classification:** BLOCKER
-**File:** `src/middleware/auth.ts:77-95`
-**Issue:** `JSON.parse()` is cast directly to `NostrEvent`, then fields and `auth.tags.find()` are dereferenced before structural validation. Inputs such as Base64url-encoded `null` or `{ "kind": 24242, "created_at": 0, "tags": null }` throw `TypeError`; `authMiddleware()` classifies that as an internal error and returns 500. An unauthenticated remote caller can trigger this on every route, producing incorrect server errors and warning/stack-log noise instead of the documented 400 auth-validation response.
-**Fix:** Keep the parsed value as `unknown` and structurally validate it before any dereference. `nostr-tools/pure` already exports the non-cryptographic `validateEvent()` guard; use it first, return an `HTTPException(400)` when it fails, then retain `verifyEvent()` at the end for signature verification. Add cases for `null`, primitives, missing/non-array `tags`, and malformed tag elements.
-
 ## Warnings
 
-### WR-01: HEAD preflight accepts malformed length prefixes
-
-**Classification:** WARNING
-**File:** `src/routes/upload.ts:100-108`
-**Issue:** `parseInt()` accepts a numeric prefix, so values such as `100junk`, `1.5`, and `1e12` are treated as 100, 1, and 1. The server can return 200 for a preflight whose `X-Content-Length` is not a valid byte count, undermining the endpoint's admission result and boundary validation.
-**Fix:** Require a complete decimal string, convert with `Number()`, and require a non-negative safe integer before comparing against `maxSize`.
-
-### WR-02: Deferred authorization cleanup failures are silently reported as successful denial
-
-**Classification:** WARNING
-**File:** `src/routes/upload.ts:395-405`
-**Issue:** The post-hash scope-denial path suppresses every `abortWrite()` failure and still returns 403. The storage implementations also suppress file-removal failures, so unauthorized staged bytes can remain on disk without any log, retry, or error signal. Repeated failures can accumulate attacker-controlled data even though each request appears cleanly rejected.
-**Fix:** Make `abortWrite()` propagate removal failures, log the temp path and error, and do not silently convert a failed cleanup into the normal 403 path. Return 500 or enqueue a bounded cleanup retry while preserving the authorization denial in logs/metrics.
-
-### WR-03: Staging cleanup regression test never looks inside the staging directory
-
-**Classification:** WARNING
-**File:** `tests/e2e/upload.test.ts:561-581`
-**Issue:** The test snapshots `storageDir`, but upload sessions are written beneath `storageDir/.tmp`. Both snapshots therefore contain the same `.tmp` directory whether the staged file was removed or leaked. In addition, `entriesBefore` is left as an unawaited promise while the upload starts, making the baseline timing nondeterministic. The test's metadata/404 assertion is useful, but its claimed staged-byte cleanup coverage is a false positive.
-**Fix:** Await the baseline before the request and snapshot the actual staging directory (`join(storageDir, ".tmp")` or `storage.tmpDir`) before and after the denied upload. Assert that the exact staged-file set is unchanged/empty.
-
-### WR-04: E2E setup and teardown are ordinary filterable tests
+### WR-04: E2E setup and teardown remain filter-unsafe
 
 **Classification:** WARNING
 **File:** `tests/e2e/upload.test.ts:96-135`
-**Issue:** Shared initialization and cleanup are registered as named `Deno.test()` cases. Running the repository-supported `deno test --filter "PUT /upload ..."` or the focused filters documented in phase research excludes the setup test, leaving `appNoAuth`, `appWithAuth`, and cleanup state uninitialized; similarly, filtering can omit teardown and leak workers/temp directories. The same pattern appears at `tests/e2e/delete.test.ts:109-162` and `tests/e2e/list.test.ts:90-138`.
-**Fix:** Put the suites under `@std/testing/bdd` `describe()` with `beforeAll`/`afterAll`, or use a single parent `Deno.test` with steps and `finally` cleanup so filtering cannot detach fixtures from assertions.
+**Issue:** Shared initialization and cleanup are still registered as ordinary named `Deno.test()` cases. A `--filter` selecting a PUT/HEAD assertion excludes the setup and teardown tests, leaving app state uninitialized and worker/temp resources unmanaged. The same pattern remains at `tests/e2e/delete.test.ts:109-162` and `tests/e2e/list.test.ts:90-138`. The fix report correctly identifies this as pre-existing cross-suite harness debt, so deferring it from the narrow authorization patch is reasonable; however, filtered test execution is a documented repository workflow, and the defect remains observable.
+**Fix:** Handle this in a dedicated test-harness change: migrate all three suites to `@std/testing/bdd` `describe()` blocks with `beforeAll`/`afterAll`, or use parent tests with steps and unconditional `finally` cleanup so filtering cannot detach fixtures from assertions.
 
-### WR-05: A database failure after storage commit leaves an orphaned blob
+### WR-05: Storage commit can still outlive a failed metadata insert
 
 **Classification:** WARNING
-**File:** `src/routes/upload.ts:413-435`
-**Issue:** The route commits the verified temp file to local/S3 storage and only afterward inserts its metadata. If `insertBlob()` fails, the request returns 500 but the committed object remains with no database record, making it unreachable through normal APIs and invisible to metadata-driven cleanup. This is a storage/metadata consistency defect.
-**Fix:** Make the commit operation report whether it created a new object and compensate on DB failure without deleting a pre-existing/concurrently deduplicated object, or introduce a recoverable pending-upload transaction/state that startup maintenance can reconcile.
+**File:** `src/routes/upload.ts:422-445`
+**Issue:** The upload is committed to local/S3 storage before `insertBlob()` writes metadata. A database failure leaves an unreachable object with no database record. The fix report correctly notes that this ordering predates Phase 2 and that naive deletion is unsafe under concurrent deduplication, so it should not be patched opportunistically in this authorization phase; it remains an architectural consistency defect in the reviewed route.
+**Fix:** Address this in a dedicated storage-consistency phase by making commit report whether it created the object and compensating only newly created objects, or by adding a recoverable pending-upload state that can be atomically finalized or reconciled after failure.
+
+## Iteration 3 Status
+
+- Prior CR-01: resolved; standard-Base64 bytes are UTF-8 decoded and the signed non-ASCII test forces the `+`/`/` alphabet path.
+- Prior CR-02: resolved; `validateEvent()` plus explicit `id`/`sig` guards run before field access, and malformed decoded values return 400.
+- Prior WR-01: resolved; malformed, signed, fractional, exponent, and unsafe `X-Content-Length` values return 400.
+- Prior WR-02: resolved for the deferred authorization path; cleanup failures are surfaced and tested as 500 responses.
+- Prior WR-03: resolved; the test awaits and compares `storageDir/.tmp` contents directly.
+- Prior WR-04 and WR-05: unchanged, pre-existing, and appropriately deferred from Phase 2; retained as architectural/test-harness warnings because the configured review scope includes the affected files.
 
 ---
 
-_Reviewed: 2026-10-01T17:49:13Z_
+_Reviewed: 2026-10-01T18:09:43Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
