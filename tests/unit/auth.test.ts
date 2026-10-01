@@ -60,6 +60,13 @@ Deno.test("parseAuthEvent: valid event returns the event", () => {
   assertEquals(result.pubkey, event.pubkey);
 });
 
+Deno.test("parseAuthEvent: accepts a real signed event encoded with standard Base64", () => {
+  const event = makeEvent({});
+  const result = parseAuthEvent(btoa(JSON.stringify(event)), null);
+  assertEquals(result.id, event.id);
+  assertEquals(result.pubkey, event.pubkey);
+});
+
 // ---------------------------------------------------------------------------
 // parseAuthEvent — Base64url encoding
 // ---------------------------------------------------------------------------
@@ -116,11 +123,48 @@ Deno.test("parseAuthEvent: rejects event with expired expiration tag", () => {
   const event = makeEvent({
     tags: [["t", "upload"], ["expiration", String(past)]],
   });
-  assertThrows(
+  const error = assertThrows(
     () => parseAuthEvent(encodeEvent(event), null),
     HTTPException,
     "expired",
   );
+  assertEquals(error.status, 401);
+});
+
+Deno.test("parseAuthEvent: rejects malformed and unsafe expiration values with 400", () => {
+  for (
+    const expiration of [
+      "never",
+      "123abc",
+      "-1",
+      "+1",
+      "1.5",
+      "1e12",
+      " 123 ",
+      "9007199254740992",
+    ]
+  ) {
+    const event = makeEvent({
+      tags: [["t", "upload"], ["expiration", expiration]],
+    });
+    const error = assertThrows(
+      () => parseAuthEvent(encodeEvent(event), null),
+      HTTPException,
+    );
+    assertEquals(error.status, 400, `expiration=${JSON.stringify(expiration)}`);
+  }
+});
+
+Deno.test("parseAuthEvent: accepts a safe expiration more than 30 days in the future", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const event = makeEvent({
+    tags: [
+      ["t", "upload"],
+      ["expiration", String(now + 31 * 24 * 60 * 60)],
+    ],
+  });
+  const result = parseAuthEvent(encodeEvent(event), null);
+  assertEquals(result.id, event.id);
 });
 
 // ---------------------------------------------------------------------------
@@ -265,10 +309,13 @@ Deno.test("requireAuth: returns event when auth and type match", () => {
 const TEST_HASH = "a".repeat(64);
 const OTHER_HASH = "b".repeat(64);
 
-Deno.test("requireXTag: no x tags → no throw (open auth event)", () => {
+Deno.test("requireXTag: no x tags → throws 403", () => {
   const event = makeEvent({});
-  // Should not throw — open upload token
-  requireXTag(event, TEST_HASH);
+  const error = assertThrows(
+    () => requireXTag(event, TEST_HASH),
+    HTTPException,
+  );
+  assertEquals(error.status, 403);
 });
 
 Deno.test("requireXTag: x tag present and hash matches → no throw", () => {

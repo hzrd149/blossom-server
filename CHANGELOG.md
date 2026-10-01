@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Strictly validate BUD-11 expiration integers and require matching blob-hash scope for protected upload and delete operations; contributed by
+  [@mptfire](https://github.com/mptfire) in [#62](https://github.com/hzrd149/blossom-server/pull/62).
 - Reject malformed blob and static-asset paths before unnecessary filesystem access, including conservative filesystem byte bounds, while retaining bounded
   cosmetic blob extensions; contributed by [@mptfire](https://github.com/mptfire) in [#54](https://github.com/hzrd149/blossom-server/pull/54).
 - Reject multipart and URL-encoded envelopes before authentication or upload processing so only raw blob bytes reach `/upload` and `/media`; contributed by

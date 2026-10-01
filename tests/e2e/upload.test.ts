@@ -90,6 +90,7 @@ function findNip94Tag(
 let appNoAuth: Hono<{ Variables: BlossomVariables }>;
 let appWithAuth: Hono<{ Variables: BlossomVariables }>;
 let tmpDir: string;
+let storageDir: string;
 let cleanup: () => Promise<void>;
 
 // Deno doesn't have a native beforeAll, so we use a setup test that runs first.
@@ -100,7 +101,7 @@ Deno.test({
   async fn() {
     tmpDir = await Deno.makeTempDir({ prefix: "blossom_e2e_upload_" });
     const dbPath = join(tmpDir, "test.db");
-    const storageDir = join(tmpDir, "blobs");
+    storageDir = join(tmpDir, "blobs");
     const dbConfig = { path: dbPath };
 
     const db = await initDb(dbConfig);
@@ -518,11 +519,51 @@ Deno.test({
 });
 
 Deno.test({
-  name: "PUT /upload: with correct auth and open x-tag returns 201",
+  name: "PUT /upload: declared hash with missing x scope returns 403 and cancels before pull",
   async fn() {
-    const body = new TextEncoder().encode("authenticated upload");
-    // Open token — no x tags, permits any blob
+    const bytes = new TextEncoder().encode("authenticated upload denied early");
+    const hash = await sha256Hex(bytes);
     const auth = makeUploadAuth({});
+    let cancelCount = 0;
+    let pullCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes);
+      },
+      pull() {
+        pullCount++;
+        throw new Error("scope-denied upload body must not be pulled");
+      },
+      cancel() {
+        cancelCount++;
+      },
+    });
+
+    const res = await fetchWithAuth("/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": String(bytes.byteLength),
+        "Content-Type": "text/plain",
+        "X-SHA-256": hash,
+        Authorization: encodeAuth(auth),
+      },
+      body,
+    });
+    assertEquals(res.status, 403);
+    assertEquals(cancelCount, 1);
+    assertEquals(pullCount, 0);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: missing deferred x scope aborts staged bytes and metadata",
+  async fn() {
+    const body = new TextEncoder().encode("authenticated upload denied after hashing");
+    const hash = await sha256Hex(body);
+    const auth = makeUploadAuth({});
+    const entriesBefore = Array.fromAsync(Deno.readDir(storageDir)).then((entries) => entries.map((entry) => entry.name).sort());
 
     const res = await fetchWithAuth("/upload", {
       method: "PUT",
@@ -533,10 +574,40 @@ Deno.test({
       },
       body,
     });
+    assertEquals(res.status, 403);
+    await res.body?.cancel();
+
+    const entriesAfter = Array.fromAsync(Deno.readDir(storageDir)).then((entries) => entries.map((entry) => entry.name).sort());
+    assertEquals(await entriesAfter, await entriesBefore);
+
+    const blob = await fetchWithAuth(`/${hash}`);
+    assertEquals(blob.status, 404);
+    await blob.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: matching scope with expiration beyond 30 days returns 201",
+  async fn() {
+    const body = new TextEncoder().encode("long future authorization");
+    const hash = await sha256Hex(body);
+    const expiration = Math.floor(Date.now() / 1000) + 31 * 24 * 60 * 60;
+    const auth = makeUploadAuth({ hash, expiration });
+
+    const res = await fetchWithAuth("/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": String(body.byteLength),
+        "Content-Type": "text/plain",
+        "X-SHA-256": hash,
+        Authorization: encodeAuth(auth),
+      },
+      body,
+    });
     assertEquals(res.status, 201);
-    const json = await res.json();
-    assertEquals(typeof json.sha256, "string");
-    assertEquals(json.sha256.length, 64);
+    const descriptor = await res.json();
+    assertEquals(descriptor.sha256, hash);
   },
   ...testOpts,
 });
@@ -873,7 +944,7 @@ Deno.test({
 
     const body = new TextEncoder().encode("list url coverage");
     const hash = await sha256Hex(body);
-    const auth = makeUploadAuth({});
+    const auth = makeUploadAuth({ hash });
 
     const uploadRes = await listApp.fetch(
       new Request("https://localhost/upload", {
@@ -969,6 +1040,76 @@ Deno.test({
       headers: { "X-Content-Length": "100" },
     });
     assertEquals(res.status, 401);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /upload: declared hash with missing x scope returns 403",
+  async fn() {
+    const hash = "a".repeat(64);
+    const auth = makeUploadAuth({});
+    const res = await fetchWithAuth("/upload", {
+      method: "HEAD",
+      headers: {
+        "X-Content-Length": "100",
+        "X-SHA-256": hash,
+        Authorization: encodeAuth(auth),
+      },
+    });
+    assertEquals(res.status, 403);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /upload: declared hash with mismatched x scope returns 403",
+  async fn() {
+    const hash = "a".repeat(64);
+    const auth = makeUploadAuth({ hash: "b".repeat(64) });
+    const res = await fetchWithAuth("/upload", {
+      method: "HEAD",
+      headers: {
+        "X-Content-Length": "100",
+        "X-SHA-256": hash,
+        Authorization: encodeAuth(auth),
+      },
+    });
+    assertEquals(res.status, 403);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /upload: declared hash with matching x scope returns 200",
+  async fn() {
+    const hash = "a".repeat(64);
+    const auth = makeUploadAuth({ hash });
+    const res = await fetchWithAuth("/upload", {
+      method: "HEAD",
+      headers: {
+        "X-Content-Length": "100",
+        "X-SHA-256": hash,
+        Authorization: encodeAuth(auth),
+      },
+    });
+    assertEquals(res.status, 200);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /upload: authenticated headerless preflight remains compatible",
+  async fn() {
+    const auth = makeUploadAuth({});
+    const res = await fetchWithAuth("/upload", {
+      method: "HEAD",
+      headers: {
+        "X-Content-Length": "100",
+        Authorization: encodeAuth(auth),
+      },
+    });
+    assertEquals(res.status, 200);
   },
   ...testOpts,
 });

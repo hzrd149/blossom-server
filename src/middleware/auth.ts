@@ -98,7 +98,18 @@ export function parseAuthEvent(
       message: "Auth event missing expiration tag",
     });
   }
-  if (parseInt(expiration, 10) < now) {
+  if (!/^\d+$/.test(expiration)) {
+    throw new HTTPException(400, {
+      message: "Auth event expiration must be a unix-seconds integer",
+    });
+  }
+  const expiresAt = Number(expiration);
+  if (!Number.isSafeInteger(expiresAt)) {
+    throw new HTTPException(400, {
+      message: "Auth event expiration out of range",
+    });
+  }
+  if (expiresAt < now) {
     throw new HTTPException(401, { message: "Auth token expired" });
   }
 
@@ -157,10 +168,7 @@ export function authMiddleware(
         ctx.set("authType", auth.tags.find((t) => t[0] === "t")?.[1]);
         ctx.set(
           "authExpiration",
-          parseInt(
-            auth.tags.find((t) => t[0] === "expiration")?.[1] ?? "0",
-            10,
-          ),
+          Number(auth.tags.find((t) => t[0] === "expiration")?.[1]),
         );
       } catch (err) {
         debug("[auth]", "Auth parse error", err);
@@ -217,8 +225,8 @@ export function optionalAuth(
  * Required for upload, delete operations per BUD-11.
  */
 export function requireXTag(auth: NostrEvent, hash: string): void {
-  const xTags = auth.tags.filter((t) => t[0] === "x");
-  if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
+  const matches = auth.tags.some((tag) => tag[0] === "x" && tag[1] === hash);
+  if (!matches) {
     throw new HTTPException(403, {
       message: `Auth token does not authorize operation on blob ${hash}`,
     });

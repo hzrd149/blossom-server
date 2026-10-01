@@ -69,9 +69,10 @@ export function buildUploadRouter(
       return errorResponse(ctx, 403, "Uploads are disabled on this server");
     }
 
+    let auth: ReturnType<typeof requireAuth> | undefined;
     if (config.upload.requireAuth) {
       try {
-        requireAuth(ctx, "upload");
+        auth = requireAuth(ctx, "upload");
       } catch (err) {
         if (err instanceof HTTPException) {
           return errorResponse(ctx, err.status as 401 | 403, err.message);
@@ -80,7 +81,20 @@ export function buildUploadRouter(
       }
     }
 
-    const xSha256 = ctx.req.header("x-sha-256");
+    const xSha256 = ctx.req.header("x-sha-256")?.toLowerCase() ?? null;
+    if (xSha256 && !/^[0-9a-f]{64}$/.test(xSha256)) {
+      return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
+    }
+    if (auth && xSha256) {
+      try {
+        requireXTag(auth, xSha256);
+      } catch (err) {
+        if (err instanceof HTTPException) {
+          return errorResponse(ctx, err.status as 403, err.message);
+        }
+        throw err;
+      }
+    }
     const xContentType = ctx.req.header("x-content-type") ??
       "application/octet-stream";
     const xContentLength = ctx.req.header("x-content-length");
@@ -229,9 +243,9 @@ export function buildUploadRouter(
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
     }
 
-    // BUD-11: if the client provided X-SHA-256 and auth has x tags, we can
-    // validate upfront. If X-SHA-256 is absent, defer the x-tag check until
-    // after the worker resolves the actual hash (step 9).
+    // BUD-11: if the client provided X-SHA-256, validate its required x scope
+    // upfront. If X-SHA-256 is absent, defer the x-tag check until after the
+    // worker resolves the actual hash (step 9).
     if (auth && xSha256) {
       try {
         requireXTag(auth, xSha256);
