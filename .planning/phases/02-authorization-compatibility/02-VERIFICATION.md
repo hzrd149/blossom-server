@@ -1,7 +1,7 @@
 ---
 phase: 02-authorization-compatibility
-verified: 2026-10-01T18:26:12Z
-status: human_needed
+verified: 2026-10-01T18:28:58Z
+status: passed
 score: 6/6 must-haves verified
 covered_files:
   - .planning/REQUIREMENTS.md
@@ -19,16 +19,18 @@ covered_files:
 covered_digest: "v1:sha256:0e45c40b37773c52d52bd07ae4eaa2f98419f4ebb9ebbc4d29b95b644b28eb9a"
 behavior_unverified: 0
 overrides_applied: 0
-prohibitions_flagged: 2
-unverified_prohibitions:
+prohibitions_flagged: 0
+prohibitions_confirmed:
   - statement: "MUST NOT impose a maximum future authorization lifetime, a fixed digit-count lifetime policy, or any rejection based solely on how far a safe expiration lies in the future."
-    llm_judgment: satisfied
+    status: confirmed
     evidence: "No cap exists in production code; unit and E2E tests accept a signed expiration 31 days ahead."
-    flag: "unverified-prohibition — human review recommended"
+    confirmed_by: user
+    confirmed_at: 2026-10-01T18:28:58Z
   - statement: "MUST NOT erase @mptfire attribution or obscure that the local integration intentionally excludes PR #62's fixed 30-day lifetime cap."
-    llm_judgment: satisfied
+    status: confirmed
     evidence: "CHANGELOG.md credits @mptfire/#62 and the contribution review records the excluded cap and immutable integration SHA."
-    flag: "unverified-prohibition — human review recommended"
+    confirmed_by: user
+    confirmed_at: 2026-10-01T18:28:58Z
 decision_coverage:
   honored: 0
   total: 0
@@ -40,20 +42,13 @@ deferred_warnings:
   - id: WR-05
     finding: "A storage commit can outlive a failed metadata insert."
     reason: "Pre-existing storage-consistency design issue; unrelated to Phase 2 authorization semantics."
-human_verification:
-  - test: "Confirm the no-lifetime-cap prohibition."
-    expected: "No maximum-future or fixed digit-count policy exists; safe future expirations remain accepted regardless of distance."
-    why_human: "The plan left this descriptor-less prohibition unresolved, so autonomous verification may only provide a non-authoritative judgment despite passing tests."
-  - test: "Confirm the contributor-attribution/adaptation prohibition."
-    expected: "@mptfire and PR #62 remain credited, and the deliberate exclusion of the 30-day cap remains explicit."
-    why_human: "The plan left this descriptor-less prohibition unresolved, so autonomous verification may only provide a non-authoritative judgment despite repository evidence."
 ---
 
 # Phase 2: Authorization Compatibility Verification Report
 
 **Phase Goal:** As a Blossom server operator, I want to accept only correctly scoped BUD-11 authorization while honoring safe future expirations, so that
-protected blob operations stay secure without rejecting compatible clients. **Verified:** 2026-10-01T18:26:12Z **Status:** human_needed **Re-verification:** No
-— initial verification
+protected blob operations stay secure without rejecting compatible clients. **Verified:** 2026-10-01T18:28:58Z **Status:** passed **Re-verification:** Yes —
+after human confirmation
 
 ## User Flow Coverage
 
@@ -138,14 +133,12 @@ No orphaned Phase 2 requirements were found.
 
 ### Prohibition Review
 
-Both descriptor-less plan prohibitions appear satisfied by deterministic repository evidence. Because their frontmatter status remains `unresolved` and supplies
-no verification tier, the verifier's autonomous judgments are non-authoritative and remain flagged for human confirmation as required by the prohibition
-fallback contract.
+Both descriptor-less plan prohibitions are satisfied by deterministic repository evidence and were explicitly confirmed by the user on 2026-10-01.
 
-| Prohibition                                                                 | Automated Evidence                                                       | LLM Judgment | Disposition                                         |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------ | --------------------------------------------------- |
-| No maximum future lifetime, digit-count cap, or future-distance rejection   | No cap pattern in production; safe 31-day unit and E2E events pass       | Satisfied    | ⚠ unverified-prohibition — human review recommended |
-| Preserve @mptfire attribution and explicit exclusion of PR #62's 30-day cap | `CHANGELOG.md:7-8`; contribution review `:79-101`; unique commit trailer | Satisfied    | ⚠ unverified-prohibition — human review recommended |
+| Prohibition                                                                 | Automated Evidence                                                       | Human Confirmation | Disposition |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------ | ----------- |
+| No maximum future lifetime, digit-count cap, or future-distance rejection   | No cap pattern in production; safe 31-day unit and E2E events pass       | Confirmed by user  | ✓ VERIFIED  |
+| Preserve @mptfire attribution and explicit exclusion of PR #62's 30-day cap | `CHANGELOG.md:7-8`; contribution review `:79-101`; unique commit trailer | Confirmed by user  | ✓ VERIFIED  |
 
 ### Test Quality Audit
 
@@ -185,27 +178,19 @@ against implementation and tests in the observable-truth table.
 `INTK-04-unclassified` remains recorded as an unresolved specless-edge assumption in the plan. No extra boundary, adjacency, ordering, encoding, or empty-input
 behavior was inferred from it, so it is visible without expanding or blocking the contracted phase scope.
 
-### Human Verification Required
+### Human Verification Completed
 
-#### 1. Confirm the no-lifetime-cap prohibition
+On 2026-10-01, the user explicitly confirmed both requested checks:
 
-**Test:** Review `src/middleware/auth.ts:109-128` and the long-future unit/E2E cases. **Expected:** No maximum-future or fixed digit-count policy exists; safe
-future expirations remain accepted regardless of distance. **Why human:** The plan left this descriptor-less prohibition unresolved, so autonomous verification
-may only record a non-authoritative judgment despite passing evidence.
-
-#### 2. Confirm the contributor-attribution/adaptation prohibition
-
-**Test:** Review `CHANGELOG.md:7-8`, the PR #62 contribution-review section, and commit `3f68b6aebc87738a79d63181c06ce90b743ee229`. **Expected:** @mptfire and
-PR #62 remain credited, and the deliberate exclusion of the 30-day cap remains explicit. **Why human:** The plan left this descriptor-less prohibition
-unresolved, so autonomous verification may only record a non-authoritative judgment despite repository evidence.
+1. No fixed/maximum authorization lifetime was introduced.
+2. @mptfire attribution and the explicit exclusion of PR #62's 30-day cap remain present.
 
 ### Gaps Summary
 
-**No implementation or behavioral gaps found.** All six must-have truths, eight artifacts, five key links, and INTK-04 are verified. Overall status is
-`human_needed` only because the two unresolved descriptor-less prohibitions require explicit human confirmation; the two pre-existing review warnings are
-separately deferred and do not undermine Phase 2 goal achievement.
+**No gaps found.** All six must-have truths, eight artifacts, five key links, INTK-04, and both plan prohibitions are verified. The two pre-existing review
+warnings remain separately deferred and do not undermine Phase 2 goal achievement.
 
 ---
 
-_Verified: 2026-10-01T18:26:12Z_\
+_Verified: 2026-10-01T18:28:58Z_\
 _Verifier: the agent (gsd-verifier)_
