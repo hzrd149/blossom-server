@@ -399,9 +399,15 @@ export function buildUploadRouter(
       try {
         requireXTag(auth, hash);
       } catch (err) {
-        await storage.abortWrite(session).catch(() => {});
         const msg = err instanceof HTTPException ? err.message : String(err);
         debug(debugPrefix, `rejected: deferred x-tag check failed — ${msg}`);
+        try {
+          await storage.abortWrite(session);
+        } catch (cleanupErr) {
+          const cleanupMsg = cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+          console.error(`${debugPrefix} failed to remove unauthorized staged upload ${session.tmpPath}: ${cleanupMsg}`);
+          throw cleanupErr;
+        }
         if (err instanceof HTTPException) {
           return errorResponse(ctx, err.status as 403, err.message);
         }

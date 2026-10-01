@@ -218,7 +218,12 @@ export class S3Storage implements IBlobStorage {
    * Nothing is sent to or removed from S3.
    */
   async abortWrite(session: WriteSession): Promise<void> {
-    await Deno.remove(session.tmpPath).catch(() => {});
+    try {
+      await Deno.remove(session.tmpPath);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return;
+      throw err;
+    }
   }
 
   async commitFile(srcPath: string, hash: string, ext: string): Promise<void> {

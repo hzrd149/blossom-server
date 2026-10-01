@@ -18,6 +18,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
+import type { WriteSession } from "../../src/storage/interface.ts";
 import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
@@ -583,6 +584,47 @@ Deno.test({
     const blob = await fetchWithAuth(`/${hash}`);
     assertEquals(blob.status, 404);
     await blob.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: deferred x scope cleanup failure returns 500",
+  async fn() {
+    class FailingAbortStorage extends LocalStorage {
+      override async abortWrite(session: WriteSession): Promise<void> {
+        await super.abortWrite(session);
+        throw new Error("simulated staged upload cleanup failure");
+      }
+    }
+
+    const failingDb = await initDb({ path: join(tmpDir, "cleanup-failure.db") });
+    const failingStorage = new FailingAbortStorage(join(tmpDir, "blobs-cleanup-failure"));
+    await failingStorage.setup();
+    const failingConfig = ConfigSchema.parse({
+      publicDomain: "localhost",
+      upload: { requireAuth: true, enabled: true },
+    });
+    const failingApp = await buildApp(failingDb, failingStorage, failingConfig);
+    const body = new TextEncoder().encode("cleanup failure upload");
+
+    try {
+      const res = await failingApp.fetch(
+        new Request("http://localhost/upload", {
+          method: "PUT",
+          headers: {
+            "Content-Length": String(body.byteLength),
+            "Content-Type": "text/plain",
+            Authorization: encodeAuth(makeUploadAuth({})),
+          },
+          body,
+        }),
+      );
+      assertEquals(res.status, 500);
+      await res.body?.cancel();
+    } finally {
+      failingDb.close();
+    }
   },
   ...testOpts,
 });

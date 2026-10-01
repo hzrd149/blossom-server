@@ -146,7 +146,12 @@ export class LocalStorage implements IBlobStorage {
   }
 
   async abortWrite(session: WriteSession): Promise<void> {
-    await Deno.remove(session.tmpPath).catch(() => {});
+    try {
+      await Deno.remove(session.tmpPath);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return;
+      throw err;
+    }
   }
 
   /** Commit an already-written local file as a blob. */
