@@ -368,14 +368,13 @@ The expected missing-scope status is locked as DATA_B6W3K9DL_START `403 Forbidde
 |---|-------|---------|---------------|
 | — | None. Implementation choices are constrained by CONTEXT.md, current source, authoritative BUD-11, or existing repository conventions. | — | — |
 
-## Open Questions
+## Resolved Questions
 
-1. **Should protected `HEAD /upload` require `X-SHA-256` when absent?**
+1. **RESOLVED — Should protected `HEAD /upload` require `X-SHA-256` when absent?**
    - What we know: authoritative BUD-11 marks matching `x` scope required for HEAD upload and identifies `X-SHA-256` as the implied hash. [CITED: https://github.com/hzrd149/blossom/blob/master/buds/11.md]
-   - What's unclear: the locked phase wording requires a matching `x` tag when an operation “act[s] on a known blob hash,” but does not explicitly make the header itself mandatory; the current preflight accepts a missing header. [VERIFIED: .planning/phases/02-authorization-compatibility/02-CONTEXT.md:16-20; src/routes/upload.ts:83-86,130-135]
-   - Recommendation: for this patch phase, enforce `requireXTag()` whenever `X-SHA-256` is present and valid, but do not newly require the header unless the planner receives an explicit scope decision. This satisfies the locked known-hash rule without broadening compatibility risk.
+   - Resolution: enforce `requireXTag()` whenever `X-SHA-256` is present and valid because the header supplies a known hash, but do not newly require the header. Headerless preflight compatibility remains unchanged. [RESOLVED: adopted by the Phase 2 plan from the locked known-hash and compatibility decisions]
 
-No other planning question is unresolved.
+No planning question remains unresolved.
 
 ## Environment Availability
 
