@@ -23,11 +23,11 @@ backends.
 - ✓ Operators can configure media processing, storage rules, pruning, and server behavior through validated YAML — existing
 - ✓ Operators can inspect and manage the service through server-rendered landing and admin interfaces — existing
 - ✓ Deno tests, linting, formatting, Docker builds, and deterministic Nix validation provide release-quality checks — existing
+- ✓ Multipart and URL-encoded upload envelopes are rejected before auth or body processing — Phase 1
+- ✓ Malformed blob and static paths fall through safely before storage or filesystem access — Phase 1
 
 ### Active
 
-- [ ] Reject multipart and URL-encoded upload envelopes so only raw BUD-02 blob bodies are stored (PR #53)
-- [ ] Reject malformed blob paths without triggering unnecessary static-file filesystem operations (PR #54)
 - [ ] Require protocol-mandated blob hash scoping and strictly validate BUD-11 expiration values without imposing an undocumented fixed lifetime policy (revised
       PR #62)
 - [ ] Prevent uploaded active document types from executing in the application origin (PR #63)
@@ -85,6 +85,8 @@ backends.
 | Treat contribution intake and release as explicit milestone work | The milestone should establish a reusable workflow, not only produce a version bump                        | — Pending |
 | Use one `v<version>` branch per release milestone                | Keeps milestone work and incoming contributions isolated from `master` until the candidate is verified     | — Pending |
 | Ship through a green release PR before tagging or publishing     | CI validates the candidate merged to `master`; published artifacts originate from the canonical state      | — Pending |
+| Preserve code-point caps and add filesystem-facing UTF-8 byte caps | The two measurements protect policy complexity and Hono/Deno filesystem path limits at distinct boundaries | ✓ Phase 1 |
+| Define dot-segment safety at the observable Request layer        | The runtime canonicalizes request paths before application middleware; normalized paths remain confined to `PUBLIC_DIR` | ✓ Phase 1 |
 
 ## Evolution
 
@@ -107,4 +109,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-09-30 after initialization_
+_Last updated: 2026-10-01 after Phase 1_

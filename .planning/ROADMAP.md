@@ -14,7 +14,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Request Intake Boundaries** - Review the selected contributions and integrate PRs #53 and #54 safely.
+- [x] **Phase 1: Request Intake Boundaries** - Review the selected contributions and integrate PRs #53 and #54 safely. (completed 2026-10-01)
 - [ ] **Phase 2: Authorization Compatibility** - Integrate the protocol-safe parts of PR #62 without a fixed lifetime cap.
 - [ ] **Phase 3: Content and Logging Boundaries** - Integrate PRs #63 and #64 to protect the application origin and logs.
 - [ ] **Phase 4: Integrated Candidate Verification** - Prove the combined candidate across protocol, storage, and build gates.
@@ -39,7 +39,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 4. Focused regression tests for PRs #53 and #54 pass alongside the existing upload and blob-retrieval behavior.
 5. The milestone and every selected contribution are integrated on `v6.4.1`, with no milestone implementation committed directly to `master`.
 
-**Plans:** 4/4 plans executed
+**Plans:** 4/4 plans complete
 
 **Wave 1**
 
@@ -145,7 +145,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 | Phase                                | Plans Complete | Status      | Completed |
 | ------------------------------------ | -------------- | ----------- | --------- |
-| 1. Request Intake Boundaries         | 4/4            | In Progress |           |
+| 1. Request Intake Boundaries         | 4/4 | Complete    | 2026-10-01 |
 | 2. Authorization Compatibility       | 0/TBD          | Not started | -         |
 | 3. Content and Logging Boundaries    | 0/TBD          | Not started | -         |
 | 4. Integrated Candidate Verification | 0/TBD          | Not started | -         |
