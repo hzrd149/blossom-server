@@ -65,12 +65,12 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
   screen encoded separators, controls, backslashes, empty or interior dot segments, and traversal before static middleware; and omit the unrelated admin
   formatting change. The resolved D-11 rule is: both the 255-character segment limit and 2,048-character decoded-path limit count Unicode code points via
   `[...text].length`. This is the required metric, not a runtime option or an unresolved choice.
-- **Regression evidence:** Pending downstream execution. Plan 01-03 must run
-  `deno test -A tests/unit/blob-path.test.ts tests/unit/url.test.ts tests/e2e/blobs.test.ts`, followed by the plan's format, lint, and full-suite gates. No
-  local pass is claimed by this intake record.
+- **Regression evidence:** Passed on 2026-10-01 with `deno test -A tests/unit/blob-path.test.ts tests/unit/url.test.ts tests/e2e/blobs.test.ts`: 82 passed, 0
+  failed. The boundary matrix locks both D-11 limits to Unicode code points via `[...text].length` and proves safe-path invocation plus unsafe-path bypass
+  through the injected static middleware. Plan 01-03 also runs its format, lint, integrated Phase 1, and full-suite gates before completion.
 - **Resulting phase:** Phase 1 — Request Intake Boundaries; requirements INTK-03 and INTK-07.
-- **Integration commit:** Pending Plan 01-03 execution. Backfill the final 40-character SHA after the single non-merge `Contribution-PR: #54` commit exists on
-  `v6.4.1`.
+- **Integration commit:** Revised implementation is staged for one non-merge `Contribution-PR: #54` commit on `v6.4.1`; Plan 01-03 Task 3 backfills its final
+  40-character SHA without rewriting the integration commit.
 
 ## PR #62 — fix(auth): require x tag on blob auth events; validate expiration strictly
 

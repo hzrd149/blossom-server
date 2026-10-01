@@ -20,7 +20,12 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
 import { mimeToExt } from "../utils/mime.ts";
 
-const SHA256_RE = /^[0-9a-f]{64}$/;
+const BLOB_PATH_RE = /^([0-9a-f]{64})(?:\.[a-z0-9]{1,10})*$/i;
+
+/** Extract and normalize the content address from an accepted blob filename. */
+export function extractBlobHash(filename: string): string | null {
+  return BLOB_PATH_RE.exec(filename)?.[1]?.toLowerCase() ?? null;
+}
 
 export function buildBlobsRouter(
   db: Client,
@@ -32,13 +37,11 @@ export function buildBlobsRouter(
   // GET /:sha256 and GET /:sha256.ext
   // HEAD /:sha256 and HEAD /:sha256.ext
   // Match the full segment including optional extension (e.g. abc123...def.jpg)
-  app.on(["GET", "HEAD"], "/:filename", async (ctx, next) => {
+  app.on(["GET", "HEAD"], ["/:filename", "/:filename/"], async (ctx, next) => {
     const filename = ctx.req.param("filename") ?? "";
-    // Extract 64-char hex hash — the last 64-char hex run in the segment
-    const match = filename.match(/([0-9a-f]{64})/);
-    const hash = match?.[1] ?? "";
+    const hash = extractBlobHash(filename);
 
-    if (!SHA256_RE.test(hash)) {
+    if (!hash) {
       return next();
     }
 

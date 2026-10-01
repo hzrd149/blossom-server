@@ -4,6 +4,7 @@
  */
 
 import { Hono } from "@hono/hono";
+import type { MiddlewareHandler } from "@hono/hono";
 import { serveStatic } from "@hono/hono/deno";
 import type { Client } from "@libsql/client";
 import type { IBlobStorage } from "./storage/interface.ts";
@@ -18,11 +19,17 @@ import { envelopeAdmissionMiddleware } from "./middleware/envelope.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
 import { buildLandingRouter, PUBLIC_DIR, warnIfStylesheetMissing } from "./routes/landing.tsx";
+import { isStaticCandidate } from "./utils/url.ts";
+
+export interface BuildAppOptions {
+  staticMiddleware?: MiddlewareHandler;
+}
 
 export async function buildApp(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  options: BuildAppOptions = {},
 ): Promise<Hono<{ Variables: BlossomVariables }>> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -45,7 +52,11 @@ export async function buildApp(
 
   // Serve any file from the public directory at its root-relative URL.
   // Requests that do not map to a file fall through to the app routes below.
-  app.use("*", serveStatic({ root: PUBLIC_DIR }));
+  const staticMiddleware = options.staticMiddleware ?? serveStatic({ root: PUBLIC_DIR });
+  app.use("*", (ctx, next) => {
+    if (!isStaticCandidate(new URL(ctx.req.url).pathname)) return next();
+    return staticMiddleware(ctx, next);
+  });
 
   if (config.landing.enabled || config.dashboard.enabled) {
     await warnIfStylesheetMissing();

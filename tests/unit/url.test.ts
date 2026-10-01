@@ -9,7 +9,15 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { getBaseUrl } from "../../src/utils/url.ts";
+import { getBaseUrl, isStaticCandidate } from "../../src/utils/url.ts";
+
+const EXACT_MAX_PATH = `/${Array.from({ length: 8 }, () => "a".repeat(255)).join("/")}`;
+const OVER_MAX_PATH = `/${
+  [
+    ...Array.from({ length: 8 }, () => "a".repeat(226)),
+    "b".repeat(232),
+  ].join("/")
+}`;
 
 Deno.test("getBaseUrl: no proxy headers — uses connection scheme", () => {
   const req = new Request("http://localhost:3000/");
@@ -91,3 +99,51 @@ Deno.test("getBaseUrl: incoming https stays https without forwarded headers", ()
   const req = new Request("https://cdn.example.com/");
   assertEquals(getBaseUrl(req, ""), "https://cdn.example.com");
 });
+
+const STATIC_CANDIDATE_PATHS = [
+  ["safe nested path", "/nested/assets/app.js"],
+  ["decoded space", "/operator%20assets/logo.png"],
+  ["ordinary BMP Unicode", "/caf%C3%A9/menu.css"],
+  ["ordinary non-BMP Unicode", "/emoji/%F0%9F%8C%B8.png"],
+  ["255-code-point segment", `/${"a".repeat(255)}`],
+  ["255 non-BMP code points", `/${"😀".repeat(255)}`],
+  ["255 combining-sequence code points", `/${`${"e\u0301".repeat(127)}x`}`],
+  ["2,048-code-point decoded path", EXACT_MAX_PATH],
+] as const;
+
+for (const [name, pathname] of STATIC_CANDIDATE_PATHS) {
+  Deno.test(`isStaticCandidate accepts ${name}`, () => {
+    assertEquals(isStaticCandidate(pathname), true);
+  });
+}
+
+const NON_CANDIDATE_PATHS = [
+  ["a relative path", "relative/file.js"],
+  ["malformed percent encoding", "/bad%encoding.js"],
+  ["lowercase encoded slash", "/bad%2fpath"],
+  ["uppercase encoded slash", "/bad%2Fpath"],
+  ["lowercase encoded backslash", "/bad%5cpath"],
+  ["uppercase encoded backslash", "/bad%5Cpath"],
+  ["double-encoded slash", "/bad%252fpath"],
+  ["triple-encoded slash", "/bad%25252Fpath"],
+  ["double-encoded backslash", "/bad%255cpath"],
+  ["a NUL control", "/bad%00path"],
+  ["a C0 control", "/bad%1fpath"],
+  ["DEL", "/bad%7fpath"],
+  ["a C1 control", "/bad%C2%80path"],
+  ["a decoded backslash", "/bad\\path"],
+  ["an empty interior segment", "/nested//asset.js"],
+  ["a dot segment", "/nested/./asset.js"],
+  ["a traversal segment", "/nested/../asset.js"],
+  ["a trailing empty segment", "/nested/asset.js/"],
+  ["a 256-code-point segment", `/${"a".repeat(256)}`],
+  ["256 non-BMP code points", `/${"😀".repeat(256)}`],
+  ["256 combining-sequence code points", `/${"e\u0301".repeat(128)}`],
+  ["a 2,049-code-point decoded path", OVER_MAX_PATH],
+] as const;
+
+for (const [name, pathname] of NON_CANDIDATE_PATHS) {
+  Deno.test(`isStaticCandidate rejects ${name}`, () => {
+    assertEquals(isStaticCandidate(pathname), false);
+  });
+}

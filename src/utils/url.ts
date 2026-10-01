@@ -1,5 +1,36 @@
 import { mimeToExt } from "./mime.ts";
 
+const ENCODED_SEPARATOR_RE = /%(?:25)*(?:2f|5c)/i;
+const MAX_STATIC_PATH_CODE_POINTS = 2_048;
+const MAX_STATIC_SEGMENT_CODE_POINTS = 255;
+
+function hasUnsafeDecodedCharacter(text: string): boolean {
+  return [...text].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return character === "\\" || codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+  });
+}
+
+/** Return whether an encoded URL pathname is safe to pass to filesystem-backed static middleware. */
+export function isStaticCandidate(encodedPathname: string): boolean {
+  if (ENCODED_SEPARATOR_RE.test(encodedPathname)) return false;
+
+  let decodedPathname: string;
+  try {
+    decodedPathname = decodeURIComponent(encodedPathname);
+  } catch {
+    return false;
+  }
+
+  if (!decodedPathname.startsWith("/")) return false;
+  if ([...decodedPathname].length > MAX_STATIC_PATH_CODE_POINTS) return false;
+  if (hasUnsafeDecodedCharacter(decodedPathname)) return false;
+
+  const segments = decodedPathname.slice(1).split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
+  return segments.every((segment) => [...segment].length <= MAX_STATIC_SEGMENT_CODE_POINTS);
+}
+
 /**
  * Derive the request scheme, honouring reverse-proxy headers.
  * Behind a TLS-terminating proxy `request.url` is always `http://…`, so we
