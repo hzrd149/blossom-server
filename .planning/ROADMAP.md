@@ -84,7 +84,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 ### Phase 3: Content and Logging Boundaries
 
-**Goal:** Blob delivery cannot execute active documents in the server origin, and logs omit query-string data.
+**Goal:** As a Blossom server operator, I want active uploaded documents isolated from the application origin and request logs stripped of query data, so that hosted blobs and operational logs cannot expose users or secrets.
 
 **Mode:** mvp
 
