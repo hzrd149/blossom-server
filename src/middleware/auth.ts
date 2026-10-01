@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
+import { decodeBase64 } from "@std/encoding/base64";
 import { decodeBase64Url } from "@std/encoding/base64url";
 import { verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
@@ -66,13 +67,13 @@ export function parseAuthEvent(
 
   let auth: NostrEvent;
   try {
-    // BUD-11 specifies Base64url; fall back to standard Base64 (atob) for
+    // BUD-11 specifies Base64url; fall back to standard Base64 for
     // clients that encode with the standard alphabet (e.g. older nak versions).
     let decoded: string;
     try {
       decoded = new TextDecoder().decode(decodeBase64Url(raw));
     } catch {
-      decoded = atob(raw);
+      decoded = new TextDecoder().decode(decodeBase64(raw));
     }
     auth = JSON.parse(decoded) as NostrEvent;
   } catch {

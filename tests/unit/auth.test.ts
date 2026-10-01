@@ -5,7 +5,8 @@
  * Uses real Nostr signed events generated with nostr-tools.
  */
 
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertMatch, assertThrows } from "@std/assert";
+import { encodeBase64 } from "@std/encoding/base64";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { HTTPException } from "@hono/hono/http-exception";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
@@ -61,8 +62,11 @@ Deno.test("parseAuthEvent: valid event returns the event", () => {
 });
 
 Deno.test("parseAuthEvent: accepts a real signed event encoded with standard Base64", () => {
-  const event = makeEvent({});
-  const result = parseAuthEvent(btoa(JSON.stringify(event)), null);
+  const event = makeEvent({ content: "Upload café 🌸" });
+  const encoded = encodeBase64(new TextEncoder().encode(JSON.stringify(event)));
+  assertMatch(encoded, /[+/]/);
+
+  const result = parseAuthEvent(encoded, null);
   assertEquals(result.id, event.id);
   assertEquals(result.pubkey, event.pubkey);
 });
