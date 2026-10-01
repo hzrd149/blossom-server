@@ -10,7 +10,7 @@ Requirements for the v6.4.1 hardening release. Each requirement maps to exactly 
 ### Contribution Intake
 
 - [ ] **INTK-01**: Maintainer can review each selected PR against the current codebase, protocol specifications, patch-release scope, and security constraints.
-- [ ] **INTK-02**: Maintainer can integrate PR #53 so multipart and URL-encoded upload envelopes are rejected without buffering rejected bodies.
+- [x] **INTK-02**: Maintainer can integrate PR #53 so multipart and URL-encoded upload envelopes are rejected without buffering rejected bodies.
 - [ ] **INTK-03**: Maintainer can integrate PR #54 so malformed blob paths are rejected and do not trigger unnecessary static-file filesystem operations,
       without rejecting reasonable valid extensions.
 - [ ] **INTK-04**: Maintainer can integrate the safe parts of PR #62 so required `x` tags and expiration integers are validated without enforcing an
@@ -59,25 +59,25 @@ Deferred to the v6.5 minor release and excluded from the current roadmap.
 
 Roadmap phase assignments are populated during roadmap creation.
 
-| Requirement | Phase   | Status  |
-| ----------- | ------- | ------- |
-| INTK-01     | Phase 1 | Pending |
-| INTK-02     | Phase 1 | Pending |
-| INTK-03     | Phase 1 | Pending |
-| INTK-04     | Phase 2 | Pending |
-| INTK-05     | Phase 3 | Pending |
-| INTK-06     | Phase 3 | Pending |
-| INTK-07     | Phase 1 | Pending |
-| VERI-01     | Phase 4 | Pending |
-| VERI-02     | Phase 4 | Pending |
-| VERI-03     | Phase 4 | Pending |
-| VERI-04     | Phase 4 | Pending |
-| RELS-01     | Phase 5 | Pending |
-| RELS-02     | Phase 5 | Pending |
-| RELS-03     | Phase 5 | Pending |
-| RELS-04     | Phase 5 | Pending |
-| RELS-05     | Phase 5 | Pending |
-| RELS-06     | Phase 5 | Pending |
+| Requirement | Phase   | Status   |
+| ----------- | ------- | -------- |
+| INTK-01     | Phase 1 | Pending  |
+| INTK-02     | Phase 1 | Complete |
+| INTK-03     | Phase 1 | Pending  |
+| INTK-04     | Phase 2 | Pending  |
+| INTK-05     | Phase 3 | Pending  |
+| INTK-06     | Phase 3 | Pending  |
+| INTK-07     | Phase 1 | Pending  |
+| VERI-01     | Phase 4 | Pending  |
+| VERI-02     | Phase 4 | Pending  |
+| VERI-03     | Phase 4 | Pending  |
+| VERI-04     | Phase 4 | Pending  |
+| RELS-01     | Phase 5 | Pending  |
+| RELS-02     | Phase 5 | Pending  |
+| RELS-03     | Phase 5 | Pending  |
+| RELS-04     | Phase 5 | Pending  |
+| RELS-05     | Phase 5 | Pending  |
+| RELS-06     | Phase 5 | Pending  |
 
 **Coverage:**
 
