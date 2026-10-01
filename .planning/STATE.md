@@ -1,17 +1,18 @@
 ---
 gsd_state_version: "1.0"
 milestone: v6.4.1
-current_phase: 1
+current_phase: 01
 current_phase_name: Request Intake Boundaries
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-10-01T13:39:07.040Z"
-state_head: 1d4582f1af20dbd4224b76201d3eb862208b7599
+current_plan: 4
+status: ready_for_verification
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-10-01T15:56:14.455Z"
+state_head: 2ec67419bf405dc7792474887478b0b3f1072bd8
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 3
-  completed_plans: 0
+  total_plans: 4
+  completed_plans: 4
   percent: 0
 ---
 
@@ -22,11 +23,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-30)
 
 **Core value:** Operators can run a secure, protocol-compatible Blossom server whose stored bytes and authorization boundaries remain trustworthy across
-supported storage backends. **Current focus:** Phase 1 — Request Intake Boundaries
+supported storage backends. **Current focus:** Phase 01 — Request Intake Boundaries
 
 ## Current Position
 
-Phase: 1 (Request Intake Boundaries) — EXECUTING mapped all active requirements.
+Phase: 01 (Request Intake Boundaries) — READY FOR VERIFICATION
+
+Current Plan: 4
+
+Total Plans in Phase: 4
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -49,6 +54,12 @@ Progress: [░░░░░░░░░░] 0%
 - Last 5 plans: -
 - Trend: -
 
+**Per-Plan Metrics:**
+
+| Plan         | Duration | Tasks   | Files   |
+| ------------ | -------- | ------- | ------- |
+| Phase 01 P04 | 12m      | 2 tasks | 6 files |
+
 ## Accumulated Context
 
 ### Decisions
@@ -60,6 +71,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Scope]: PR #55 and PR #60 remain deferred to v6.5 and are not part of this roadmap.
 - [Workflow]: Release milestones use a dedicated `v<version>` branch; all selected contributions merge into it.
 - [Release]: Ship through a green GitHub PR from `v<version>` to `master`, then tag and publish only from merged `master`.
+- [Phase 01]: Static admission preserves Unicode code-point caps and also bounds the Hono decodeURI filesystem representation to 255 bytes per segment and 2,048
+  bytes overall.
+- [Phase 01]: D-12 is enforced at the observable Request layer: runtime-canonicalized paths are validated after normalization and static serving remains
+  confined to PUBLIC_DIR.
 
 ### Pending Todos
 
@@ -67,7 +82,6 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: PR #54 conflicts with current master and requires careful adaptation around route/static-file ordering.
 - [Phase 2]: PR #62 couples a valid authorization fix to an incompatible lifetime cap that must be separated.
 - [Phase 4]: Build and Nix verification must avoid stale generated or fixed-output artifacts.
 - [Phase 5]: Tagging or Deno publishing before the release PR merges to `master` is prohibited.
@@ -81,6 +95,8 @@ None yet.
 
 ## Session Continuity
 
-**Stopped at:** Phase 1 context gathered **Resume file:** .planning/phases/01-request-intake-boundaries/01-CONTEXT.md
+**Resume file:** None
 
-Last session: 2026-09-30T18:50:49.788Z
+**Stopped at:** Completed 01-04-PLAN.md
+
+Last session: 2026-10-01T15:56:14.434Z

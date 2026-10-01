@@ -39,23 +39,23 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 4. Focused regression tests for PRs #53 and #54 pass alongside the existing upload and blob-retrieval behavior.
 5. The milestone and every selected contribution are integrated on `v6.4.1`, with no milestone implementation committed directly to `master`.
 
-**Plans:** 4 plans
+**Plans:** 4/4 plans executed
 
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Record five-PR dispositions, branch policy, and the locked Unicode code-point rule.
+- [x] 01-01-PLAN.md — Record five-PR dispositions, branch policy, and the locked Unicode code-point rule.
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 01-02-PLAN.md — Integrate revised PR #53 with pre-auth envelope rejection, streaming tests, changelog credit, and commit traceability.
+- [x] 01-02-PLAN.md — Integrate revised PR #53 with pre-auth envelope rejection, streaming tests, changelog credit, and commit traceability.
 
 **Wave 3** _(blocked on Wave 2 completion)_
 
-- [ ] 01-03-PLAN.md — Integrate revised PR #54 with exact blob grammar, pre-filesystem static screening, regression coverage, and commit traceability.
+- [x] 01-03-PLAN.md — Integrate revised PR #54 with exact blob grammar, pre-filesystem static screening, regression coverage, and commit traceability.
 
 **Wave 4** _(gap closure; blocked on Wave 3 completion)_
 
-- [ ] 01-04-PLAN.md — Align static candidacy with Hono/Deno filesystem bytes and the observable dot-segment normalization contract.
+- [x] 01-04-PLAN.md — Align static candidacy with Hono/Deno filesystem bytes and the observable dot-segment normalization contract.
 
 ### Phase 2: Authorization Compatibility
 
@@ -145,7 +145,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 | Phase                                | Plans Complete | Status      | Completed |
 | ------------------------------------ | -------------- | ----------- | --------- |
-| 1. Request Intake Boundaries         | 0/3            | Planned     |           |
+| 1. Request Intake Boundaries         | 4/4            | In Progress |           |
 | 2. Authorization Compatibility       | 0/TBD          | Not started | -         |
 | 3. Content and Logging Boundaries    | 0/TBD          | Not started | -         |
 | 4. Integrated Candidate Verification | 0/TBD          | Not started | -         |
