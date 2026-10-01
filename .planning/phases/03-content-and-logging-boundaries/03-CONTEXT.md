@@ -9,7 +9,7 @@ requirements: [INTK-05, INTK-06]
 
 ## Phase Goal
 
-As a Blossom server operator, I want active uploaded documents isolated from the application origin and request logs stripped of query data, so that hosted blobs and operational logs cannot expose users or secrets.
+As a Blossom server operator, I want to isolate active uploaded documents from the application origin and strip query data from request logs, so that hosted blobs and operational logs cannot expose users or secrets.
 
 ## Decisions
 
