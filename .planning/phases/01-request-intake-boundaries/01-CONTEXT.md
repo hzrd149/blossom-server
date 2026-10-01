@@ -36,9 +36,12 @@ revise, or defer decision here, but their implementation remains in their assign
 ### Static-asset screening
 
 - **D-10:** Allow safe nested paths to reach `serveStatic` so operators can supply nested assets in their own `public` directory.
-- **D-11:** Before filesystem access, limit every decoded path segment to 255 characters and the complete decoded path to 2,048 characters.
-- **D-12:** Allow ordinary decoded Unicode filenames and spaces. Reject control characters, backslashes, empty or interior dot segments, traversal patterns, and
-  unsafe encoded separators.
+- **D-11:** Before filesystem access, retain the decoded-path Unicode code-point limits of 255 per segment and 2,048 for the complete path. Supplement them with
+  filesystem-facing UTF-8 byte limits of 255 per `decodeURI` segment and 2,048 for the complete `decodeURI` path.
+- **D-12 (revised after verification on 2026-10-01):** Allow ordinary decoded Unicode filenames and spaces. The standard `Request` URL parser canonicalizes dot
+  segments before the application receives the pathname, so canonical equivalents are accepted and validated as their normalized pathname. Reject controls,
+  backslashes, empty segments, unsafe structure that survives normalization, and encoded separators; static files remain confined to `PUBLIC_DIR`. The
+  application does not claim to inspect raw request-target bytes that the runtime has already canonicalized.
 - **D-13:** A non-candidate bypasses `serveStatic` and continues through normal application routing; unmatched requests receive the application's usual `404`.
 
 ### Contribution review and traceability

@@ -63,13 +63,15 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
 - **Required deviations:** Accept upper- or lowercase 64-hex hashes and normalize internally; allow multiple dot-separated extension segments of 1–10 ASCII
   alphanumeric characters plus one trailing slash; retain stored MIME behavior; reject unsafe suffixes through normal routing; allow safe nested static paths;
   screen encoded separators, controls, backslashes, empty or interior dot segments, and traversal before static middleware; and omit the unrelated admin
-  formatting change. The resolved D-11 rule is: both the 255-character segment limit and 2,048-character decoded-path limit count Unicode code points via
-  `[...text].length`. This is the required metric, not a runtime option or an unresolved choice.
-- **Regression evidence:** Passed on 2026-10-01 with `deno test -A tests/unit/blob-path.test.ts tests/unit/url.test.ts tests/e2e/blobs.test.ts`: 82 passed, 0
-  failed. The boundary matrix locks both D-11 limits to Unicode code points via `[...text].length` and proves safe-path invocation plus unsafe-path bypass
-  through the injected static middleware. The integrated Phase 1 command from `01-VALIDATION.md`, targeted formatting for every Plan 01-03 file, repository
-  lint, and the complete server/client test task also passed on 2026-10-01. Repository-wide formatting remains blocked only by pre-existing shared and untracked
-  planning artifacts outside Plan 01-03 ownership, as recorded in `deferred-items.md`.
+  formatting change. D-11 retains the 255-segment and 2,048-path Unicode code-point caps and adds conservative UTF-8 byte caps of 255 per `decodeURI` segment
+  and 2,048 for the complete `decodeURI` path before filesystem access. Real Deno/Hono `serveStatic` adapter coverage proves exact controls reach the adapter
+  while byte overflows bypass it without filesystem warnings. D-12 is revised to record that the standard `Request` parser canonicalizes dot segments before
+  application validation; normalized canonical equivalents are accepted while unsafe structure that survives normalization remains rejected.
+- **Regression evidence:** Passed on 2026-10-01 with
+  `deno test -A tests/unit/url.test.ts tests/unit/blob-path.test.ts tests/unit/envelope.test.ts tests/e2e/upload.test.ts tests/e2e/media.test.ts tests/e2e/blobs.test.ts`:
+  152 passed, 0 failed. The expanded matrix covers exact 255/256-byte multibyte segments, retained reserved escapes at 255/258 filesystem bytes, exact
+  2,048/2,049-byte multisegment Unicode paths, injected and real static adapters, and production `Request` canonicalization against the tracked favicon under
+  `PUBLIC_DIR`. Plan 01-04 also runs targeted formatting, repository lint, and the complete server/client test task before completion.
 - **Resulting phase:** Phase 1 — Request Intake Boundaries; requirements INTK-03 and INTK-07.
 - **Integration commit:** Revised implementation landed on `v6.4.1` as non-merge commit `0f6b99ab36fbe600190f80de7c1ad56a708640b0` with the
   `Contribution-PR: #54` trailer and the credited Unreleased changelog entry above.

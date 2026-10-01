@@ -18,6 +18,15 @@ const OVER_MAX_PATH = `/${
     "b".repeat(232),
   ].join("/")
 }`;
+const EXACT_MAX_BYTE_PATH = `/${Array.from({ length: 8 }, () => "界".repeat(85)).join("/")}`;
+const OVER_MAX_BYTE_PATH = `/${
+  [
+    ...Array.from({ length: 7 }, () => "界".repeat(85)),
+    "界".repeat(42),
+    "界".repeat(43),
+  ].join("/")
+}`;
+const UTF8_ENCODER = new TextEncoder();
 
 Deno.test("getBaseUrl: no proxy headers — uses connection scheme", () => {
   const req = new Request("http://localhost:3000/");
@@ -100,6 +109,23 @@ Deno.test("getBaseUrl: incoming https stays https without forwarded headers", ()
   assertEquals(getBaseUrl(req, ""), "https://cdn.example.com");
 });
 
+Deno.test("Request canonicalizes encoded dot segments before application pathname validation", () => {
+  const request = new Request("http://localhost/nested/%2e%2e/favicon.ico");
+  assertEquals(new URL(request.url).pathname, "/favicon.ico");
+});
+
+Deno.test("static byte-boundary fixtures isolate the decodeURI filesystem limits", () => {
+  const reservedAtLimit = `/${"%3F".repeat(85)}`;
+  const reservedOverLimit = `/${"%3F".repeat(86)}`;
+
+  assertEquals(UTF8_ENCODER.encode(decodeURI(reservedAtLimit).slice(1)).byteLength, 255);
+  assertEquals(UTF8_ENCODER.encode(decodeURI(reservedOverLimit).slice(1)).byteLength, 258);
+  assertEquals(UTF8_ENCODER.encode(decodeURI(EXACT_MAX_BYTE_PATH)).byteLength, 2_048);
+  assertEquals(UTF8_ENCODER.encode(decodeURI(OVER_MAX_BYTE_PATH)).byteLength, 2_049);
+  assertEquals([...decodeURIComponent(EXACT_MAX_BYTE_PATH)].length < 2_048, true);
+  assertEquals([...decodeURIComponent(OVER_MAX_BYTE_PATH)].length < 2_048, true);
+});
+
 const STATIC_CANDIDATE_PATHS = [
   ["safe nested path", "/nested/assets/app.js"],
   ["decoded space", "/operator%20assets/logo.png"],
@@ -109,6 +135,8 @@ const STATIC_CANDIDATE_PATHS = [
   ["63 non-BMP code points at 252 UTF-8 bytes", `/${"😀".repeat(63)}`],
   ["85 combining sequences at 255 UTF-8 bytes", `/${"e\u0301".repeat(85)}`],
   ["2,048-code-point decoded path", EXACT_MAX_PATH],
+  ["85 retained reserved escapes at 255 filesystem bytes", `/${"%3F".repeat(85)}`],
+  ["2,048-byte multisegment Unicode path", EXACT_MAX_BYTE_PATH],
 ] as const;
 
 for (const [name, pathname] of STATIC_CANDIDATE_PATHS) {
@@ -133,14 +161,14 @@ const NON_CANDIDATE_PATHS = [
   ["a C1 control", "/bad%C2%80path"],
   ["a decoded backslash", "/bad\\path"],
   ["an empty interior segment", "/nested//asset.js"],
-  ["a dot segment", "/nested/./asset.js"],
-  ["a traversal segment", "/nested/../asset.js"],
   ["a trailing empty segment", "/nested/asset.js/"],
   ["a 256-code-point segment", `/${"a".repeat(256)}`],
   ["64 non-BMP code points at 256 UTF-8 bytes", `/${"😀".repeat(64)}`],
   ["256 non-BMP code points", `/${"😀".repeat(256)}`],
   ["256 combining-sequence code points", `/${"e\u0301".repeat(128)}`],
   ["a 2,049-code-point decoded path", OVER_MAX_PATH],
+  ["86 retained reserved escapes at 258 filesystem bytes", `/${"%3F".repeat(86)}`],
+  ["a 2,049-byte multisegment Unicode path", OVER_MAX_BYTE_PATH],
 ] as const;
 
 for (const [name, pathname] of NON_CANDIDATE_PATHS) {

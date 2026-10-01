@@ -93,6 +93,14 @@ const BLOB_DATA = new Uint8Array([
   19,
 ]);
 const BLOB_SIZE = BLOB_DATA.byteLength; // 20
+const EXACT_MAX_BYTE_PATH = `/${Array.from({ length: 8 }, () => "界".repeat(85)).join("/")}`;
+const OVER_MAX_BYTE_PATH = `/${
+  [
+    ...Array.from({ length: 7 }, () => "界".repeat(85)),
+    "界".repeat(42),
+    "界".repeat(43),
+  ].join("/")
+}`;
 
 let app: Hono<{ Variables: BlossomVariables }>;
 let db: Client;
@@ -202,7 +210,9 @@ Deno.test({
       "/operator%20assets/logo.png",
       "/caf%C3%A9/%F0%9F%8C%B8.png",
       `/${"😀".repeat(63)}`,
+      `/${"%3F".repeat(85)}`,
       exactMaxPath,
+      EXACT_MAX_BYTE_PATH,
     ];
     for (const pathname of safePaths) {
       const before = staticInvocations;
@@ -220,7 +230,10 @@ Deno.test({
       "/bad%00path",
       "/nested//asset.js",
       `/${"a".repeat(256)}`,
+      `/${"😀".repeat(64)}`,
+      `/${"%3F".repeat(86)}`,
       overMaxPath,
+      OVER_MAX_BYTE_PATH,
     ];
     for (const pathname of unsafePaths) {
       const before = staticInvocations;
@@ -234,13 +247,10 @@ Deno.test({
 });
 
 Deno.test({
-  name: "real static adapter bypasses a 256-byte multibyte segment without filesystem warnings",
+  name: "real static adapter observes exact byte controls and bypasses overflows without warnings",
   async fn() {
     const notFoundPaths: string[] = [];
     const warnings: unknown[][] = [];
-    let safeStatus = 0;
-    let overflowStatus = 0;
-
     const staticMiddleware = serveStatic({
       root: PUBLIC_DIR,
       onNotFound: (path) => {
@@ -251,21 +261,56 @@ Deno.test({
     const originalWarn = console.warn;
     console.warn = (...args: unknown[]) => warnings.push(args);
     try {
-      const safe = await observedApp.fetch(new Request(`http://localhost/${"😀".repeat(63)}`));
-      safeStatus = safe.status;
-      await safe.body?.cancel();
+      const safePaths = [
+        `/${"😀".repeat(63)}`,
+        `/${"%3F".repeat(85)}`,
+        EXACT_MAX_BYTE_PATH,
+      ];
+      for (const pathname of safePaths) {
+        const before = notFoundPaths.length;
+        const response = await observedApp.fetch(new Request(`http://localhost${pathname}`));
+        assertEquals(response.status, 404, pathname);
+        assertEquals(notFoundPaths.length, before + 1, `${pathname} should reach the real static adapter`);
+        await response.body?.cancel();
+      }
 
-      const overflow = await observedApp.fetch(new Request(`http://localhost/${"😀".repeat(64)}`));
-      overflowStatus = overflow.status;
-      await overflow.body?.cancel();
+      const overflowPaths = [
+        `/${"😀".repeat(64)}`,
+        `/${"%3F".repeat(86)}`,
+        OVER_MAX_BYTE_PATH,
+      ];
+      for (const pathname of overflowPaths) {
+        const before = notFoundPaths.length;
+        const response = await observedApp.fetch(new Request(`http://localhost${pathname}`));
+        assertEquals(response.status, 404, pathname);
+        assertEquals(notFoundPaths.length, before, `${pathname} must bypass the real static adapter`);
+        await response.body?.cancel();
+      }
     } finally {
       console.warn = originalWarn;
     }
 
-    assertEquals(safeStatus, 404);
-    assertEquals(overflowStatus, 404);
-    assertEquals(notFoundPaths.length, 1, "only the 252-byte control should reach the real static adapter");
+    assertEquals(notFoundPaths.length, 3, "all exact-boundary controls should reach the real static adapter");
     assertEquals(warnings, [], "rejected overflow must not provoke a filesystem warning");
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "production Request canonicalization serves the tracked public favicon from inside PUBLIC_DIR",
+  async fn() {
+    const normalizedRequest = new Request("http://localhost/nested/%2e%2e/favicon.ico");
+    const canonicalRequest = new Request("http://localhost/favicon.ico");
+    assertEquals(new URL(normalizedRequest.url).pathname, "/favicon.ico");
+
+    const normalizedResponse = await app.fetch(normalizedRequest);
+    const canonicalResponse = await app.fetch(canonicalRequest);
+    const trackedFavicon = await Deno.readFile(join(PUBLIC_DIR, "favicon.ico"));
+
+    assertEquals(normalizedResponse.status, 200);
+    assertEquals(canonicalResponse.status, 200);
+    assertEquals(new Uint8Array(await normalizedResponse.arrayBuffer()), trackedFavicon);
+    assertEquals(new Uint8Array(await canonicalResponse.arrayBuffer()), trackedFavicon);
   },
   ...testOpts,
 });
