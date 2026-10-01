@@ -106,7 +106,7 @@ const STATIC_CANDIDATE_PATHS = [
   ["ordinary BMP Unicode", "/caf%C3%A9/menu.css"],
   ["ordinary non-BMP Unicode", "/emoji/%F0%9F%8C%B8.png"],
   ["255-code-point segment", `/${"a".repeat(255)}`],
-  ["255 non-BMP code points", `/${"😀".repeat(255)}`],
+  ["63 non-BMP code points at 252 UTF-8 bytes", `/${"😀".repeat(63)}`],
   ["255 combining-sequence code points", `/${`${"e\u0301".repeat(127)}x`}`],
   ["2,048-code-point decoded path", EXACT_MAX_PATH],
 ] as const;
@@ -137,6 +137,7 @@ const NON_CANDIDATE_PATHS = [
   ["a traversal segment", "/nested/../asset.js"],
   ["a trailing empty segment", "/nested/asset.js/"],
   ["a 256-code-point segment", `/${"a".repeat(256)}`],
+  ["64 non-BMP code points at 256 UTF-8 bytes", `/${"😀".repeat(64)}`],
   ["256 non-BMP code points", `/${"😀".repeat(256)}`],
   ["256 combining-sequence code points", `/${"e\u0301".repeat(128)}`],
   ["a 2,049-code-point decoded path", OVER_MAX_PATH],

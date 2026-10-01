@@ -15,6 +15,7 @@ import { encodeHex } from "@std/encoding/hex";
 import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
 import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
+import { serveStatic } from "@hono/hono/deno";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
@@ -26,6 +27,7 @@ import type { MiddlewareHandler } from "@hono/hono";
 import type { Client } from "@libsql/client";
 import type { BlossomVariables } from "../../src/middleware/auth.ts";
 import type { Config } from "../../src/config/schema.ts";
+import { PUBLIC_DIR } from "../../src/routes/landing.tsx";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -199,7 +201,7 @@ Deno.test({
       "/nested/assets/app.js",
       "/operator%20assets/logo.png",
       "/caf%C3%A9/%F0%9F%8C%B8.png",
-      `/${"😀".repeat(255)}`,
+      `/${"😀".repeat(63)}`,
       exactMaxPath,
     ];
     for (const pathname of safePaths) {
@@ -227,6 +229,44 @@ Deno.test({
       assertEquals(staticInvocations, before, `${pathname} must bypass static middleware`);
       await response.body?.cancel();
     }
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "real static adapter bypasses a 256-byte multibyte segment without filesystem warnings",
+  async fn() {
+    const notFoundPaths: string[] = [];
+    const warnings: unknown[][] = [];
+    const originalWarn = console.warn;
+    let safeStatus = 0;
+    let overflowStatus = 0;
+
+    console.warn = (...args: unknown[]) => warnings.push(args);
+    try {
+      const staticMiddleware = serveStatic({
+        root: PUBLIC_DIR,
+        onNotFound: (path) => {
+          notFoundPaths.push(path);
+        },
+      });
+      const observedApp = await buildApp(db, storage, config, { staticMiddleware });
+
+      const safe = await observedApp.fetch(new Request(`http://localhost/${"😀".repeat(63)}`));
+      safeStatus = safe.status;
+      await safe.body?.cancel();
+
+      const overflow = await observedApp.fetch(new Request(`http://localhost/${"😀".repeat(64)}`));
+      overflowStatus = overflow.status;
+      await overflow.body?.cancel();
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assertEquals(safeStatus, 404);
+    assertEquals(overflowStatus, 404);
+    assertEquals(notFoundPaths.length, 1, "only the 252-byte control should reach the real static adapter");
+    assertEquals(warnings, [], "rejected overflow must not provoke a filesystem warning");
   },
   ...testOpts,
 });
