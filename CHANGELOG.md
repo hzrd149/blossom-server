@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Patch Changes
+
+- Reject multipart and URL-encoded envelopes before authentication or upload processing so only raw blob bytes reach `/upload` and `/media`; contributed by
+  [@mptfire](https://github.com/mptfire) in [#53](https://github.com/hzrd149/blossom-server/pull/53).
+
 ## 6.4.0
 
 ### Minor Changes

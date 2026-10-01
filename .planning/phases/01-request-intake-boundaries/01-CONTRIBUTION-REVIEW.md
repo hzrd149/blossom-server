@@ -40,9 +40,8 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
 - **Required deviations:** Move the check ahead of top-level authentication; cover all four exact surfaces; compare the base MIME type case-insensitively while
   ignoring valid parameters; reject every `multipart/*` type and `application/x-www-form-urlencoded`; cancel rejected `PUT` bodies without pulling or buffering
   them; keep `X-Reason` ASCII-only; and prove valid raw bodies continue into the existing auth and storage path.
-- **Regression evidence:** Pending downstream execution. Plan 01-02 must run
-  `deno test -A tests/unit/envelope.test.ts tests/e2e/upload.test.ts tests/e2e/media.test.ts`, followed by the plan's format, lint, and full-suite gates. No
-  local pass is claimed by this intake record.
+- **Regression evidence:** Passed on 2026-10-01 with `deno test -A tests/unit/envelope.test.ts tests/e2e/upload.test.ts tests/e2e/media.test.ts`: 63 passed, 0
+  failed. Plan 01-02 also runs its format, lint, and full-suite gates before completion.
 - **Resulting phase:** Phase 1 — Request Intake Boundaries; requirements INTK-02 and INTK-07.
 - **Integration commit:** Pending Plan 01-02 execution. Backfill the final 40-character SHA after the single non-merge `Contribution-PR: #53` commit exists on
   `v6.4.1`.

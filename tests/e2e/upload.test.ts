@@ -339,6 +339,99 @@ Deno.test({
 });
 
 Deno.test({
+  name: "PUT /upload: multipart is cancelled before malformed auth parsing",
+  async fn() {
+    let cancelCount = 0;
+    let pullCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+      },
+      pull() {
+        pullCount++;
+        throw new Error("rejected multipart body must not be pulled");
+      },
+      cancel() {
+        cancelCount++;
+      },
+    });
+
+    const res = await fetchWithAuth("/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": "3",
+        "Content-Type": 'Multipart/Form-Data; boundary="blossom-boundary"',
+        Authorization: "Nostr not-valid-base64url%",
+      },
+      body,
+    });
+
+    assertEquals(res.status, 415);
+    assertEquals(cancelCount, 1);
+    assertEquals(pullCount, 0);
+    assertMatch(res.headers.get("X-Reason") ?? "", /^[\x20-\x7e]+$/);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: urlencoded body with parameters is cancelled without pulling",
+  async fn() {
+    let cancelCount = 0;
+    let pullCount = 0;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+      },
+      pull() {
+        pullCount++;
+        throw new Error("rejected urlencoded body must not be pulled");
+      },
+      cancel() {
+        cancelCount++;
+      },
+    });
+
+    const res = await fetchNoAuth("/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": "3",
+        "Content-Type": "Application/X-Www-Form-Urlencoded; charset=UTF-8",
+      },
+      body,
+    });
+
+    assertEquals(res.status, 415);
+    assertEquals(cancelCount, 1);
+    assertEquals(pullCount, 0);
+    assertMatch(res.headers.get("X-Reason") ?? "", /^[\x20-\x7e]+$/);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /upload: raw body still reaches malformed auth parsing",
+  async fn() {
+    const body = new Uint8Array([1, 2, 3]);
+    const res = await fetchWithAuth("/upload", {
+      method: "PUT",
+      headers: {
+        "Content-Length": String(body.byteLength),
+        "Content-Type": "application/octet-stream",
+        Authorization: "Nostr not-valid-base64url%",
+      },
+      body,
+    });
+
+    assertEquals(res.status, 400);
+    await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
   name: "PUT /upload: auth with wrong t tag returns 403",
   async fn() {
     const body = new Uint8Array([1, 2, 3]);
@@ -876,6 +969,47 @@ Deno.test({
       headers: { "X-Content-Length": "100" },
     });
     assertEquals(res.status, 401);
+  },
+  ...testOpts,
+});
+
+for (
+  const contentType of [
+    'Multipart/Form-Data; boundary="blossom-boundary"',
+    "Application/X-Www-Form-Urlencoded; charset=UTF-8",
+  ]
+) {
+  Deno.test({
+    name: `HEAD /upload: rejects envelope X-Content-Type ${contentType}`,
+    async fn() {
+      const res = await fetchWithAuth("/upload", {
+        method: "HEAD",
+        headers: {
+          "X-Content-Length": "3",
+          "X-Content-Type": contentType,
+          Authorization: "Nostr not-valid-base64url%",
+        },
+      });
+
+      assertEquals(res.status, 415);
+      assertMatch(res.headers.get("X-Reason") ?? "", /^[\x20-\x7e]+$/);
+    },
+    ...testOpts,
+  });
+}
+
+Deno.test({
+  name: "HEAD /upload: ignores Content-Type when X-Content-Type is absent",
+  async fn() {
+    const res = await fetchNoAuth("/upload", {
+      method: "HEAD",
+      headers: {
+        "X-Content-Length": "3",
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    assertEquals(res.status, 200);
   },
   ...testOpts,
 });

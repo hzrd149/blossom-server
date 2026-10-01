@@ -14,6 +14,7 @@ import { authMiddleware } from "./middleware/auth.ts";
 import type { BlossomVariables } from "./middleware/auth.ts";
 import { onError } from "./middleware/errors.ts";
 import { requestLogger } from "./middleware/logger.ts";
+import { envelopeAdmissionMiddleware } from "./middleware/envelope.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
 import { buildLandingRouter, PUBLIC_DIR, warnIfStylesheetMissing } from "./routes/landing.tsx";
@@ -35,6 +36,9 @@ export async function buildApp(
 
   // BUD-01: CORS headers on all responses + OPTIONS preflight
   app.use("*", corsMiddleware);
+
+  // BUD-02/05: reject encoded upload envelopes before auth or body processing
+  app.use("*", envelopeAdmissionMiddleware());
 
   // BUD-11: parse auth header — populate ctx.var.auth (never blocks)
   app.use("*", authMiddleware(config.publicDomain));
