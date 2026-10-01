@@ -75,11 +75,12 @@ then runs the full quality and packaging gates before cutting v6.4.1.
    days away.
 3. Focused PR #62 regression tests pass without changing authentication behavior for valid existing Blossom clients.
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans executed
 
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Adapt PR #62 with strict safe-integer expiration parsing, exact blob scope, cleanup/compatibility regressions, and contribution traceability.
+- [x] 02-01-PLAN.md — Adapt PR #62 with strict safe-integer expiration parsing, exact blob scope, cleanup/compatibility regressions, and contribution
+      traceability.
 
 ### Phase 3: Content and Logging Boundaries
 
@@ -147,10 +148,10 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 **Execution Order:** Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
-| Phase                                | Plans Complete | Status      | Completed |
-| ------------------------------------ | -------------- | ----------- | --------- |
-| 1. Request Intake Boundaries         | 4/4 | Complete    | 2026-10-01 |
-| 2. Authorization Compatibility       | 0/1            | Not started | -         |
-| 3. Content and Logging Boundaries    | 0/TBD          | Not started | -         |
-| 4. Integrated Candidate Verification | 0/TBD          | Not started | -         |
-| 5. v6.4.1 Release                    | 0/TBD          | Not started | -         |
+| Phase                                | Plans Complete | Status      | Completed  |
+| ------------------------------------ | -------------- | ----------- | ---------- |
+| 1. Request Intake Boundaries         | 4/4            | Complete    | 2026-10-01 |
+| 2. Authorization Compatibility       | 1/1            | In Progress |            |
+| 3. Content and Logging Boundaries    | 0/TBD          | Not started | -          |
+| 4. Integrated Candidate Verification | 0/TBD          | Not started | -          |
+| 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |

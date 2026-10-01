@@ -13,7 +13,7 @@ Requirements for the v6.4.1 hardening release. Each requirement maps to exactly 
 - [x] **INTK-02**: Maintainer can integrate PR #53 so multipart and URL-encoded upload envelopes are rejected without buffering rejected bodies.
 - [x] **INTK-03**: Maintainer can integrate PR #54 so malformed blob paths are rejected and do not trigger unnecessary static-file filesystem operations,
       without rejecting reasonable valid extensions.
-- [ ] **INTK-04**: Maintainer can integrate the safe parts of PR #62 so required `x` tags and expiration integers are validated without enforcing an
+- [x] **INTK-04**: Maintainer can integrate the safe parts of PR #62 so required `x` tags and expiration integers are validated without enforcing an
       undocumented 30-day lifetime.
 - [ ] **INTK-05**: Maintainer can integrate PR #63 so active HTML, SVG, XML, and XSLT content cannot execute in the server's application origin.
 - [ ] **INTK-06**: Maintainer can integrate PR #64 so request logs omit query strings while retaining useful method, path, status, timing, and error
@@ -64,7 +64,7 @@ Roadmap phase assignments are populated during roadmap creation.
 | INTK-01     | Phase 1 | Complete |
 | INTK-02     | Phase 1 | Complete |
 | INTK-03     | Phase 1 | Complete |
-| INTK-04     | Phase 2 | Pending  |
+| INTK-04     | Phase 2 | Complete |
 | INTK-05     | Phase 3 | Pending  |
 | INTK-06     | Phase 3 | Pending  |
 | INTK-07     | Phase 1 | Complete |

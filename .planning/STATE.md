@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v6.4.1
-current_phase: 2
+current_phase: 02
 current_phase_name: Authorization Compatibility
-current_plan: Not started
-status: ready_to_plan
-stopped_at: Phase 01 complete, ready to plan Phase 2
-last_updated: "2026-10-01T16:21:27.733Z"
-state_head: 1c26291709baa2192132e6da320e6ad8b390925f
+current_plan: 1
+status: ready_for_verification
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-10-01T17:41:03.191Z"
+state_head: 7efc2eed35a9fc3052a1ec197eeeac7bdb391ba5
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
-  percent: 20
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 5
+  percent: 0
 ---
 
 # Project State
@@ -23,17 +23,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-01)
 
 **Core value:** Operators can run a secure, protocol-compatible Blossom server whose stored bytes and authorization boundaries remain trustworthy across
-supported storage backends. **Current focus:** Phase 2 — Authorization Compatibility
+supported storage backends. **Current focus:** Phase 02 — Authorization Compatibility
 
 ## Current Position
 
-Phase: 2 — Authorization Compatibility
+Phase: 02 (Authorization Compatibility) — READY FOR VERIFICATION
 
-Current Plan: Not started
+Current Plan: 1
 
-Total Plans in Phase: Not planned
+Total Plans in Phase: 1
 
-Progress: [██░░░░░░░░] 20%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -47,7 +47,7 @@ Progress: [██░░░░░░░░] 20%
 
 | Phase | Plans | Total | Avg/Plan |
 | ----- | ----- | ----- | -------- |
-| 01 | 4 | - | - |
+| 01    | 4     | -     | -        |
 
 **Recent Trend:**
 
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 20%
 | Plan         | Duration | Tasks   | Files   |
 | ------------ | -------- | ------- | ------- |
 | Phase 01 P04 | 12m      | 2 tasks | 6 files |
+| Phase 02 P01 | 36m      | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
   bytes overall.
 - [Phase 01]: D-12 is enforced at the observable Request layer: runtime-canonicalized paths are validated after normalization and static serving remains
   confined to PUBLIC_DIR.
+- [Phase 02]: BUD-11 expiration accepts every future complete base-10 decimal safe integer; no fixed maximum lifetime is imposed.
+- [Phase 02]: Known blob operations require an exact matching x tag; missing and mismatched required scope both return 403.
+- [Phase 02]: PR #62 is adapted as one attributable non-merge contribution commit rather than cherry-picked.
 
 ### Pending Todos
 
@@ -82,7 +86,6 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 2]: PR #62 couples a valid authorization fix to an incompatible lifetime cap that must be separated.
 - [Phase 4]: Build and Nix verification must avoid stale generated or fixed-output artifacts.
 - [Phase 5]: Tagging or Deno publishing before the release PR merges to `master` is prohibited.
 
@@ -97,6 +100,6 @@ None yet.
 
 **Resume file:** None
 
-**Stopped at:** Phase 01 complete, ready to plan Phase 2
+**Stopped at:** Completed 02-01-PLAN.md
 
-Last session: 2026-10-01T16:21:27.733Z
+Last session: 2026-10-01T17:41:03.158Z
