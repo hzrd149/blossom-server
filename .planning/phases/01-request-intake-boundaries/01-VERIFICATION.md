@@ -36,7 +36,7 @@ covered_files:
   - tests/unit/envelope.test.ts
   - tests/unit/url.test.ts
 
-covered_digest: "v1:sha256:e33ab80f18ea1f5a1601ad6b848597db0e22c1268b6bdb242c96576e0ab2b5d0"
+covered_digest: "v1:sha256:58436d7f80be37b484c738a3cccc07652f675c31cacbb4d8fe680d85fa079337"
 behavior_unverified: 1
 overrides_applied: 0
 re_verification:
