@@ -35,7 +35,8 @@
     }
   },
   "fmt": {
-    "lineWidth": 160
+    "lineWidth": 160,
+    "exclude": [".planning"]
   },
   "imports": {
     "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
