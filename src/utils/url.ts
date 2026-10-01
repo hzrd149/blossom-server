@@ -3,6 +3,13 @@ import { mimeToExt } from "./mime.ts";
 const ENCODED_SEPARATOR_RE = /%(?:25)*(?:2f|5c)/i;
 const MAX_STATIC_PATH_CODE_POINTS = 2_048;
 const MAX_STATIC_SEGMENT_CODE_POINTS = 255;
+const MAX_STATIC_PATH_BYTES = 2_048;
+const MAX_STATIC_SEGMENT_BYTES = 255;
+const UTF8_ENCODER = new TextEncoder();
+
+function utf8ByteLength(text: string): number {
+  return UTF8_ENCODER.encode(text).byteLength;
+}
 
 function hasUnsafeDecodedCharacter(text: string): boolean {
   return [...text].some((character) => {
@@ -16,19 +23,25 @@ export function isStaticCandidate(encodedPathname: string): boolean {
   if (ENCODED_SEPARATOR_RE.test(encodedPathname)) return false;
 
   let decodedPathname: string;
+  let filesystemPathname: string;
   try {
     decodedPathname = decodeURIComponent(encodedPathname);
+    filesystemPathname = decodeURI(encodedPathname);
   } catch {
     return false;
   }
 
   if (!decodedPathname.startsWith("/")) return false;
   if ([...decodedPathname].length > MAX_STATIC_PATH_CODE_POINTS) return false;
+  if (utf8ByteLength(filesystemPathname) > MAX_STATIC_PATH_BYTES) return false;
   if (hasUnsafeDecodedCharacter(decodedPathname)) return false;
 
-  const segments = decodedPathname.slice(1).split("/");
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
-  return segments.every((segment) => [...segment].length <= MAX_STATIC_SEGMENT_CODE_POINTS);
+  const decodedSegments = decodedPathname.slice(1).split("/");
+  if (decodedSegments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
+  if (decodedSegments.some((segment) => [...segment].length > MAX_STATIC_SEGMENT_CODE_POINTS)) return false;
+
+  const filesystemSegments = filesystemPathname.slice(1).split("/");
+  return filesystemSegments.every((segment) => utf8ByteLength(segment) <= MAX_STATIC_SEGMENT_BYTES);
 }
 
 /**

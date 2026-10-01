@@ -107,7 +107,7 @@ const STATIC_CANDIDATE_PATHS = [
   ["ordinary non-BMP Unicode", "/emoji/%F0%9F%8C%B8.png"],
   ["255-code-point segment", `/${"a".repeat(255)}`],
   ["63 non-BMP code points at 252 UTF-8 bytes", `/${"😀".repeat(63)}`],
-  ["255 combining-sequence code points", `/${`${"e\u0301".repeat(127)}x`}`],
+  ["85 combining sequences at 255 UTF-8 bytes", `/${"e\u0301".repeat(85)}`],
   ["2,048-code-point decoded path", EXACT_MAX_PATH],
 ] as const;
 

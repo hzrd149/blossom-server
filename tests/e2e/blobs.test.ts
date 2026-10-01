@@ -238,20 +238,19 @@ Deno.test({
   async fn() {
     const notFoundPaths: string[] = [];
     const warnings: unknown[][] = [];
-    const originalWarn = console.warn;
     let safeStatus = 0;
     let overflowStatus = 0;
 
+    const staticMiddleware = serveStatic({
+      root: PUBLIC_DIR,
+      onNotFound: (path) => {
+        notFoundPaths.push(path);
+      },
+    });
+    const observedApp = await buildApp(db, storage, config, { staticMiddleware });
+    const originalWarn = console.warn;
     console.warn = (...args: unknown[]) => warnings.push(args);
     try {
-      const staticMiddleware = serveStatic({
-        root: PUBLIC_DIR,
-        onNotFound: (path) => {
-          notFoundPaths.push(path);
-        },
-      });
-      const observedApp = await buildApp(db, storage, config, { staticMiddleware });
-
       const safe = await observedApp.fetch(new Request(`http://localhost/${"😀".repeat(63)}`));
       safeStatus = safe.status;
       await safe.body?.cancel();
