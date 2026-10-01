@@ -67,10 +67,12 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
   `[...text].length`. This is the required metric, not a runtime option or an unresolved choice.
 - **Regression evidence:** Passed on 2026-10-01 with `deno test -A tests/unit/blob-path.test.ts tests/unit/url.test.ts tests/e2e/blobs.test.ts`: 82 passed, 0
   failed. The boundary matrix locks both D-11 limits to Unicode code points via `[...text].length` and proves safe-path invocation plus unsafe-path bypass
-  through the injected static middleware. Plan 01-03 also runs its format, lint, integrated Phase 1, and full-suite gates before completion.
+  through the injected static middleware. The integrated Phase 1 command from `01-VALIDATION.md`, targeted formatting for every Plan 01-03 file, repository
+  lint, and the complete server/client test task also passed on 2026-10-01. Repository-wide formatting remains blocked only by pre-existing shared and untracked
+  planning artifacts outside Plan 01-03 ownership, as recorded in `deferred-items.md`.
 - **Resulting phase:** Phase 1 — Request Intake Boundaries; requirements INTK-03 and INTK-07.
-- **Integration commit:** Revised implementation is staged for one non-merge `Contribution-PR: #54` commit on `v6.4.1`; Plan 01-03 Task 3 backfills its final
-  40-character SHA without rewriting the integration commit.
+- **Integration commit:** Revised implementation landed on `v6.4.1` as non-merge commit `0f6b99ab36fbe600190f80de7c1ad56a708640b0` with the
+  `Contribution-PR: #54` trailer and the credited Unreleased changelog entry above.
 
 ## PR #62 — fix(auth): require x tag on blob auth events; validate expiration strictly
 
