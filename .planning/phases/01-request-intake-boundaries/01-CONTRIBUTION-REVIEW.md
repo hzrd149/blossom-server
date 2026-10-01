@@ -87,18 +87,18 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
   values such as `never` or partially parsed numbers from bypassing expiration. BUD-11 does not mandate a fixed 30-day lifetime.
 - **Patch-release fit:** Hash scoping and strict expiration parsing are patch-level authorization corrections. An invented lifetime cap could reject otherwise
   valid clients and is outside the milestone's compatibility boundary.
-- **Disposition:** **Adapted in Phase 2, Plan 02-01; not cherry-picked.** The local integration keeps the protocol-safe subset under INTK-04 while excluding
-  the upstream lifetime policy.
+- **Disposition:** **Adapted in Phase 2, Plan 02-01; not cherry-picked.** The local integration keeps the protocol-safe subset under INTK-04 while excluding the
+  upstream lifetime policy.
 - **Required deviations:** Require matching `x` tags and return `403` for both missing and mismatched required scope; accept expiration only as a complete
   decimal safe integer; retain expired-event rejection; explicitly exclude `MAX_AUTH_TTL_SECONDS` and every fixed 30-day authorization lifetime check; and
   preserve valid future expirations regardless of whether they are more than 30 days away.
 - **Regression evidence:** Passed on 2026-10-01 with
-  `deno test -A tests/unit/auth.test.ts tests/e2e/upload.test.ts tests/e2e/delete.test.ts tests/e2e/list.test.ts`: 88 passed, 0 failed. The focused matrix covers
-  malformed/unsafe and expired values, safe expirations beyond 30 days, standard and URL-safe Base64, missing/mismatched/matching scope across protected
+  `deno test -A tests/unit/auth.test.ts tests/e2e/upload.test.ts tests/e2e/delete.test.ts tests/e2e/list.test.ts`: 88 passed, 0 failed. The focused matrix
+  covers malformed/unsafe and expired values, safe expirations beyond 30 days, standard and URL-safe Base64, missing/mismatched/matching scope across protected
   PUT/HEAD upload and DELETE, early body cancellation, deferred staged-write cleanup, non-deletion, and scoped upload fixtures.
 - **Resulting phase:** Phase 2 — Authorization Compatibility; requirement INTK-04.
-- **Integration commit:** The adapted code, tests, credited Unreleased changelog entry, and this review evidence are prepared for one non-merge `v6.4.1`
-  commit carrying `Contribution-PR: #62`; only its final 40-character SHA remains pending for the Phase 2 documentation backfill.
+- **Integration commit:** `3f68b6aebc87738a79d63181c06ce90b743ee229` is the non-merge `v6.4.1` commit carrying the `Contribution-PR: #62` trailer, adapted code
+  and tests, credited Unreleased changelog entry, and review evidence.
 
 ## PR #63 — fix(blobs): serve active content (HTML/SVG/XML) as attachments with nosniff
 
