@@ -59,7 +59,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 ### Phase 2: Authorization Compatibility
 
-**Goal:** Protected blob operations accept only correctly scoped BUD-11 authorization without an invented lifetime cap.
+**Goal:** As a Blossom server operator, I want to accept only correctly scoped BUD-11 authorization while honoring safe future expirations, so that protected blob operations stay secure without rejecting compatible clients.
 
 **Mode:** mvp
 
