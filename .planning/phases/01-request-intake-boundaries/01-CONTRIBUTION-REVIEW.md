@@ -113,18 +113,17 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
 - **Disposition:** **Adapted in Phase 3, Plan 03-01; not cherry-picked.** The local integration retains the upstream attachment and `nosniff` hardening while
   expanding the classifier and response matrix required by INTK-05.
 - **Required deviations:** Rebase the response hardening on the Phase 1 blob parser; classify normalized `text/html`, `text/xml`, `application/xml`, and every
-  syntactically present subtype ending exactly in `+xml` rather than a finite allowlist; derive attachment names from the full normalized 64-hex hash plus
-  only a revalidated 1-10 character ASCII alphanumeric stored-MIME extension, falling back to the bare hash; explicitly propagate applicable security
-  metadata to conditional `304` responses without `Content-Length`; retain ordinary media inline; and preserve GET, HEAD, range, conditional, and streaming
-  behavior independently of cosmetic request suffixes.
-- **Regression evidence:** Passed on 2026-10-03 with
-  `deno test -P --env-file=.env tests/unit/mime.test.ts tests/e2e/active-content.test.ts`: 19 passed, 0 failed. The focused matrix covers exact and arbitrary
-  XML-derived MIME types, case and parameter normalization, malformed lookalikes, full-hash and bare-hash attachment names, opposing cosmetic suffixes, and
-  active/ordinary GET `200`, HEAD `200`, range `206`, and conditional `304` responses. Also passed
+  syntactically present subtype ending exactly in `+xml` rather than a finite allowlist; derive attachment names from the full normalized 64-hex hash plus only
+  a revalidated 1-10 character ASCII alphanumeric stored-MIME extension, falling back to the bare hash; explicitly propagate applicable security metadata to
+  conditional `304` responses without `Content-Length`; retain ordinary media inline; and preserve GET, HEAD, range, conditional, and streaming behavior
+  independently of cosmetic request suffixes.
+- **Regression evidence:** Passed on 2026-10-03 with `deno test -P --env-file=.env tests/unit/mime.test.ts tests/e2e/active-content.test.ts`: 19 passed, 0
+  failed. The focused matrix covers exact and arbitrary XML-derived MIME types, case and parameter normalization, malformed lookalikes, full-hash and bare-hash
+  attachment names, opposing cosmetic suffixes, and active/ordinary GET `200`, HEAD `200`, range `206`, and conditional `304` responses. Also passed
   `deno test -P --env-file=.env tests/e2e/blobs.test.ts tests/unit/range.test.ts`: 60 passed, 0 failed, retaining ordinary retrieval and range behavior.
 - **Resulting phase:** Phase 3 — Content and Logging Boundaries; requirement INTK-05.
-- **Integration commit:** Pending final SHA backfill in Plan 03-02. The single non-merge `v6.4.1` integration commit carries the `Contribution-PR: #63`
-  trailer, adapted source and tests, credited Unreleased changelog entry, and this review evidence.
+- **Integration commit:** `a114fcebcefd0794799993c79a44ba0ade1fcdd7` is the single non-merge `v6.4.1` commit carrying the `Contribution-PR: #63` trailer,
+  adapted source and tests, credited Unreleased changelog entry, and this review evidence.
 
 ## PR #64 — fix(logger): strip query strings from request logs
 
@@ -143,8 +142,8 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
   exactly two paired lines share the serialized encoded pathname, omit unique query names and values, and retain the request method plus response status,
   elapsed-time shape, and `X-Reason` text.
 - **Resulting phase:** Phase 3 — Content and Logging Boundaries; requirement INTK-06.
-- **Integration commit:** Pending final SHA backfill in Plan 03-02. The single non-merge `v6.4.1` integration commit carries the `Contribution-PR: #64`
-  trailer, adapted source and focused test, credited Unreleased changelog entry, and this review evidence.
+- **Integration commit:** `2615f6f8ed98dfc65531dadff7180502dde32232` is the single non-merge `v6.4.1` commit carrying the `Contribution-PR: #64` trailer,
+  adapted source and focused test, credited Unreleased changelog entry, and this review evidence.
 
 ## Flagged assumptions
 
