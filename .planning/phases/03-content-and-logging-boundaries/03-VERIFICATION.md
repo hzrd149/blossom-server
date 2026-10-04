@@ -1,11 +1,13 @@
 ---
 phase: 03-content-and-logging-boundaries
-verified: 2026-10-04T02:46:03.221Z
+verified: 2026-10-04T03:02:37.449Z
 status: passed
 score: 8/8 must-haves verified
 covered_files:
+  - .planning/PROJECT.md
   - .planning/REQUIREMENTS.md
   - .planning/ROADMAP.md
+  - .planning/STATE.md
   - .planning/phases/01-request-intake-boundaries/01-CONTRIBUTION-REVIEW.md
   - .planning/phases/03-content-and-logging-boundaries/03-01-PLAN.md
   - .planning/phases/03-content-and-logging-boundaries/03-01-SUMMARY.md
@@ -25,9 +27,15 @@ covered_files:
   - tests/unit/logger.test.ts
   - tests/unit/mime.test.ts
   - tests/unit/range.test.ts
-covered_digest: "v1:sha256:d84b6807dd02dd01acdb76d94479ad195ae0c888c56cb39a147635fe7dc0da38"
+covered_digest: "v1:sha256:099096bc4e708f33ed166f00f2fb7f2daa0a28b13d94f64e4151be68a54c824c"
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: passed
+  previous_score: 8/8
+  gaps_closed: []
+  gaps_remaining: []
+  regressions: []
 decision_coverage:
   honored: 0
   total: 0
@@ -38,9 +46,9 @@ human_verification: []
 # Phase 3: Content and Logging Boundaries Verification Report
 
 **Phase Goal:** As a Blossom server operator, I want to isolate active uploaded documents from the application origin and strip query data from request logs, so that hosted blobs and operational logs cannot expose users or secrets.
-**Verified:** 2026-10-04T02:46:03.221Z
+**Verified:** 2026-10-04T03:02:37.449Z
 **Status:** passed
-**Re-verification:** No — initial verification
+**Re-verification:** Yes — post-transition metadata and fingerprint refresh; no implementation/test regression
 
 ## User Flow Coverage
 
@@ -125,6 +133,8 @@ No rendered or emitted value terminates in a static fallback, mock-only source, 
 
 The missing local `.env` produced a warning only; these tests do not require external configuration and all commands exited 0.
 
+Re-verification regression check: no implementation, test, changelog, or contribution-review file has changed since the initial verification timestamp, both PLAN artifact/link queries remain fully green, and the focused Phase 3 matrix was rerun at 20/20 passing after the transition.
+
 ## Probe Execution
 
 No Phase 3 probe scripts are declared or present. Probe execution is not applicable.
@@ -168,6 +178,10 @@ These findings from `03-REVIEW.md` are preserved separately. They do not negate 
 | `multipart/x-mixed-replace` is not classified as active | Security hardening | Broader active-document coverage beyond the locked classifier contract. Recommended follow-up: add the exact type and real-route matrix coverage. |
 | `If-None-Match: W/"<hash>"` does not weak-match the strong ETag | HTTP compatibility | Valid RFC improvement not included in the locked Phase 3 strong-validator matrix. Recommended follow-up: normalize the optional weak marker and add an E2E assertion. |
 
+### Advisory (New Scope, Unevidenced)
+
+None. The transition changed planning lifecycle metadata only; this re-verification found no new implementation-scope concern or regression. The two previously recorded code-review advisories above remain unchanged and are explicitly carried into Phase 4 concerns.
+
 ## Decision Coverage
 
 The automated decision-coverage gate reported: **No trackable decisions in CONTEXT.md.** Manual inspection confirms the four locked decision groups—active MIME boundary, response headers, attachment filenames, and query-free logging—are represented in the plans and implementation.
@@ -182,5 +196,5 @@ None — this backend security-boundary phase has complete programmatic behavior
 
 ---
 
-_Verified: 2026-10-04T02:46:03.221Z_  
+_Verified: 2026-10-04T03:02:37.449Z_  
 _Verifier: the agent (gsd-verifier)_
