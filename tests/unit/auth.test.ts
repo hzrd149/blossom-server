@@ -149,23 +149,12 @@ Deno.test("parseAuthEvent: rejects float-style and suffixed expiration strings",
   }
 });
 
-Deno.test("parseAuthEvent: rejects far-future expiration beyond the TTL cap", () => {
-  const now = Math.floor(Date.now() / 1000);
-  const farFuture = now + 31 * 24 * 60 * 60; // 31 days > 30-day cap
-  const event = makeEvent({
-    tags: [["t", "upload"], ["expiration", String(farFuture)]],
-  });
-  assertThrows(
-    () => parseAuthEvent(encodeEvent(event), null),
-    HTTPException,
-    "too far",
-  );
-});
-
-Deno.test("parseAuthEvent: accepts expiration within the TTL cap", () => {
+Deno.test("parseAuthEvent: accepts long-lived but well-formed expiration", () => {
+  // No maximum-lifetime policy — BUD-11 defines none and valid clients may
+  // use long-lived tokens. Only grammar and expiry are enforced.
   const now = Math.floor(Date.now() / 1000);
   const event = makeEvent({
-    tags: [["t", "upload"], ["expiration", String(now + 600)]],
+    tags: [["t", "upload"], ["expiration", String(now + 90 * 24 * 60 * 60)]],
   });
   const parsed = parseAuthEvent(encodeEvent(event), null);
   assertEquals(parsed.kind, 24242);

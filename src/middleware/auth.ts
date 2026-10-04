@@ -5,11 +5,6 @@ import { verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { debug } from "./debug.ts";
 
-/** Maximum auth-token lifetime this server accepts (30 days). Blossom clients
- * use short-lived tokens; a far-future expiration on a leaked token widens
- * replay scope unnecessarily. */
-export const MAX_AUTH_TTL_SECONDS = 30 * 24 * 60 * 60;
-
 export interface AuthState {
   auth?: NostrEvent;
   authType?: string; // value of the "t" tag
@@ -121,11 +116,9 @@ export function parseAuthEvent(
   if (expiresAt < now) {
     throw new HTTPException(401, { message: "Auth token expired" });
   }
-  if (expiresAt > now + MAX_AUTH_TTL_SECONDS) {
-    throw new HTTPException(400, {
-      message: `Auth event expiration too far in the future (max ${MAX_AUTH_TTL_SECONDS}s)`,
-    });
-  }
+  // No maximum-lifetime policy: BUD-11 does not define one and valid clients
+  // may use long-lived tokens; the grammar check above already prevents the
+  // malformed-never-expires case.
 
   const tTag = auth.tags.find((t) => t[0] === "t")?.[1];
   if (!tTag) {

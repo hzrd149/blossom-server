@@ -30,7 +30,6 @@ import { initPool } from "../../src/workers/pool.ts";
 const sk = generateSecretKey();
 const pk = getPublicKey(sk);
 
-
 /** Compute SHA-256 of bytes and return lowercase hex. */
 async function sha256Hex(data: Uint8Array): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
