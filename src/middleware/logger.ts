@@ -11,8 +11,7 @@ import type { MiddlewareHandler } from "@hono/hono";
  */
 export const requestLogger: MiddlewareHandler = async (ctx, next) => {
   const { method } = ctx.req;
-  const url = ctx.req.url;
-  const path = url.slice(url.indexOf("/", 8));
+  const path = new URL(ctx.req.url).pathname;
 
   console.log(`--> ${method} ${path}`);
 

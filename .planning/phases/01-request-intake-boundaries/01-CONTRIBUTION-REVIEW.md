@@ -134,14 +134,17 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
 - **Protocol or security basis:** Query parameters add unnecessary data exposure and operational noise in journald or syslog; omitting them reduces the logged
   privacy surface without changing request handling.
 - **Patch-release fit:** Narrow privacy hardening with no API or protocol behavior change.
-- **Disposition:** **Accepted for integration in Phase 3; implementation remains out of Phase 1.**
-- **Required deviations:** Strip only the query string. Preserve method, pathname, status, timing, `X-Reason`, and error information; keep the log destination
-  access-controlled; and add focused regression coverage because the upstream patch changes behavior without adding a test file.
-- **Regression evidence:** Upstream describes the intended logger behavior but provides no new test file. Local evidence is pending Phase 3 and must prove query
-  values are absent while the required operational fields remain present.
+- **Disposition:** **Adapted in Phase 3, Plan 03-02; not cherry-picked.** The local integration retains the upstream query-privacy behavior while using the
+  platform URL parser boundary required by INTK-06.
+- **Required deviations:** Replace upstream manual query truncation with one `new URL(ctx.req.url).pathname` value reused by both access lines; preserve the
+  serialized percent-encoded pathname, method, status, timing, `X-Reason`, and downstream error context; keep the log destination access-controlled; and add a
+  focused real-middleware regression because the upstream patch provides no test file.
+- **Regression evidence:** Passed on 2026-10-03 with `deno test -P --env-file=.env tests/unit/logger.test.ts`: 1 passed, 0 failed. The focused regression proves
+  exactly two paired lines share the serialized encoded pathname, omit unique query names and values, and retain the request method plus response status,
+  elapsed-time shape, and `X-Reason` text.
 - **Resulting phase:** Phase 3 — Content and Logging Boundaries; requirement INTK-06.
-- **Integration commit:** Pending Phase 3. The eventual single non-merge commit must carry `Contribution-PR: #64` and its final 40-character SHA must be linked
-  in the continuation record.
+- **Integration commit:** Pending final SHA backfill in Plan 03-02. The single non-merge `v6.4.1` integration commit carries the `Contribution-PR: #64`
+  trailer, adapted source and focused test, credited Unreleased changelog entry, and this review evidence.
 
 ## Flagged assumptions
 

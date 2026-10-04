@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Omit query strings from paired access logs while preserving encoded paths, request methods, response status, timing, and error context; contributed by
+  [@mptfire](https://github.com/mptfire) in [#64](https://github.com/hzrd149/blossom-server/pull/64).
 - Serve stored HTML and XML-derived blobs as attachments and add `nosniff` to successful blob responses while keeping ordinary media inline; contributed by
   [@mptfire](https://github.com/mptfire) in [#63](https://github.com/hzrd149/blossom-server/pull/63).
 - Strictly validate BUD-11 expiration integers and require matching blob-hash scope for protected upload and delete operations; contributed by
