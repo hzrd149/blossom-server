@@ -16,7 +16,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 
 - [x] **Phase 1: Request Intake Boundaries** - Review the selected contributions and integrate PRs #53 and #54 safely. (completed 2026-10-01)
 - [x] **Phase 2: Authorization Compatibility** - Integrate the protocol-safe parts of PR #62 without a fixed lifetime cap. (completed 2026-10-01)
-- [ ] **Phase 3: Content and Logging Boundaries** - Integrate PRs #63 and #64 to protect the application origin and logs.
+- [x] **Phase 3: Content and Logging Boundaries** - Integrate PRs #63 and #64 to protect the application origin and logs. (completed 2026-10-03)
 - [ ] **Phase 4: Integrated Candidate Verification** - Prove the combined candidate across protocol, storage, and build gates.
 - [ ] **Phase 5: v6.4.1 Release** - Version, document, package, and close the traceable hardening release.
 
@@ -101,7 +101,7 @@ hosted blobs and operational logs cannot expose users or secrets.
 3. Request logs show method, path, status, timing, and error context without recording query strings or their values.
 4. Focused regression tests for PRs #63 and #64 pass alongside the existing retrieval and logging behavior.
 
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 **Wave 1**
 
@@ -164,6 +164,6 @@ hosted blobs and operational logs cannot expose users or secrets.
 | ------------------------------------ | -------------- | ----------- | ---------- |
 | 1. Request Intake Boundaries         | 4/4            | Complete    | 2026-10-01 |
 | 2. Authorization Compatibility       | 1/1            | Complete    | 2026-10-01 |
-| 3. Content and Logging Boundaries    | 2/2            | In Progress |            |
+| 3. Content and Logging Boundaries    | 2/2 | Complete    | 2026-10-03 |
 | 4. Integrated Candidate Verification | 0/TBD          | Not started | -          |
 | 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |
