@@ -99,7 +99,17 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 3. Request logs show method, path, status, timing, and error context without recording query strings or their values.
 4. Focused regression tests for PRs #63 and #64 pass alongside the existing retrieval and logging behavior.
 
-**Plans:** TBD
+**Plans:** 1/2 plans executed
+
+**Wave 1**
+
+- [x] 03-01-PLAN.md — Adapt PR #63 with exact active-MIME classification, complete successful-response hardening, ordinary-media
+      regressions, and contribution traceability.
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 03-02-PLAN.md — Adapt PR #64 with query-free paired logging, preserve operational context, backfill both contribution identities,
+      and run the complete Phase 3 gate.
 
 ### Phase 4: Integrated Candidate Verification
 
@@ -151,7 +161,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 | Phase                                | Plans Complete | Status      | Completed  |
 | ------------------------------------ | -------------- | ----------- | ---------- |
 | 1. Request Intake Boundaries         | 4/4            | Complete    | 2026-10-01 |
-| 2. Authorization Compatibility       | 1/1 | Complete    | 2026-10-01 |
-| 3. Content and Logging Boundaries    | 0/TBD          | Not started | -          |
+| 2. Authorization Compatibility       | 1/1            | Complete    | 2026-10-01 |
+| 3. Content and Logging Boundaries    | 1/2            | In Progress | -          |
 | 4. Integrated Candidate Verification | 0/TBD          | Not started | -          |
 | 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |
