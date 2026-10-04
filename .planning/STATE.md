@@ -20,7 +20,7 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-01)
+See: .planning/PROJECT.md (updated 2026-10-04)
 
 **Core value:** Operators can run a secure, protocol-compatible Blossom server whose stored bytes and authorization boundaries remain trustworthy across
 supported storage backends. **Current focus:** Phase 04 — Integrated Candidate Verification
@@ -96,6 +96,8 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 4]: Build and Nix verification must avoid stale generated or fixed-output artifacts.
+- [Phase 4]: Advisory review found `multipart/x-mixed-replace` may carry active HTML while remaining inline; resolve or explicitly disposition before release.
+- [Phase 4]: Advisory review found weak `If-None-Match` validators are not normalized for weak comparison semantics.
 - [Phase 5]: Tagging or Deno publishing before the release PR merges to `master` is prohibited.
 - [Phase 2]: Filtered E2E runs can omit shared setup/teardown because fixtures are ordinary tests.
 - [Phase 2]: A database failure after storage commit can leave an unreachable blob; remediation needs a cross-backend consistency design.
@@ -113,4 +115,4 @@ None yet.
 
 **Stopped at:** Phase 03 complete, ready to plan Phase 4
 
-Last session: 2026-10-04T02:28:56.407Z
+Last session: 2026-10-04T02:49:33.845Z

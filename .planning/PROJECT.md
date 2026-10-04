@@ -26,11 +26,11 @@ backends.
 - ✓ Multipart and URL-encoded upload envelopes are rejected before auth or body processing — Phase 1
 - ✓ Malformed blob and static paths fall through safely before storage or filesystem access — Phase 1
 - ✓ Protocol-mandated blob hash scoping and strict BUD-11 expiration validation are enforced without a fixed lifetime cap — Phase 2
+- ✓ Uploaded HTML and XML-family documents are isolated from the application origin while ordinary media remains usable — Phase 3
+- ✓ Request access logs omit complete query data while retaining encoded paths and operational context — Phase 3
 
 ### Active
 
-- [ ] Prevent uploaded active document types from executing in the application origin (PR #63)
-- [ ] Exclude request query strings from persisted request logs (PR #64)
 - [ ] Review and integrate each selected contribution with explicit compatibility analysis, changelog coverage, and regression tests
 - [ ] Build the milestone on the `v6.4.1` release-candidate branch and merge every selected contribution into that branch
 - [ ] Verify the integrated v6.4.1 candidate through the Deno quality gates and all build/package checks affected by the changes
@@ -86,6 +86,8 @@ backends.
 | Ship through a green release PR before tagging or publishing     | CI validates the candidate merged to `master`; published artifacts originate from the canonical state      | — Pending |
 | Preserve code-point caps and add filesystem-facing UTF-8 byte caps | The two measurements protect policy complexity and Hono/Deno filesystem path limits at distinct boundaries | ✓ Phase 1 |
 | Define dot-segment safety at the observable Request layer        | The runtime canonicalizes request paths before application middleware; normalized paths remain confined to `PUBLIC_DIR` | ✓ Phase 1 |
+| Derive active-content policy from stored MIME metadata           | Cosmetic request suffixes cannot override browser security policy or attachment naming                           | ✓ Phase 3 |
+| Log one serialized pathname for both access-log lines            | Preserves encoded operational paths while excluding complete query names and values                              | ✓ Phase 3 |
 
 ## Evolution
 
@@ -108,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-_Last updated: 2026-10-01 after Phase 2_
+_Last updated: 2026-10-04 after Phase 3_
