@@ -6,6 +6,17 @@ export function isEnvelopeMime(value: string | null | undefined): boolean {
   return baseMime.startsWith("multipart/") || baseMime === "application/x-www-form-urlencoded";
 }
 
+/** Return whether a stored MIME value represents browser-active document content. */
+export function isActiveContentMime(value: string | null | undefined): boolean {
+  const baseMime = value?.split(";", 1)[0].trim().toLowerCase() ?? "";
+  if (baseMime === "text/html" || baseMime === "text/xml" || baseMime === "application/xml") {
+    return true;
+  }
+
+  const slash = baseMime.indexOf("/");
+  return slash > 0 && baseMime.slice(slash + 1, -4).length > 0 && baseMime.endsWith("+xml");
+}
+
 /**
  * Derive the stored file extension from a MIME type.
  * Returns empty string for unknown types or application/octet-stream.

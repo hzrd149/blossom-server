@@ -18,7 +18,7 @@ import { optionalAuth } from "../middleware/auth.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
-import { mimeToExt } from "../utils/mime.ts";
+import { isActiveContentMime, mimeToExt } from "../utils/mime.ts";
 
 const BLOB_PATH_RE = /^([0-9a-f]{64})(?:\.[a-z0-9]{1,10})*$/i;
 
@@ -75,7 +75,14 @@ export function buildBlobsRouter(
       "Cache-Control": "public, max-age=31536000, immutable",
       ETag: `"${hash}"`,
       "Last-Modified": new Date(blob.uploaded * 1000).toUTCString(),
+      "X-Content-Type-Options": "nosniff",
     };
+
+    if (isActiveContentMime(blob.type)) {
+      const safeExt = /^[a-z0-9]{1,10}$/i.test(ext) ? ext.toLowerCase() : "";
+      const attachmentName = `${hash}${safeExt ? `.${safeExt}` : ""}`;
+      headers["Content-Disposition"] = `attachment; filename="${attachmentName}"`;
+    }
 
     // Conditional request: If-None-Match (RFC 9110 §13.1.2)
     // The SHA-256 hash is a perfect ETag — content-addressed, immutable, already computed.
@@ -84,11 +91,16 @@ export function buildBlobsRouter(
     if (ifNoneMatch) {
       const tags = ifNoneMatch.split(",").map((t) => t.trim().replace(/^"(.*)"$/, "$1"));
       if (tags.includes(hash) || tags.includes("*")) {
-        return ctx.body(null, 304, {
+        const notModifiedHeaders: Record<string, string> = {
           ETag: headers["ETag"],
           "Cache-Control": headers["Cache-Control"],
           "Last-Modified": headers["Last-Modified"],
-        });
+          "X-Content-Type-Options": headers["X-Content-Type-Options"],
+        };
+        const disposition = headers["Content-Disposition"];
+        if (disposition) notModifiedHeaders["Content-Disposition"] = disposition;
+
+        return ctx.body(null, 304, notModifiedHeaders);
       }
     }
 

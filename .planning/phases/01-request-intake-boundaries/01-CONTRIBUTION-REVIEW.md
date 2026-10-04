@@ -110,15 +110,21 @@ test "$(git branch --show-current)" = "v6.4.1" && git merge-base --is-ancestor m
 - **Protocol or security basis:** Uploaded bytes are untrusted. Attachment delivery and `nosniff` reduce stored-XSS and MIME-sniffing risk without changing blob
   identity or ordinary BUD-01 retrieval.
 - **Patch-release fit:** Security hardening of response headers and active-document delivery, with normal media behavior retained.
-- **Disposition:** **Accepted for integration in Phase 3; implementation remains out of Phase 1.**
-- **Required deviations:** Rebase the response hardening on the Phase 1 blob parser; normalize MIME case and parameters; include HTML, SVG, XML, XSLT, and XHTML
-  families; derive safe stable filenames from the content hash; retain inline delivery for non-active types; and preserve range and conditional response
-  behavior.
-- **Regression evidence:** Upstream reports E2E coverage for active types and a PNG control. Local release-candidate evidence remains pending Phase 3 and must
-  prove active types are attachments with `nosniff` while ordinary media remains usable.
+- **Disposition:** **Adapted in Phase 3, Plan 03-01; not cherry-picked.** The local integration retains the upstream attachment and `nosniff` hardening while
+  expanding the classifier and response matrix required by INTK-05.
+- **Required deviations:** Rebase the response hardening on the Phase 1 blob parser; classify normalized `text/html`, `text/xml`, `application/xml`, and every
+  syntactically present subtype ending exactly in `+xml` rather than a finite allowlist; derive attachment names from the full normalized 64-hex hash plus
+  only a revalidated 1-10 character ASCII alphanumeric stored-MIME extension, falling back to the bare hash; explicitly propagate applicable security
+  metadata to conditional `304` responses without `Content-Length`; retain ordinary media inline; and preserve GET, HEAD, range, conditional, and streaming
+  behavior independently of cosmetic request suffixes.
+- **Regression evidence:** Passed on 2026-10-03 with
+  `deno test -P --env-file=.env tests/unit/mime.test.ts tests/e2e/active-content.test.ts`: 19 passed, 0 failed. The focused matrix covers exact and arbitrary
+  XML-derived MIME types, case and parameter normalization, malformed lookalikes, full-hash and bare-hash attachment names, opposing cosmetic suffixes, and
+  active/ordinary GET `200`, HEAD `200`, range `206`, and conditional `304` responses. Also passed
+  `deno test -P --env-file=.env tests/e2e/blobs.test.ts tests/unit/range.test.ts`: 60 passed, 0 failed, retaining ordinary retrieval and range behavior.
 - **Resulting phase:** Phase 3 — Content and Logging Boundaries; requirement INTK-05.
-- **Integration commit:** Pending Phase 3. The eventual single non-merge commit must carry `Contribution-PR: #63` and its final 40-character SHA must be linked
-  in the continuation record.
+- **Integration commit:** Pending final SHA backfill in Plan 03-02. The single non-merge `v6.4.1` integration commit carries the `Contribution-PR: #63`
+  trailer, adapted source and tests, credited Unreleased changelog entry, and this review evidence.
 
 ## PR #64 — fix(logger): strip query strings from request logs
 
