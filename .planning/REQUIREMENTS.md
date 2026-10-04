@@ -15,8 +15,8 @@ Requirements for the v6.4.1 hardening release. Each requirement maps to exactly 
       without rejecting reasonable valid extensions.
 - [x] **INTK-04**: Maintainer can integrate the safe parts of PR #62 so required `x` tags and expiration integers are validated without enforcing an
       undocumented 30-day lifetime.
-- [ ] **INTK-05**: Maintainer can integrate PR #63 so active HTML, SVG, XML, and XSLT content cannot execute in the server's application origin.
-- [ ] **INTK-06**: Maintainer can integrate PR #64 so request logs omit query strings while retaining useful method, path, status, timing, and error
+- [x] **INTK-05**: Maintainer can integrate PR #63 so active HTML, SVG, XML, and XSLT content cannot execute in the server's application origin.
+- [x] **INTK-06**: Maintainer can integrate PR #64 so request logs omit query strings while retaining useful method, path, status, timing, and error
       information.
 - [x] **INTK-07**: Maintainer can develop the milestone on `v6.4.1` and merge every selected contribution into that release-candidate branch rather than
       directly into `master`.
@@ -65,8 +65,8 @@ Roadmap phase assignments are populated during roadmap creation.
 | INTK-02     | Phase 1 | Complete |
 | INTK-03     | Phase 1 | Complete |
 | INTK-04     | Phase 2 | Complete |
-| INTK-05     | Phase 3 | Pending  |
-| INTK-06     | Phase 3 | Pending  |
+| INTK-05     | Phase 3 | Complete |
+| INTK-06     | Phase 3 | Complete |
 | INTK-07     | Phase 1 | Complete |
 | VERI-01     | Phase 4 | Pending  |
 | VERI-02     | Phase 4 | Pending  |
