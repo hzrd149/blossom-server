@@ -32,6 +32,12 @@ Deno.test("blob responses isolate active content without changing ordinary retri
         { bytes: new TextEncoder().encode("<h1>active</h1>"), type: "text/html" },
         { bytes: new Uint8Array([137, 80, 78, 71, 13, 10]), type: "image/png" },
         { bytes: new TextEncoder().encode("<problem>active</problem>"), type: "application/problem+xml" },
+        {
+          bytes: new TextEncoder().encode(
+            "--frame\r\nContent-Type: text/html\r\n\r\n<h1>multipart active</h1>\r\n--frame--\r\n",
+          ),
+          type: "multipart/x-mixed-replace; boundary=frame",
+        },
       ].map(async ({ bytes, type }) => ({ bytes, type, hash: await sha256Hex(bytes) })),
     );
 
@@ -50,7 +56,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
       });
     }
 
-    const [active, ordinary, unmappedActive] = fixtures;
+    const [active, ordinary, unmappedActive, multipartActive] = fixtures;
     const config = ConfigSchema.parse({
       publicDomain: "localhost",
       upload: { enabled: false, requireAuth: false },
@@ -59,6 +65,8 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     const activePath = `/${active.hash}.png`;
     const ordinaryPath = `/${ordinary.hash}.html`;
     const activeDisposition = `attachment; filename="${active.hash}.html"`;
+    const multipartPath = `/${multipartActive.hash}.html`;
+    const multipartDisposition = `attachment; filename="${multipartActive.hash}"`;
 
     const activeGet = await app.fetch(new Request(`http://localhost${activePath}`));
     assertEquals(activeGet.status, 200);
@@ -136,6 +144,42 @@ Deno.test("blob responses isolate active content without changing ordinary retri
       `attachment; filename="${unmappedActive.hash}"`,
     );
     assertEquals(new Uint8Array(await unmappedGet.arrayBuffer()), unmappedActive.bytes);
+
+    const multipartGet = await app.fetch(new Request(`http://localhost${multipartPath}`));
+    assertEquals(multipartGet.status, 200);
+    assertEquals(multipartGet.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(multipartGet.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(multipartGet.headers.get("Content-Type"), multipartActive.type);
+    assertEquals(new Uint8Array(await multipartGet.arrayBuffer()), multipartActive.bytes);
+
+    const multipartHead = await app.fetch(new Request(`http://localhost${multipartPath}`, { method: "HEAD" }));
+    assertEquals(multipartHead.status, 200);
+    assertEquals(multipartHead.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(multipartHead.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(await multipartHead.text(), "");
+
+    const multipartRange = await app.fetch(
+      new Request(`http://localhost${multipartPath}`, { headers: { Range: "bytes=0-6" } }),
+    );
+    assertEquals(multipartRange.status, 206);
+    assertEquals(multipartRange.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(multipartRange.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(multipartRange.headers.get("Content-Range"), `bytes 0-6/${multipartActive.bytes.byteLength}`);
+    assertEquals(new Uint8Array(await multipartRange.arrayBuffer()), multipartActive.bytes.subarray(0, 7));
+
+    const multipartNotModified = await app.fetch(
+      new Request(`http://localhost${multipartPath}`, {
+        headers: { "If-None-Match": `"${multipartActive.hash}"` },
+      }),
+    );
+    assertEquals(multipartNotModified.status, 304);
+    assertEquals(multipartNotModified.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(multipartNotModified.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(multipartNotModified.headers.get("ETag"), `"${multipartActive.hash}"`);
+    assertEquals(multipartNotModified.headers.get("Cache-Control"), "public, max-age=31536000, immutable");
+    assertEquals(multipartNotModified.headers.get("Last-Modified") !== null, true);
+    assertEquals(multipartNotModified.headers.has("Content-Length"), false);
+    assertEquals(await multipartNotModified.text(), "");
   } finally {
     db.close();
     await Deno.remove(tmpDir, { recursive: true });
