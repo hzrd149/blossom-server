@@ -1,24 +1,26 @@
 ---
 phase: 04-integrated-candidate-verification
 plan: 02
-verified_at: 2026-10-05T15:19:10Z
+verified_at: 2026-10-05T17:52:21Z
 status: pass
-source_candidate: ec0340575f2a5bdd38a677fe00e5dab1958f19f7
+source_candidate: 331dabdd4189d3a90226650387341fb8aeae3ea6
 ---
 
 # Phase 04 Integrated Candidate Verification Evidence
 
 ## Candidate identity
 
-- **Candidate SHA:** `ec0340575f2a5bdd38a677fe00e5dab1958f19f7` (`ec0340575f2a`)
+- **Candidate SHA:** `331dabdd4189d3a90226650387341fb8aeae3ea6` (`331dabdd4189`)
 - **Branch:** `v6.4.1`
-- **Evidence restart:** `2026-10-05T15:11:25Z`
-- **Final source assertion:** `2026-10-05T15:19:10Z`
+- **Evidence restart:** `2026-10-05T17:48:44Z`
+- **Final source assertion:** `2026-10-05T17:52:21Z`
 - `git merge-base --is-ancestor master HEAD`: pass
 - `git status --porcelain --untracked-files=no -- main.ts src tests deno.json deno.lock Dockerfile flake.nix nix scripts tailwind.config.js CHANGELOG.md`: empty before and after the authoritative run
 - Toolchain: Deno 2.9.5 / V8 15.0.245.2-rusty / TypeScript 6.0.3; Git 2.53.0; Docker client/server 29.8.0; Nix 2.34.7
 
 This ledger is an evidence-only follow-up commit to the source candidate above. It does not modify any runtime, test, lock, asset-source, Docker, or Nix input, so every result below remains bound to the recorded Candidate SHA rather than the ledger commit.
+
+This is the complete post-review rerun after fix commits `9f892ec` (reject mixed wildcard validators) and `331dabd` (prove conditional responses short-circuit storage reads). All results from the earlier evidence seal are superseded; no prior-candidate result is used in the conclusions below.
 
 ## Focused contribution matrix
 
@@ -61,7 +63,8 @@ deno task test
 ### Advisory dispositions
 
 - Exact normalized `multipart/x-mixed-replace` stored MIME is treated as active content and served with attachment plus `X-Content-Type-Options: nosniff`; adjacent multipart types remain inline.
-- `If-None-Match` now uses RFC weak comparison for quoted validators and comma-separated lists, recognizes `*` only as the complete trimmed header value, and continues to emit strong ETags.
+- `If-None-Match` uses RFC weak comparison for quoted validators and comma-separated lists, recognizes `*` only as the complete trimmed header value, rejects mixed wildcard lists such as `*, "other"`, and continues to emit strong ETags.
+- Instrumented LocalStorage coverage proves every matching strong, weak, list, and wildcard conditional request returns 304 without calling `openRead`; malformed and mixed-wildcard validators take the normal retrieval path.
 
 ## Storage compatibility boundary
 
@@ -83,7 +86,7 @@ Only `public/client.js` and `public/styles.css` were removed with the bounded De
 | `public/client.js` | 262172 bytes | `51bb44309e38cd0f282ce4ffe9860066771ca92c7dc9c2226725b3ad694ae7ad` | `51bb44309e38cd0f282ce4ffe9860066771ca92c7dc9c2226725b3ad694ae7ad` |
 | `public/styles.css` | 18590 bytes | `853180a6ba8bae3b834d390fe7731714e3bc09958cc2dfeef0cb07d239777255` | `853180a6ba8bae3b834d390fe7731714e3bc09958cc2dfeef0cb07d239777255` |
 
-The planned `deno eval -A` spelling is not accepted by Deno 2.9.5 because `deno eval` already has implicit permissions. The same bounded program was run as `deno eval`, with no scope change. HEAD remained `ec0340575f2a5bdd38a677fe00e5dab1958f19f7` and the relevant tracked-input status remained empty.
+The planned `deno eval -A` spelling is not accepted by Deno 2.9.5 because `deno eval` already has implicit permissions. The same bounded program was run as `deno eval`, with no scope change. HEAD remained `331dabdd4189d3a90226650387341fb8aeae3ea6` and the relevant tracked-input status remained empty.
 
 ## Docker image
 
@@ -91,24 +94,26 @@ The planned `deno eval -A` spelling is not accepted by Deno 2.9.5 because `deno 
 candidate_sha=$(git rev-parse HEAD) && candidate_short=$(git rev-parse --short=12 "$candidate_sha") && docker build --pull --no-cache --progress=plain -t "blossom-server:v6.4.1-rc-$candidate_short" . && docker image inspect "blossom-server:v6.4.1-rc-$candidate_short" --format '{{json .Id}} {{json .RepoDigests}}'
 ```
 
-- Tag: `blossom-server:v6.4.1-rc-ec0340575f2a`
+- Tag: `blossom-server:v6.4.1-rc-331dabdd4189`
 - Dockerfile frontend: `docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e`
 - Resolved base: `denoland/deno:debian@sha256:fa335acdf6b72106eda2cb6a8cb5f4187e7630e357467489db4b2e7352d5e432`
-- Image ID and repository digest: `sha256:b691310d34d59f48ddba3c0a44a99916d689adca18bf762c15958fb2a02f12f0`
+- Image ID and repository digest: `sha256:80bd3b6f3a77e3e9416eebe4ca44a12b610112685bf44bcf48f096d52621cf66`
 - Result: pass after a pull and normal-layer-cache bypass.
 
 The resolved identities are retained for auditability. Because the Dockerfile names a mutable base tag, this result does not claim byte-for-byte reproducibility across future points in time.
 
-## Nix deterministic gate and candidate restart
+## Nix deterministic gate
 
-The first `deno task check:nix` run, on superseded source SHA `657032e069af89f31ccc94175ded4ab49741490f`, diagnosed a genuine `denoDepsHash` fixed-output mismatch:
+The authoritative `deno task check:nix` passed on Candidate SHA `331dabdd4189d3a90226650387341fb8aeae3ea6` without a hash change. The repository script realized and force-rebuilt all declared targets, then evaluated the flake:
 
-- Declared: `sha256-C4ACwnUpS3EqOfczefKQDi7HckZwGfRWbggeccuUQfs=`
-- Reported: `sha256-LaV+xImSqlEx0YZKOEIse0/LHHDdNauLGgR9VtTpzzs=`
+| Target | Evaluated derivation |
+| --- | --- |
+| `denoDeps` | `/nix/store/9zi9s188cwj1cg700av1gc4d8frgjky3-blossom-server-deno-deps-6.4.0.drv` |
+| `clientBundle` | `/nix/store/j044p1iz7d0zmpdj3ihh2ksiwb9dsyd8-blossom-server-client-deno-bundle-6.4.0.drv` |
+| `styles` | `/nix/store/im6z4pcafq8a29fkmpmf74x3p5clggfm-blossom-server-styles-6.4.0.css.drv` |
+| `blossom-server` | `/nix/store/5faxf1q57rp3ab9div8pxb4vrznjn9rw-blossom-server-6.4.0.drv` |
 
-The documented `deno task update:nix-hashes` procedure changed only that assignment in `nix/package.nix`; the client-bundle hash remained current. The isolated repair was committed as `ec0340575f2a5bdd38a677fe00e5dab1958f19f7`. Every earlier Deno, asset, Docker, and Nix outcome was discarded, and the complete evidence sequence restarted on that new Candidate SHA.
-
-The authoritative `deno task check:nix` then passed. The repository script realized and force-rebuilt `denoDeps`, `clientBundle`, `styles`, and `blossom-server`, evaluated the flake outputs, and ended with `all checks passed!`.
+The flake package, VM, app, development shell, and package-check outputs evaluated successfully, and the command ended with `all checks passed!`. The existing fixed-output hashes were accepted, so `deno task update:nix-hashes` was not run during this refresh.
 
 ## Final assertion and flagged boundaries
 

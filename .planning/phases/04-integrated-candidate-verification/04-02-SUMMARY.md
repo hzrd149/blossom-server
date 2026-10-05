@@ -36,7 +36,7 @@ key-files:
     - nix/package.nix
 
 key-decisions:
-  - "Bind the release evidence to source candidate ec0340575f2a5bdd38a677fe00e5dab1958f19f7 and treat the later ledger commit as evidence-only."
+  - "Bind the refreshed release evidence to source candidate 331dabdd4189d3a90226650387341fb8aeae3ea6 and treat the later ledger commit as evidence-only."
   - "Refresh only denoDepsHash after the checker-reported fixed-output mismatch, discard prior results, and rerun every source-bound gate."
   - "Claim S3 contract/type/build compatibility only; runtime protocol and hash-integrity evidence comes from temporary LocalStorage flows."
 
@@ -70,7 +70,7 @@ coverage:
         ref: "04-VERIFICATION-EVIDENCE.md#docker-image"
         status: pass
       - kind: build
-        ref: "04-VERIFICATION-EVIDENCE.md#nix-deterministic-gate-and-candidate-restart"
+        ref: "04-VERIFICATION-EVIDENCE.md#nix-deterministic-gate"
         status: pass
     human_judgment: false
   - id: VERI-04-STORAGE
@@ -107,6 +107,7 @@ status: complete
 - Deleted and rebuilt only the two ignored client assets twice, proving identical SHA-256 values, then produced a fresh pull/no-cache Docker image with recorded base and image digests.
 - Diagnosed a genuine Nix fixed-output mismatch, refreshed only `denoDepsHash`, committed the repair, discarded prior outcomes, and reran the entire evidence sequence on the new candidate before all Nix checks passed.
 - Preserved the explicit verification boundary: real runtime evidence uses Hono, LibSQL, and temporary LocalStorage; S3 received contract/type/build compatibility checks only, with no live or emulated service.
+- Re-ran the complete immutable-candidate pipeline after review fixes `9f892ec` and `331dabd`, replacing every stale source, Docker, and Nix identity with results bound to `331dabdd4189d3a90226650387341fb8aeae3ea6`.
 
 ## Task Commits
 
@@ -122,7 +123,7 @@ status: complete
 
 ## Decisions Made
 
-- Treated `ec0340575f2a5bdd38a677fe00e5dab1958f19f7` as the sole verified source candidate; the later ledger commit contains evidence only and changes no runtime/build input.
+- Treated `331dabdd4189d3a90226650387341fb8aeae3ea6` as the sole currently verified source candidate; the refreshed ledger commit contains evidence only and changes no runtime/build input.
 - Used the repository's documented hash-refresh path only after `deno task check:nix` emitted a genuine fixed-output mismatch, then restarted every evidence gate.
 - Kept S3 verification at the strongest authorized boundary—shared interface, typed injection, frozen typecheck, Docker, and Nix builds—without introducing credentials, infrastructure, runtime requests, or a new harness.
 
@@ -179,12 +180,24 @@ None - no external service, S3 credential, or manual verification is required.
 - All Phase 4 requirements are complete, including both response advisories and the integrated release-candidate gates.
 - The mutable Docker base limitation and S3 compatibility-only boundary are explicit, preventing stronger claims than the executed evidence supports.
 
+## Post-Review Evidence Refresh
+
+- **Reason:** Review fixes `9f892ec` and `331dabd` changed candidate inputs after the original ledger was sealed, reopening immutable-source and packaging freshness threats T-04-05, T-04-06, and T-04-11.
+- **Current candidate:** `331dabdd4189d3a90226650387341fb8aeae3ea6`
+- **Focused matrix:** 234 passed, 0 failed.
+- **Root quality:** 103 files formatted, 84 files linted, 395 server tests and 2 client tests passed, frozen main graph passed.
+- **Assets:** Both clean builds reproduced client SHA-256 `51bb44309e38cd0f282ce4ffe9860066771ca92c7dc9c2226725b3ad694ae7ad` and styles SHA-256 `853180a6ba8bae3b834d390fe7731714e3bc09958cc2dfeef0cb07d239777255`.
+- **Docker:** Pull/no-cache image `blossom-server:v6.4.1-rc-331dabdd4189` resolved to `sha256:80bd3b6f3a77e3e9416eebe4ca44a12b610112685bf44bcf48f096d52621cf66`.
+- **Nix:** All four targets were realized and force-rebuilt; flake evaluation ended with `all checks passed!` without a hash refresh.
+- **Storage boundary:** Real Hono/LibSQL/temporary LocalStorage behavior passed, including no-read conditional 304 coverage. S3 remains contract/type/build compatibility only; no live or emulated S3 execution occurred.
+
 ## Self-Check: PASSED
 
 - All three declared created/modified files and this summary exist.
 - Task commits `657032e`, `ec03405`, and `26b5994` are present in repository history.
 - The persisted plan ledger measures exactly three pre-summary commits from `0c25b914f28ed9f64b4895b2057958be0c4fe4d0`.
 - The final Deno quality chain and evidence-token verifier passed after the evidence commit.
+- The complete post-review pipeline passed against current source candidate `331dabdd4189d3a90226650387341fb8aeae3ea6`, and relevant tracked inputs were clean before this evidence-only refresh.
 
 ---
 
