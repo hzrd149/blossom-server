@@ -62,8 +62,6 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 **Goal:** As a Blossom server operator, I want to accept only correctly scoped BUD-11 authorization while honoring safe future expirations, so that protected
 blob operations stay secure without rejecting compatible clients.
 
-**Mode:** mvp
-
 **Depends on:** Phase 1
 
 **Requirements:** INTK-04
@@ -87,8 +85,6 @@ blob operations stay secure without rejecting compatible clients.
 
 **Goal:** As a Blossom server operator, I want to isolate active uploaded documents from the application origin and strip query data from request logs, so that
 hosted blobs and operational logs cannot expose users or secrets.
-
-**Mode:** mvp
 
 **Depends on:** Phase 2
 
@@ -117,8 +113,6 @@ hosted blobs and operational logs cannot expose users or secrets.
 
 **Goal:** The combined v6.4.1 candidate is protocol-compatible, storage-safe, and reproducible across affected gates.
 
-**Mode:** mvp
-
 **Depends on:** Phase 3
 
 **Requirements:** VERI-01, VERI-02, VERI-03, VERI-04
@@ -145,8 +139,6 @@ hosted blobs and operational logs cannot expose users or secrets.
 ### Phase 5: v6.4.1 Release
 
 **Goal:** Users and maintainers receive a verified v6.4.1 package with accurate notes and reusable release traceability.
-
-**Mode:** mvp
 
 **Depends on:** Phase 4
 
