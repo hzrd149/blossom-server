@@ -17,7 +17,7 @@ then runs the full quality and packaging gates before cutting v6.4.1.
 - [x] **Phase 1: Request Intake Boundaries** - Review the selected contributions and integrate PRs #53 and #54 safely. (completed 2026-10-01)
 - [x] **Phase 2: Authorization Compatibility** - Integrate the protocol-safe parts of PR #62 without a fixed lifetime cap. (completed 2026-10-01)
 - [x] **Phase 3: Content and Logging Boundaries** - Integrate PRs #63 and #64 to protect the application origin and logs. (completed 2026-10-03)
-- [ ] **Phase 4: Integrated Candidate Verification** - Prove the combined candidate across protocol, storage, and build gates.
+- [x] **Phase 4: Integrated Candidate Verification** - Prove the combined candidate across protocol, storage, and build gates. (completed 2026-10-05)
 - [ ] **Phase 5: v6.4.1 Release** - Version, document, package, and close the traceable hardening release.
 
 ## Phase Details
@@ -126,7 +126,7 @@ hosted blobs and operational logs cannot expose users or secrets.
 4. End-to-end checks confirm the combined fixes preserve Blossom behavior, rejected-body streaming semantics, and correct operation with both local-disk and S3
    storage.
 
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 **Wave 1**
 
@@ -165,5 +165,5 @@ hosted blobs and operational logs cannot expose users or secrets.
 | 1. Request Intake Boundaries         | 4/4            | Complete    | 2026-10-01 |
 | 2. Authorization Compatibility       | 1/1            | Complete    | 2026-10-01 |
 | 3. Content and Logging Boundaries    | 2/2 | Complete    | 2026-10-03 |
-| 4. Integrated Candidate Verification | 2/2 | In Progress|  |
+| 4. Integrated Candidate Verification | 2/2 | Complete    | 2026-10-05 |
 | 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |
