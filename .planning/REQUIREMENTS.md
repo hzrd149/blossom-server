@@ -24,8 +24,8 @@ Requirements for the v6.4.1 hardening release. Each requirement maps to exactly 
 ### Verification
 
 - [x] **VERI-01**: Maintainer can verify every integrated fix with focused regression tests covering its original failure or security condition.
-- [ ] **VERI-02**: Maintainer can run formatting, linting, and the complete Deno test suite successfully on the integrated release candidate.
-- [ ] **VERI-03**: Maintainer can verify affected generated assets, Docker packaging, and Nix artifacts without relying on stale build outputs.
+- [x] **VERI-02**: Maintainer can run formatting, linting, and the complete Deno test suite successfully on the integrated release candidate.
+- [x] **VERI-03**: Maintainer can verify affected generated assets, Docker packaging, and Nix artifacts without relying on stale build outputs.
 - [x] **VERI-04**: Maintainer can confirm the combined changes preserve Blossom protocol compatibility, streaming behavior, and both storage backends.
 
 ### Release
@@ -69,8 +69,8 @@ Roadmap phase assignments are populated during roadmap creation.
 | INTK-06     | Phase 3 | Complete |
 | INTK-07     | Phase 1 | Complete |
 | VERI-01     | Phase 4 | Complete |
-| VERI-02     | Phase 4 | Pending  |
-| VERI-03     | Phase 4 | Pending  |
+| VERI-02     | Phase 4 | Complete |
+| VERI-03     | Phase 4 | Complete |
 | VERI-04     | Phase 4 | Complete |
 | RELS-01     | Phase 5 | Pending  |
 | RELS-02     | Phase 5 | Pending  |

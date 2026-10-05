@@ -132,7 +132,7 @@ hosted blobs and operational logs cannot expose users or secrets.
 4. End-to-end checks confirm the combined fixes preserve Blossom behavior, rejected-body streaming semantics, and correct operation with both local-disk and S3
    storage.
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 **Wave 1**
 
@@ -140,7 +140,7 @@ hosted blobs and operational logs cannot expose users or secrets.
 
 **Wave 2** _(blocked on Wave 1 completion)_
 
-- [ ] 04-02-PLAN.md — Verify one candidate SHA across contribution, Deno, storage, generated-asset, Docker, and Nix gates.
+- [x] 04-02-PLAN.md — Verify one candidate SHA across contribution, Deno, storage, generated-asset, Docker, and Nix gates.
 
 ### Phase 5: v6.4.1 Release
 
@@ -173,5 +173,5 @@ hosted blobs and operational logs cannot expose users or secrets.
 | 1. Request Intake Boundaries         | 4/4            | Complete    | 2026-10-01 |
 | 2. Authorization Compatibility       | 1/1            | Complete    | 2026-10-01 |
 | 3. Content and Logging Boundaries    | 2/2 | Complete    | 2026-10-03 |
-| 4. Integrated Candidate Verification | 1/2 | In Progress|  |
+| 4. Integrated Candidate Verification | 2/2 | In Progress|  |
 | 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |

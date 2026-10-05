@@ -4,15 +4,15 @@ milestone: v6.4.1
 current_phase: 4
 current_phase_name: Integrated Candidate Verification
 current_plan: 2
-status: in_progress
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-10-05T14:55:36.163Z"
-state_head: 89eec0bf2ee45cdb5e8232422b1ad313139349dd
+status: ready_for_verification
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-10-05T15:26:41.563Z"
+state_head: 26b59941b1884d50088fb1396fab8ab37c628a67
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 60
 ---
 
@@ -65,6 +65,7 @@ Progress: [██████░░░░] 60%
 | Phase 03 P01 | 11h 11m  | 2 tasks | 6 files |
 | Phase 03 P02 | 21 min   | 2 tasks | 4 files |
 | Phase 04 P01 | 6 min | 2 tasks | 5 files |
+| Phase 04 P02 | 22min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 3]: PR #64 remains a distinct non-merge contribution commit; full PR #63/#64 identities are backfilled separately.
 - [Phase 4]: Classify only exact normalized multipart/x-mixed-replace as active while adjacent multipart types remain inline.
 - [Phase 4]: If-None-Match uses weak comparison with exact whole-header wildcard recognition while emitted ETags remain strong.
+- [Phase 4]: Phase 04-02: Bind release evidence to source candidate ec0340575f2a5bdd38a677fe00e5dab1958f19f7; the later ledger commit is evidence-only.
+- [Phase 4]: Phase 04-02: Refresh only denoDepsHash after the diagnosed mismatch, discard earlier outcomes, and rerun every gate.
+- [Phase 4]: Phase 04-02: S3 is verified only for contract/type/build compatibility; runtime evidence is LocalStorage-backed.
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ None yet.
 
 **Resume file:** None
 
-**Stopped at:** Completed 04-01-PLAN.md
+**Stopped at:** Completed 04-02-PLAN.md
 
-Last session: 2026-10-05T14:55:36.134Z
+Last session: 2026-10-05T15:26:41.533Z
