@@ -34,9 +34,11 @@ export function ifNoneMatchMatches(headerValue: string | undefined, etag: string
   const value = headerValue.trim();
   if (value === "*") return true;
 
-  return value.split(",").some((candidate) => {
-    const normalized = candidate.trim();
-    const opaqueTag = normalized.startsWith("W/") ? normalized.slice(2) : normalized;
+  const candidates = value.split(",").map((candidate) => candidate.trim());
+  if (candidates.includes("*")) return false;
+
+  return candidates.some((candidate) => {
+    const opaqueTag = candidate.startsWith("W/") ? candidate.slice(2) : candidate;
     return opaqueTag === etag;
   });
 }

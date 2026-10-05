@@ -171,7 +171,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
 
     const ordinaryMixedWildcard = await app.fetch(
       new Request(`http://localhost${ordinaryPath}`, {
-        headers: { "If-None-Match": `"${active.hash}", *` },
+        headers: { "If-None-Match": `"${ordinary.hash}", *` },
       }),
     );
     assertEquals(ordinaryMixedWildcard.status, 200);
