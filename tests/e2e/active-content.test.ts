@@ -6,6 +6,7 @@ import { ConfigSchema } from "../../src/config/schema.ts";
 import { initDb } from "../../src/db/client.ts";
 import { insertBlobRecord } from "../../src/db/blobs.ts";
 import { buildApp } from "../../src/server.ts";
+import type { IBlobStorage, WriteSession } from "../../src/storage/interface.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
 import { mimeToExt } from "../../src/utils/mime.ts";
 
@@ -13,6 +14,65 @@ interface Fixture {
   bytes: Uint8Array;
   hash: string;
   type: string;
+}
+
+class ReadCountingStorage implements IBlobStorage {
+  readCalls = 0;
+  readRangeCalls = 0;
+
+  constructor(private readonly delegate: LocalStorage) {}
+
+  resetReadCounts(): void {
+    this.readCalls = 0;
+    this.readRangeCalls = 0;
+  }
+
+  has(hash: string, ext: string): Promise<boolean> {
+    return this.delegate.has(hash, ext);
+  }
+
+  read(hash: string, ext: string): Promise<ReadableStream<Uint8Array> | null> {
+    this.readCalls += 1;
+    return this.delegate.read(hash, ext);
+  }
+
+  readRange(hash: string, ext: string, start: number, end: number): Promise<ReadableStream<Uint8Array> | null> {
+    this.readRangeCalls += 1;
+    return this.delegate.readRange(hash, ext, start, end);
+  }
+
+  size(hash: string, ext: string): Promise<number | null> {
+    return this.delegate.size(hash, ext);
+  }
+
+  type(hash: string, ext: string): Promise<string | null> {
+    return this.delegate.type(hash, ext);
+  }
+
+  beginWrite(sizeHint: number | null): Promise<WriteSession> {
+    return this.delegate.beginWrite(sizeHint);
+  }
+
+  commitWrite(session: WriteSession, hash: string, ext: string): Promise<void> {
+    return this.delegate.commitWrite(session, hash, ext);
+  }
+
+  abortWrite(session: WriteSession): Promise<void> {
+    return this.delegate.abortWrite(session);
+  }
+
+  commitFile(srcPath: string, hash: string, ext: string): Promise<void> {
+    return this.delegate.commitFile(srcPath, hash, ext);
+  }
+
+  remove(hash: string, ext: string): Promise<boolean> {
+    return this.delegate.remove(hash, ext);
+  }
+}
+
+function assertReadCounts(storage: ReadCountingStorage, readCalls: number, readRangeCalls: number): void {
+  assertEquals(storage.readCalls, readCalls);
+  assertEquals(storage.readRangeCalls, readRangeCalls);
 }
 
 async function sha256Hex(data: Uint8Array): Promise<string> {
@@ -23,8 +83,9 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
 Deno.test("blob responses isolate active content without changing ordinary retrieval", async () => {
   const tmpDir = await Deno.makeTempDir({ prefix: "blossom_e2e_active_content_" });
   const db = await initDb({ path: join(tmpDir, "test.db") });
-  const storage = new LocalStorage(join(tmpDir, "blobs"));
-  await storage.setup();
+  const localStorage = new LocalStorage(join(tmpDir, "blobs"));
+  const storage = new ReadCountingStorage(localStorage);
+  await localStorage.setup();
 
   try {
     const fixtures: Fixture[] = await Promise.all(
@@ -68,12 +129,14 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     const multipartPath = `/${multipartActive.hash}.html`;
     const multipartDisposition = `attachment; filename="${multipartActive.hash}"`;
 
+    storage.resetReadCounts();
     const activeGet = await app.fetch(new Request(`http://localhost${activePath}`));
     assertEquals(activeGet.status, 200);
     assertEquals(activeGet.headers.get("X-Content-Type-Options"), "nosniff");
     assertEquals(activeGet.headers.get("Content-Disposition"), activeDisposition);
     assertEquals(activeGet.headers.get("Content-Type"), active.type);
     assertEquals(new Uint8Array(await activeGet.arrayBuffer()), active.bytes);
+    assertReadCounts(storage, 1, 0);
 
     const activeHead = await app.fetch(new Request(`http://localhost${activePath}`, { method: "HEAD" }));
     assertEquals(activeHead.status, 200);
@@ -81,6 +144,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(activeHead.headers.get("Content-Disposition"), activeDisposition);
     assertEquals(await activeHead.text(), "");
 
+    storage.resetReadCounts();
     const activeRange = await app.fetch(
       new Request(`http://localhost${activePath}`, { headers: { Range: "bytes=0-3" } }),
     );
@@ -89,7 +153,9 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(activeRange.headers.get("Content-Disposition"), activeDisposition);
     assertEquals(activeRange.headers.get("Content-Range"), `bytes 0-3/${active.bytes.byteLength}`);
     assertEquals(new Uint8Array(await activeRange.arrayBuffer()), active.bytes.subarray(0, 4));
+    assertReadCounts(storage, 0, 1);
 
+    storage.resetReadCounts();
     const activeNotModified = await app.fetch(
       new Request(`http://localhost${activePath}`, { headers: { "If-None-Match": `"${active.hash}"` } }),
     );
@@ -101,6 +167,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(activeNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(activeNotModified.headers.has("Content-Length"), false);
     assertEquals(await activeNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
     const ordinaryGet = await app.fetch(new Request(`http://localhost${ordinaryPath}`));
     assertEquals(ordinaryGet.status, 200);
@@ -125,6 +192,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(ordinaryRange.headers.get("Content-Range"), `bytes 1-3/${ordinary.bytes.byteLength}`);
     assertEquals(new Uint8Array(await ordinaryRange.arrayBuffer()), ordinary.bytes.subarray(1, 4));
 
+    storage.resetReadCounts();
     const ordinaryNotModified = await app.fetch(
       new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": `"${ordinary.hash}"` } }),
     );
@@ -136,7 +204,9 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(ordinaryNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(ordinaryNotModified.headers.has("Content-Length"), false);
     assertEquals(await ordinaryNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
+    storage.resetReadCounts();
     const ordinaryWeakNotModified = await app.fetch(
       new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": `W/"${ordinary.hash}"` } }),
     );
@@ -148,7 +218,9 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(ordinaryWeakNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(ordinaryWeakNotModified.headers.has("Content-Length"), false);
     assertEquals(await ordinaryWeakNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
+    storage.resetReadCounts();
     const ordinaryWildcardNotModified = await app.fetch(
       new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": "  *  " } }),
     );
@@ -156,6 +228,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(ordinaryWildcardNotModified.headers.get("ETag"), `"${ordinary.hash}"`);
     assertEquals(ordinaryWildcardNotModified.headers.has("Content-Length"), false);
     assertEquals(await ordinaryWildcardNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
     const ordinaryNonMatching = await app.fetch(
       new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": `"${active.hash}"` } }),
@@ -208,6 +281,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(multipartRange.headers.get("Content-Range"), `bytes 0-6/${multipartActive.bytes.byteLength}`);
     assertEquals(new Uint8Array(await multipartRange.arrayBuffer()), multipartActive.bytes.subarray(0, 7));
 
+    storage.resetReadCounts();
     const multipartNotModified = await app.fetch(
       new Request(`http://localhost${multipartPath}`, {
         headers: { "If-None-Match": `"${multipartActive.hash}"` },
@@ -221,7 +295,9 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(multipartNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(multipartNotModified.headers.has("Content-Length"), false);
     assertEquals(await multipartNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
+    storage.resetReadCounts();
     const multipartWeakNotModified = await app.fetch(
       new Request(`http://localhost${multipartPath}`, {
         headers: { "If-None-Match": `W/"${multipartActive.hash}"` },
@@ -235,7 +311,9 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(multipartWeakNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(multipartWeakNotModified.headers.has("Content-Length"), false);
     assertEquals(await multipartWeakNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
+    storage.resetReadCounts();
     const multipartWeakHeadNotModified = await app.fetch(
       new Request(`http://localhost${multipartPath}`, {
         method: "HEAD",
@@ -248,7 +326,9 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(multipartWeakHeadNotModified.headers.get("ETag"), `"${multipartActive.hash}"`);
     assertEquals(multipartWeakHeadNotModified.headers.has("Content-Length"), false);
     assertEquals(await multipartWeakHeadNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
 
+    storage.resetReadCounts();
     const multipartListNotModified = await app.fetch(
       new Request(`http://localhost${multipartPath}`, {
         headers: { "If-None-Match": `"${ordinary.hash}", W/"${multipartActive.hash}"` },
@@ -258,6 +338,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(multipartListNotModified.headers.get("Content-Disposition"), multipartDisposition);
     assertEquals(multipartListNotModified.headers.has("Content-Length"), false);
     assertEquals(await multipartListNotModified.text(), "");
+    assertReadCounts(storage, 0, 0);
   } finally {
     db.close();
     await Deno.remove(tmpDir, { recursive: true });
