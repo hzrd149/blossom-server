@@ -107,6 +107,7 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(ordinaryGet.headers.get("X-Content-Type-Options"), "nosniff");
     assertEquals(ordinaryGet.headers.has("Content-Disposition"), false);
     assertEquals(ordinaryGet.headers.get("Content-Type"), ordinary.type);
+    assertEquals(ordinaryGet.headers.get("ETag"), `"${ordinary.hash}"`);
     assertEquals(new Uint8Array(await ordinaryGet.arrayBuffer()), ordinary.bytes);
 
     const ordinaryHead = await app.fetch(new Request(`http://localhost${ordinaryPath}`, { method: "HEAD" }));
@@ -135,6 +136,46 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(ordinaryNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(ordinaryNotModified.headers.has("Content-Length"), false);
     assertEquals(await ordinaryNotModified.text(), "");
+
+    const ordinaryWeakNotModified = await app.fetch(
+      new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": `W/"${ordinary.hash}"` } }),
+    );
+    assertEquals(ordinaryWeakNotModified.status, 304);
+    assertEquals(ordinaryWeakNotModified.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(ordinaryWeakNotModified.headers.has("Content-Disposition"), false);
+    assertEquals(ordinaryWeakNotModified.headers.get("ETag"), `"${ordinary.hash}"`);
+    assertEquals(ordinaryWeakNotModified.headers.get("Cache-Control"), "public, max-age=31536000, immutable");
+    assertEquals(ordinaryWeakNotModified.headers.get("Last-Modified") !== null, true);
+    assertEquals(ordinaryWeakNotModified.headers.has("Content-Length"), false);
+    assertEquals(await ordinaryWeakNotModified.text(), "");
+
+    const ordinaryWildcardNotModified = await app.fetch(
+      new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": "  *  " } }),
+    );
+    assertEquals(ordinaryWildcardNotModified.status, 304);
+    assertEquals(ordinaryWildcardNotModified.headers.get("ETag"), `"${ordinary.hash}"`);
+    assertEquals(ordinaryWildcardNotModified.headers.has("Content-Length"), false);
+    assertEquals(await ordinaryWildcardNotModified.text(), "");
+
+    const ordinaryNonMatching = await app.fetch(
+      new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": `"${active.hash}"` } }),
+    );
+    assertEquals(ordinaryNonMatching.status, 200);
+    assertEquals(new Uint8Array(await ordinaryNonMatching.arrayBuffer()), ordinary.bytes);
+
+    const ordinaryInvalidWeakPrefix = await app.fetch(
+      new Request(`http://localhost${ordinaryPath}`, { headers: { "If-None-Match": `w/"${ordinary.hash}"` } }),
+    );
+    assertEquals(ordinaryInvalidWeakPrefix.status, 200);
+    assertEquals(new Uint8Array(await ordinaryInvalidWeakPrefix.arrayBuffer()), ordinary.bytes);
+
+    const ordinaryMixedWildcard = await app.fetch(
+      new Request(`http://localhost${ordinaryPath}`, {
+        headers: { "If-None-Match": `"${active.hash}", *` },
+      }),
+    );
+    assertEquals(ordinaryMixedWildcard.status, 200);
+    assertEquals(new Uint8Array(await ordinaryMixedWildcard.arrayBuffer()), ordinary.bytes);
 
     const unmappedGet = await app.fetch(new Request(`http://localhost/${unmappedActive.hash}.svg`));
     assertEquals(unmappedGet.status, 200);
@@ -180,6 +221,43 @@ Deno.test("blob responses isolate active content without changing ordinary retri
     assertEquals(multipartNotModified.headers.get("Last-Modified") !== null, true);
     assertEquals(multipartNotModified.headers.has("Content-Length"), false);
     assertEquals(await multipartNotModified.text(), "");
+
+    const multipartWeakNotModified = await app.fetch(
+      new Request(`http://localhost${multipartPath}`, {
+        headers: { "If-None-Match": `W/"${multipartActive.hash}"` },
+      }),
+    );
+    assertEquals(multipartWeakNotModified.status, 304);
+    assertEquals(multipartWeakNotModified.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(multipartWeakNotModified.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(multipartWeakNotModified.headers.get("ETag"), `"${multipartActive.hash}"`);
+    assertEquals(multipartWeakNotModified.headers.get("Cache-Control"), "public, max-age=31536000, immutable");
+    assertEquals(multipartWeakNotModified.headers.get("Last-Modified") !== null, true);
+    assertEquals(multipartWeakNotModified.headers.has("Content-Length"), false);
+    assertEquals(await multipartWeakNotModified.text(), "");
+
+    const multipartWeakHeadNotModified = await app.fetch(
+      new Request(`http://localhost${multipartPath}`, {
+        method: "HEAD",
+        headers: { "If-None-Match": `W/"${multipartActive.hash}"` },
+      }),
+    );
+    assertEquals(multipartWeakHeadNotModified.status, 304);
+    assertEquals(multipartWeakHeadNotModified.headers.get("X-Content-Type-Options"), "nosniff");
+    assertEquals(multipartWeakHeadNotModified.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(multipartWeakHeadNotModified.headers.get("ETag"), `"${multipartActive.hash}"`);
+    assertEquals(multipartWeakHeadNotModified.headers.has("Content-Length"), false);
+    assertEquals(await multipartWeakHeadNotModified.text(), "");
+
+    const multipartListNotModified = await app.fetch(
+      new Request(`http://localhost${multipartPath}`, {
+        headers: { "If-None-Match": `"${ordinary.hash}", W/"${multipartActive.hash}"` },
+      }),
+    );
+    assertEquals(multipartListNotModified.status, 304);
+    assertEquals(multipartListNotModified.headers.get("Content-Disposition"), multipartDisposition);
+    assertEquals(multipartListNotModified.headers.has("Content-Length"), false);
+    assertEquals(await multipartListNotModified.text(), "");
   } finally {
     db.close();
     await Deno.remove(tmpDir, { recursive: true });
