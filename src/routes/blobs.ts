@@ -27,6 +27,20 @@ export function extractBlobHash(filename: string): string | null {
   return BLOB_PATH_RE.exec(filename)?.[1]?.toLowerCase() ?? null;
 }
 
+/** Compare If-None-Match candidates using RFC 9110 weak entity-tag comparison. */
+export function ifNoneMatchMatches(headerValue: string | undefined, etag: string): boolean {
+  if (headerValue === undefined) return false;
+
+  const value = headerValue.trim();
+  if (value === "*") return true;
+
+  return value.split(",").some((candidate) => {
+    const normalized = candidate.trim();
+    const opaqueTag = normalized.startsWith("W/") ? normalized.slice(2) : normalized;
+    return opaqueTag === etag;
+  });
+}
+
 export function buildBlobsRouter(
   db: Client,
   storage: IBlobStorage,
@@ -88,20 +102,17 @@ export function buildBlobsRouter(
     // The SHA-256 hash is a perfect ETag — content-addressed, immutable, already computed.
     // Short-circuit before storage I/O: only the DB lookup has occurred at this point.
     const ifNoneMatch = ctx.req.header("if-none-match");
-    if (ifNoneMatch) {
-      const tags = ifNoneMatch.split(",").map((t) => t.trim().replace(/^"(.*)"$/, "$1"));
-      if (tags.includes(hash) || tags.includes("*")) {
-        const notModifiedHeaders: Record<string, string> = {
-          ETag: headers["ETag"],
-          "Cache-Control": headers["Cache-Control"],
-          "Last-Modified": headers["Last-Modified"],
-          "X-Content-Type-Options": headers["X-Content-Type-Options"],
-        };
-        const disposition = headers["Content-Disposition"];
-        if (disposition) notModifiedHeaders["Content-Disposition"] = disposition;
+    if (ifNoneMatchMatches(ifNoneMatch, headers["ETag"])) {
+      const notModifiedHeaders: Record<string, string> = {
+        ETag: headers["ETag"],
+        "Cache-Control": headers["Cache-Control"],
+        "Last-Modified": headers["Last-Modified"],
+        "X-Content-Type-Options": headers["X-Content-Type-Options"],
+      };
+      const disposition = headers["Content-Disposition"];
+      if (disposition) notModifiedHeaders["Content-Disposition"] = disposition;
 
-        return ctx.body(null, 304, notModifiedHeaders);
-      }
+      return ctx.body(null, 304, notModifiedHeaders);
     }
 
     if (ctx.req.method === "HEAD") {
