@@ -1,6 +1,6 @@
 ---
 phase: 04-integrated-candidate-verification
-verified: 2026-10-05T17:55:09Z
+verified: 2026-10-05T17:59:09Z
 status: passed
 score: 11/11 must-haves verified
 covered_files:
@@ -21,7 +21,7 @@ covered_files:
   - src/utils/mime.ts
   - tests/e2e/active-content.test.ts
   - tests/unit/mime.test.ts
-covered_digest: "v1:sha256:53d4e899751f353f1d171e5840305e49b636991f29a94bfedf81a3790498ec01"
+covered_digest: "v1:sha256:f6e7753acbfd0a05a49261e282d1a7cdc6094a102d314e0e6d93470c3852d0ee"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -37,11 +37,11 @@ re_verification:
 # Phase 4: Integrated Candidate Verification Report
 
 **Phase Goal:** The combined v6.4.1 candidate is protocol-compatible, storage-safe, and reproducible across affected gates.
-**Verified:** 2026-10-05T17:55:09Z
+**Verified:** 2026-10-05T17:59:09Z
 **Status:** passed
 **Re-verification:** Yes — full final-head verification after review fixes `9f892ec` and `331dabd`
 **Verified source candidate:** `331dabdd4189d3a90226650387341fb8aeae3ea6`
-**Evidence-only follow-up:** `3514aa4880aabd8a03fffb7cba464ea4fe4a9c42`
+**Evidence/planning-only follow-ups:** `3514aa4880aabd8a03fffb7cba464ea4fe4a9c42`, `3265442e8718c6ca571943215887559220ad3a10`, and `fbd44ce5f78a11f6b7faa6490e856f02fc2ad352`
 
 ## Goal Achievement
 
@@ -59,7 +59,7 @@ re_verification:
 | 8 | Both response advisories have explicit production, regression, review, and changelog dispositions. | ✓ VERIFIED | Multipart isolation and validator handling exist in production code, pass real-app regressions, appear under Unreleased Patch Changes, and the post-fix review is clean with 0 findings. |
 | 9 | Each selected contribution remains a separate immutable evidence row binding PR, integration SHA, boundary, command, and result. | ✓ VERIFIED | The retained ledger has exactly five distinct rows; each SHA exists in final-candidate ancestry and the shared focused command passes on final HEAD. |
 | 10 | Contribution verification is keyed by PR and SHA rather than table presentation order. | ✓ VERIFIED | The verifier parsed the five rows into a PR-keyed map, validated the exact set, reversed row order, and obtained the same sorted PR/SHA result. |
-| 11 | Verification evidence binds all affected gates and advisory dispositions to one final candidate state. | ✓ VERIFIED | Relevant tracked inputs were clean and source HEAD remained `331dabd…` throughout the gates. Evidence-only commit `3514aa4` then changed only the summary and ledger, which now record the same final candidate and replace the older `ec03405…` evidence. |
+| 11 | Verification evidence binds all affected gates and advisory dispositions to one final candidate state. | ✓ VERIFIED | Relevant tracked inputs were clean and source HEAD remained `331dabd…` throughout the gates. Follow-ups `3514aa4`, `3265442`, and `fbd44ce` changed only evidence/planning metadata; current HEAD has no source, test, or build-input diff from the verified candidate. |
 
 **Score:** 11/11 truths verified (0 present, behavior-unverified)
 
@@ -89,7 +89,7 @@ None. The full post-review verification found no new-scope advisory.
 | `src/routes/blobs.ts` | `tests/e2e/active-content.test.ts` | Production requests plus counting storage adapter | ✓ WIRED | Tests invoke the built app, validate responses, and observe whether route storage reads occur. |
 | `deno.json` | `scripts/nix-check.sh` | `check:nix` → `nix:check` | ✓ WIRED | Alias executed the realize/rebuild/flake pipeline successfully. |
 | `main.ts` | `src/storage/interface.ts` | Typed local/S3 selection passed to `buildApp` | ✓ WIRED | Both concrete adapters satisfy `IBlobStorage` and final package/type gates pass. |
-| Verification report | Final candidate/build outputs | Source SHA, commands, hashes, image identities, Nix result | ✓ WIRED | Results were gathered from unchanged `331dabd…`; `3514aa4` is documentation-only. |
+| Verification report | Final candidate/build outputs | Source SHA, commands, hashes, image identities, Nix result | ✓ WIRED | Results were gathered from unchanged `331dabd…`; subsequent commits through `fbd44ce` are evidence/planning-only. |
 
 ### Data-Flow Trace (Level 4)
 
@@ -147,7 +147,7 @@ No Phase 4 requirement is orphaned: all four roadmap-mapped IDs appear in plan f
 | Do not complete verification while persisted multipart active content can remain inline. | ✓ VERIFIED | Classifier, route, and real-app regressions enforce attachment plus `nosniff`. |
 | Do not claim conditional compatibility while weak/strong equivalent validators differ. | ✓ VERIFIED | Weak/list/wildcard behavior passes; malformed mixed wildcard lists no longer false-match. |
 | Do not report all five contributions when a row lacks focused evidence. | ✓ VERIFIED | Exact five-row keyed set and final-head 234/0 focused command. |
-| Do not combine outcomes from different source states or suppress a failed gate. | ✓ VERIFIED | All refreshed results are bound to source candidate `331dabd…`; follow-up `3514aa4` changes evidence documents only. |
+| Do not combine outcomes from different source states or suppress a failed gate. | ✓ VERIFIED | All refreshed results are bound to source candidate `331dabd…`; follow-ups through `fbd44ce` change evidence/planning documents only. |
 | Do not present cached, absent, or nondeterministic package outputs as fresh. | ✓ VERIFIED | Known-output deletion and double build, Docker pull/no-cache, and Nix realize/force-rebuild/flake pass were repeated on final HEAD. |
 | Do not describe S3 runtime as executed. | ✓ VERIFIED | Final evidence explicitly limits S3 to interface/type/build compatibility. |
 
@@ -183,5 +183,5 @@ No gaps. WR-01 is closed by fail-closed mixed-wildcard handling and a current-ET
 
 ---
 
-_Verified: 2026-10-05T17:55:09Z_
+_Verified: 2026-10-05T17:59:09Z_
 _Verifier: the agent (gsd-verifier)_
