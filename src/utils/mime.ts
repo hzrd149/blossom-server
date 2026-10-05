@@ -9,7 +9,12 @@ export function isEnvelopeMime(value: string | null | undefined): boolean {
 /** Return whether a stored MIME value represents browser-active document content. */
 export function isActiveContentMime(value: string | null | undefined): boolean {
   const baseMime = value?.split(";", 1)[0].trim().toLowerCase() ?? "";
-  if (baseMime === "text/html" || baseMime === "text/xml" || baseMime === "application/xml") {
+  if (
+    baseMime === "text/html" ||
+    baseMime === "text/xml" ||
+    baseMime === "application/xml" ||
+    baseMime === "multipart/x-mixed-replace"
+  ) {
     return true;
   }
 
