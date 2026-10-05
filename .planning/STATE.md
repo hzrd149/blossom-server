@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 milestone: v6.4.1
 current_phase: 4
 current_phase_name: Integrated Candidate Verification
-current_plan: Not started
-status: ready_to_plan
-stopped_at: Phase 03 complete, ready to plan Phase 4
-last_updated: "2026-10-04T02:49:33.845Z"
-state_head: 29be3c8d46557d03939afadeff0d244bd1ae2503
+current_plan: 2
+status: in_progress
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-10-05T14:55:36.163Z"
+state_head: 89eec0bf2ee45cdb5e8232422b1ad313139349dd
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
   percent: 60
 ---
 
@@ -29,9 +29,9 @@ supported storage backends. **Current focus:** Phase 04 — Integrated Candidate
 
 Phase: 4 — Integrated Candidate Verification
 
-Current Plan: Not started
+Current Plan: 2
 
-Total Plans in Phase: TBD
+Total Plans in Phase: 2
 
 Progress: [██████░░░░] 60%
 
@@ -64,6 +64,7 @@ Progress: [██████░░░░] 60%
 | Phase 02 P01 | 36m      | 3 tasks | 8 files |
 | Phase 03 P01 | 11h 11m  | 2 tasks | 6 files |
 | Phase 03 P02 | 21 min   | 2 tasks | 4 files |
+| Phase 04 P01 | 6 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: Conditional 304 responses receive explicit security/cache metadata without representation-only Content-Length.
 - [Phase 3]: Access logs use one serialized URL pathname for both paired lines, excluding complete query data.
 - [Phase 3]: PR #64 remains a distinct non-merge contribution commit; full PR #63/#64 identities are backfilled separately.
+- [Phase 4]: Classify only exact normalized multipart/x-mixed-replace as active while adjacent multipart types remain inline.
+- [Phase 4]: If-None-Match uses weak comparison with exact whole-header wildcard recognition while emitted ETags remain strong.
 
 ### Pending Todos
 
@@ -96,8 +99,6 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 4]: Build and Nix verification must avoid stale generated or fixed-output artifacts.
-- [Phase 4]: Advisory review found `multipart/x-mixed-replace` may carry active HTML while remaining inline; resolve or explicitly disposition before release.
-- [Phase 4]: Advisory review found weak `If-None-Match` validators are not normalized for weak comparison semantics.
 - [Phase 5]: Tagging or Deno publishing before the release PR merges to `master` is prohibited.
 - [Phase 2]: Filtered E2E runs can omit shared setup/teardown because fixtures are ordinary tests.
 - [Phase 2]: A database failure after storage commit can leave an unreachable blob; remediation needs a cross-backend consistency design.
@@ -113,6 +114,6 @@ None yet.
 
 **Resume file:** None
 
-**Stopped at:** Phase 03 complete, ready to plan Phase 4
+**Stopped at:** Completed 04-01-PLAN.md
 
-Last session: 2026-10-04T02:49:33.845Z
+Last session: 2026-10-05T14:55:36.134Z
