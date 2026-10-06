@@ -33,10 +33,17 @@ created: "2026-10-06"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | 01 | 1 | RELS-01, RELS-02 | release metadata integrity | All accumulated notes move together and authoritative metadata reports 6.4.1 | structural | Checklist assertions plus `git diff --check` | ❌ W0 | ⬜ pending |
-| 05-01-02 | 01 | 1 | RELS-03, RELS-04 | artifact/provenance substitution | Exact preparation SHA passes local gates and links all five contributions | build/audit | Deno, asset, Docker, Nix, dry-run, and ledger assertions | ❌ W0 | ⬜ pending |
-| 05-02-01 | 02 | 2 | RELS-05 | stale PR head/check bypass | Latest release PR head has every expected successful check before merge | remote integration | `gh pr view` and `gh pr checks --watch` plus blocking-human merge checkpoint | ❌ W0 | ⬜ pending |
-| 05-03-01 | 03 | 3 | RELS-06 | wrong tag/publication origin | Tag and JSR package resolve to exact merged master SHA/version | remote integration | Git ref equality, registry receipts, and blocking-human tag/publish checkpoints | ❌ W0 | ⬜ pending |
+| 05-01-01 | 01 | 1 | RELS-01, RELS-02, RELS-03, RELS-04 | release metadata integrity | All accumulated notes move together, authoritative metadata reports 6.4.1, and checklist/evidence schemas exist | structural | Deno structural assertions, `deno fmt --check`, and `git diff --check` | ❌ W0 | ⬜ pending |
+| 05-01-02 | 01 | 1 | RELS-03, RELS-05 | artifact/provenance substitution | Exact preparation SHA passes all local gates before the release PR opens at that SHA | build/audit | Deno, asset, Docker, Nix, dry-run, and GitHub PR identity assertions | ❌ W0 | ⬜ pending |
+| 05-02-01 | 02 | 2 | RELS-01, RELS-05 | stale PR head/check bypass | Latest release PR head/date has every expected and observed check completed successfully | remote integration | `gh pr view`, `statusCheckRollup`, remote-tip equality, and release-day assertion | ✅ existing workflows | ⬜ pending |
+| 05-02-02 | 02 | 2 | RELS-05 | unapproved merge | Human sees current exact head/check evidence before merge | blocking-human | Same read-only PR/check predicate immediately before authorization | ✅ CLI assertion | ⬜ pending |
+| 05-02-03 | 02 | 2 | RELS-05, RELS-06 | merge race / wrong master | Guarded merge result equals fetched master and contains reviewed head | remote integration | `--match-head-commit`, merge/fetch/ancestry/version assertions | ✅ CLI assertion | ⬜ pending |
+| 05-03-01 | 03 | 3 | RELS-02, RELS-06 | wrong tag origin | Local master and peeled local tag equal exact release merge SHA; remote tag is absent | Git integration | Local/fetched master, tag, version, and remote-absence assertions | ✅ Git assertions | ⬜ pending |
+| 05-03-02 | 03 | 3 | RELS-06 | unapproved tag push | Human sees exact tag target/refspec and GHCR side effects before push | blocking-human | Repeated SHA equality and remote-absence predicate | ✅ CLI assertion | ⬜ pending |
+| 05-03-03 | 03 | 3 | RELS-06 | broad/wrong tag publication | One exact tag ref is public at merge SHA and tag-triggered GHCR workflow succeeds | remote integration | Remote tag readback and SHA-bound GitHub Actions receipt | ✅ workflow exists | ⬜ pending |
+| 05-04-01 | 04 | 4 | RELS-06 | dirty or wrong-source package | Clean master worktree equals local/remote tag and passes fresh native Deno dry-run | integration | Git equality, registry absence, frozen check, and `deno publish --dry-run --check=all` | ✅ Deno CLI | ⬜ pending |
+| 05-04-02 | 04 | 4 | RELS-06 | unapproved immutable publication | Human sees exact SHA/package/dry-run evidence before live publish | blocking-human | Repeated clean-tree/tag/version/dry-run predicate | ✅ CLI assertion | ⬜ pending |
+| 05-04-03 | 04 | 4 | RELS-03, RELS-04, RELS-06 | wrong package or falsified receipts | JSR 6.4.1 is public and actual receipts are submitted by one-file docs-only PR without moving tag | remote integration/audit | JSR metadata, tag equality, docs-PR diff, and ledger completeness assertions | ❌ W0 ledger | ⬜ pending |
 
 ## Wave 0 Requirements
 

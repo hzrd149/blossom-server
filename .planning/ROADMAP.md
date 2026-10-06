@@ -154,7 +154,23 @@ hosted blobs and operational logs cannot expose users or secrets.
 5. A GitHub release PR from `v6.4.1` to `master` passes all required CI checks before it is merged.
 6. The `v6.4.1` tag is created and pushed from merged `master`, and the Deno package is published from that same tagged state.
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Prepare v6.4.1 metadata/evidence, seal one local-gate SHA, and open the release PR.
+
+**Wave 2** _(blocked on Wave 1 completion)_
+
+- [ ] 05-02-PLAN.md — Verify every current PR check and human-authorize the exact SHA-guarded release merge.
+
+**Wave 3** _(blocked on Wave 2 completion)_
+
+- [ ] 05-03-PLAN.md — Bind and human-authorize the exact merged-master tag push, including GHCR side effects.
+
+**Wave 4** _(blocked on Wave 3 completion)_
+
+- [ ] 05-04-PLAN.md — Human-authorize tagged JSR publication and submit final receipts through a docs-only PR.
 
 ## Progress
 
@@ -166,4 +182,4 @@ hosted blobs and operational logs cannot expose users or secrets.
 | 2. Authorization Compatibility       | 1/1            | Complete    | 2026-10-01 |
 | 3. Content and Logging Boundaries    | 2/2 | Complete    | 2026-10-03 |
 | 4. Integrated Candidate Verification | 2/2 | Complete    | 2026-10-05 |
-| 5. v6.4.1 Release                    | 0/TBD          | Not started | -          |
+| 5. v6.4.1 Release                    | 0/4            | Not started | -          |
