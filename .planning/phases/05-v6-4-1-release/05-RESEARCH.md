@@ -468,17 +468,17 @@ Interactive local publication can open a browser approval flow. The evidence rec
 | A1 | [ASSUMED] The human who performs the third checkpoint has JSR scope permission and local interactive publication is allowed for `@hzrd149/blossom-server`. | Environment / Open Questions | Live publication could be rejected after all other release steps; confirm at the checkpoint without exposing credentials. |
 | A2 | [ASSUMED] A documentation-only follow-up change is an acceptable place to persist post-merge/tag/publication receipts. | Architecture Pattern 5 | If maintainers require every receipt inside the tagged tree, the requirements conflict because those outcomes do not exist before the tag; resolve before execution. |
 
-## Open Questions
+## Open Questions — RESOLVED
 
-1. **Is local JSR publication permitted for the scope?**
+1. **RESOLVED — Is local JSR publication permitted for the scope?**
    - What we know: Deno 2.9.5 supports interactive `deno publish`; the package exists and `6.4.0` is current. [VERIFIED: environment and JSR registry probes on 2026-10-06]
    - What's unclear: JSR scope settings and the maintainer's package permission are not public through the registry API. [ASSUMED]
-   - Recommendation: keep the third human checkpoint interactive. If JSR reports CI-only publication, stop and request direction; do not add a new publish workflow during the release without explicit approval because process redesign is deferred. [VERIFIED: 05-CONTEXT.md:77-81]
+   - Resolution: keep the third human checkpoint interactive. If JSR reports CI-only publication, stop and request direction; do not add a new publish workflow during the release without explicit approval because process redesign is deferred. [VERIFIED: 05-CONTEXT.md:77-81]
 
-2. **Where should final post-publication receipts be committed?**
+2. **RESOLVED — Where should final post-publication receipts be committed?**
    - What we know: checklist/schema must precede the release PR, while merge/tag/publication receipts can only be known afterward; the tag may not move to a later documentation commit. [VERIFIED: 05-CONTEXT.md:18-35]
    - What's unclear: CONTEXT.md leaves evidence-table structure to planning and does not specify the follow-up branch/PR. [VERIFIED: 05-CONTEXT.md:37-39]
-   - Recommendation: plan a documentation-only follow-up change after publication, preserve `v6.4.1` at the original release merge, and use the repository's normal branch/PR policy rather than committing directly to `master`. [VERIFIED: AGENTS.md:75-87]
+   - Resolution: use a documentation-only follow-up branch/PR after publication, preserve `v6.4.1` at the original release merge, and do not commit receipts directly to `master`. The release evidence schema/checklist is committed before the release PR; post-publication receipt values are completed through the follow-up PR. [VERIFIED: AGENTS.md:75-87]
 
 ## Environment Availability
 
