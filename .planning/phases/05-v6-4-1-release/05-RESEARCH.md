@@ -1,7 +1,7 @@
 # Phase 5: v6.4.1 Release - Research
 
-**Researched:** 2026-10-06  
-**Domain:** Maintenance release engineering, GitHub release PR, Git/JSR publication, and release evidence  
+**Researched:** 2026-10-06
+**Domain:** Maintenance release engineering, GitHub release PR, Git/JSR publication, and release evidence
 **Confidence:** HIGH
 
 <user_constraints>
@@ -281,65 +281,65 @@ REPO_A7K2M9QX_END
 
 ### Pitfall 1: Release Date Becomes False While CI Runs
 
-**What goes wrong:** the changelog is dated when the PR opens, but merge/tag/publication happen on a later day.  
-**Why it happens:** the locked wording requires the actual release day, while PR checks are asynchronous. [VERIFIED: 05-CONTEXT.md:16-18,23-28]  
-**How to avoid:** schedule preparation and release deliberately. If the date changes before merge, update the changelog on `v6.4.1`, push the new head, discard the old reviewed-head evidence, and wait for every check again.  
+**What goes wrong:** the changelog is dated when the PR opens, but merge/tag/publication happen on a later day.
+**Why it happens:** the locked wording requires the actual release day, while PR checks are asynchronous. [VERIFIED: 05-CONTEXT.md:16-18,23-28]
+**How to avoid:** schedule preparation and release deliberately. If the date changes before merge, update the changelog on `v6.4.1`, push the new head, discard the old reviewed-head evidence, and wait for every check again.
 **Warning signs:** current date differs from the release heading, or the PR head SHA differs from the recorded reviewed SHA.
 
 ### Pitfall 2: GitHub UI Allows Merge Without Enforcing This Release's Policy
 
-**What goes wrong:** a maintainer sees an enabled merge button even though checks are pending or absent.  
-**Why it happens:** `master` had no active protection and its ruleset was disabled at research time. [VERIFIED: GitHub REST protection snapshot on 2026-10-06]  
-**How to avoid:** make the evidence table and checkpoint predicate authoritative: expected PR workflows present, every check successful, reviewed head unchanged, no conflicts, and no unresolved failures.  
+**What goes wrong:** a maintainer sees an enabled merge button even though checks are pending or absent.
+**Why it happens:** `master` had no active protection and its ruleset was disabled at research time. [VERIFIED: GitHub REST protection snapshot on 2026-10-06]
+**How to avoid:** make the evidence table and checkpoint predicate authoritative: expected PR workflows present, every check successful, reviewed head unchanged, no conflicts, and no unresolved failures.
 **Warning signs:** `gh pr checks --required` prints no rows, `mergeStateStatus` is not clean, or `statusCheckRollup` is empty.
 
 ### Pitfall 3: Phase 4 Evidence Is Reused Across a Changed Package
 
-**What goes wrong:** final release claims are based on SHA `331dabd...`, but `deno.json` and `CHANGELOG.md` have since changed.  
-**Why it happens:** the earlier ledger correctly bound itself to the source candidate and explicitly excluded later input changes. [VERIFIED: 04-VERIFICATION-EVIDENCE.md:11-23,118-123]  
-**How to avoid:** cite Phase 4 for regression history, then run a new coherent release gate on the preparation head.  
+**What goes wrong:** final release claims are based on SHA `331dabd...`, but `deno.json` and `CHANGELOG.md` have since changed.
+**Why it happens:** the earlier ledger correctly bound itself to the source candidate and explicitly excluded later input changes. [VERIFIED: 04-VERIFICATION-EVIDENCE.md:11-23,118-123]
+**How to avoid:** cite Phase 4 for regression history, then run a new coherent release gate on the preparation head.
 **Warning signs:** release evidence has no final-preparation SHA or mixes old artifact hashes with a new manifest version.
 
 ### Pitfall 4: Nix Output Still Says 6.4.0
 
-**What goes wrong:** the manifest is bumped but derived Nix outputs or cached derivations retain the previous version.  
-**Why it happens:** old store paths or a stale fixed-output hash can mask incomplete regeneration. [VERIFIED: AGENTS.md:71-73; 04-VERIFICATION-EVIDENCE.md:105-116]  
-**How to avoid:** evaluate the derived version first, run the force-rebuild script, update hashes only if Nix diagnoses a mismatch, and then rerun the complete Nix gate.  
+**What goes wrong:** the manifest is bumped but derived Nix outputs or cached derivations retain the previous version.
+**Why it happens:** old store paths or a stale fixed-output hash can mask incomplete regeneration. [VERIFIED: AGENTS.md:71-73; 04-VERIFICATION-EVIDENCE.md:105-116]
+**How to avoid:** evaluate the derived version first, run the force-rebuild script, update hashes only if Nix diagnoses a mismatch, and then rerun the complete Nix gate.
 **Warning signs:** evaluated derivation names contain `6.4.0`, the hash-update script changed files without a preceding mismatch, or only a cached build was inspected.
 
 ### Pitfall 5: Tag Points to the Wrong Object
 
-**What goes wrong:** `v6.4.1` points to the candidate head, a later evidence commit, or an outdated local `master`.  
-**Why it happens:** tag creation defaults to current `HEAD` if no explicit commit is supplied. [CITED: https://git-scm.com/docs/git-tag]  
-**How to avoid:** fetch GitHub `master`, fast-forward local `master`, compare it with the PR merge commit, create the tag with that full SHA as an explicit argument, and verify `v6.4.1^{commit}` before asking to push.  
+**What goes wrong:** `v6.4.1` points to the candidate head, a later evidence commit, or an outdated local `master`.
+**Why it happens:** tag creation defaults to current `HEAD` if no explicit commit is supplied. [CITED: https://git-scm.com/docs/git-tag]
+**How to avoid:** fetch GitHub `master`, fast-forward local `master`, compare it with the PR merge commit, create the tag with that full SHA as an explicit argument, and verify `v6.4.1^{commit}` before asking to push.
 **Warning signs:** tag creation command omits the commit argument or any of the three SHAs differ.
 
 ### Pitfall 6: Tag Push Has an Undisclosed Publication Side Effect
 
-**What goes wrong:** pushing a tag unexpectedly publishes `6.4.1`, `6.4`, and `6` container tags.  
-**Why it happens:** `docker-image.yml` listens to `v*.*.*` and uses Docker metadata SemVer patterns. [VERIFIED: .github/workflows/docker-image.yml:3-8,38-56]  
-**How to avoid:** disclose the GHCR workflow in the tag-push checkpoint and record its run URL/outcome in release evidence.  
+**What goes wrong:** pushing a tag unexpectedly publishes `6.4.1`, `6.4`, and `6` container tags.
+**Why it happens:** `docker-image.yml` listens to `v*.*.*` and uses Docker metadata SemVer patterns. [VERIFIED: .github/workflows/docker-image.yml:3-8,38-56]
+**How to avoid:** disclose the GHCR workflow in the tag-push checkpoint and record its run URL/outcome in release evidence.
 **Warning signs:** checkpoint text describes tag creation only and omits container publication.
 
 ### Pitfall 7: Published Package Does Not Match the Tag
 
-**What goes wrong:** `deno publish` runs from a dirty tree, candidate branch, or post-tag evidence commit.  
-**Why it happens:** local interactive publication uses the current filesystem, not the remote tag by magic. [CITED: https://jsr.io/docs/publishing-packages]  
-**How to avoid:** immediately before the publication checkpoint assert clean status, branch `master`, `HEAD == merge SHA`, `HEAD == v6.4.1^{commit}`, version `6.4.1`, and a fresh successful dry run. Do not pass `--allow-dirty`.  
+**What goes wrong:** `deno publish` runs from a dirty tree, candidate branch, or post-tag evidence commit.
+**Why it happens:** local interactive publication uses the current filesystem, not the remote tag by magic. [CITED: https://jsr.io/docs/publishing-packages]
+**How to avoid:** immediately before the publication checkpoint assert clean status, branch `master`, `HEAD == merge SHA`, `HEAD == v6.4.1^{commit}`, version `6.4.1`, and a fresh successful dry run. Do not pass `--allow-dirty`.
 **Warning signs:** untracked release files, detached unexpected commit, version override flag, or dry-run output from an earlier SHA.
 
 ### Pitfall 8: Future Outcomes Are Prewritten as Evidence
 
-**What goes wrong:** a committed ledger contains guessed PR numbers, merge SHAs, check results, tag push status, or package URLs.  
-**Why it happens:** the checklist and evidence are required before the release PR, but those outcomes do not exist yet.  
-**How to avoid:** commit schema and known inputs first, mark future receipt fields pending, then append actual values after each transition.  
+**What goes wrong:** a committed ledger contains guessed PR numbers, merge SHAs, check results, tag push status, or package URLs.
+**Why it happens:** the checklist and evidence are required before the release PR, but those outcomes do not exist yet.
+**How to avoid:** commit schema and known inputs first, mark future receipt fields pending, then append actual values after each transition.
 **Warning signs:** a SHA or URL cannot be reproduced with a read-only command at the time it is recorded.
 
 ### Pitfall 9: Making the Shared Checkout Clean by Destroying User State
 
-**What goes wrong:** release preparation deletes, resets, or stashes unrelated work merely to satisfy a clean-tree assertion.  
-**Why it happens:** the shared checkout had unrelated tracked and untracked planning state at research time. [VERIFIED: `git status --short` on 2026-10-06]  
-**How to avoid:** use a new clean Git worktree at the exact release SHA and leave the shared checkout untouched.  
+**What goes wrong:** release preparation deletes, resets, or stashes unrelated work merely to satisfy a clean-tree assertion.
+**Why it happens:** the shared checkout had unrelated tracked and untracked planning state at research time. [VERIFIED: `git status --short` on 2026-10-06]
+**How to avoid:** use a new clean Git worktree at the exact release SHA and leave the shared checkout untouched.
 **Warning signs:** any plan task proposes `git reset --hard`, `git clean`, broad deletion, or an unexplained stash.
 
 ## Code Examples
@@ -595,5 +595,5 @@ This phase changes release metadata and distribution state, not runtime request 
 - Pitfalls: HIGH—most are direct consequences of current branch protection, workflow triggers, prior SHA-bound evidence, and official CLI semantics.
 - JSR authorization: LOW—scope settings and human permission require confirmation at the publication checkpoint.
 
-**Research date:** 2026-10-06  
+**Research date:** 2026-10-06
 **Valid until:** 2026-10-13 for live GitHub/JSR state; repository-source findings remain valid until those files change.
