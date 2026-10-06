@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 6.4.1 - 2026-10-06
+
 ### Patch Changes
 
 - Omit query strings from paired access logs while preserving encoded paths, request methods, response status, timing, and error context; contributed by
