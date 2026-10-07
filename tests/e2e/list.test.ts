@@ -11,7 +11,9 @@
 
 import type { Hono } from "@hono/hono";
 import { assertEquals } from "@std/assert";
+import { crypto as stdCrypto } from "@std/crypto";
 import { encodeBase64Url } from "@std/encoding/base64url";
+import { encodeHex } from "@std/encoding/hex";
 import { join } from "@std/path";
 import type { NostrEvent } from "nostr-tools";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
@@ -28,6 +30,14 @@ import { initPool } from "../../src/workers/pool.ts";
 
 const sk = generateSecretKey();
 const pk = getPublicKey(sk);
+
+async function sha256Hex(data: Uint8Array): Promise<string> {
+  const buf = await stdCrypto.subtle.digest(
+    "SHA-256",
+    data.buffer as ArrayBuffer,
+  );
+  return encodeHex(new Uint8Array(buf));
+}
 
 function makeUploadAuth(
   opts: {
@@ -101,7 +111,8 @@ Deno.test({
 
     // Upload a test blob so the pubkey owns at least one blob
     const body = new TextEncoder().encode("list e2e test blob");
-    const auth = makeUploadAuth({});
+    const hash = await sha256Hex(body);
+    const auth = makeUploadAuth({ hash });
 
     const uploadRes = await app.fetch(
       new Request("http://localhost/upload", {

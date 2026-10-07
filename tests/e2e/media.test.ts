@@ -404,6 +404,52 @@ Deno.test({
   ...testOpts,
 });
 
+for (
+  const contentType of [
+    'Multipart/Mixed; boundary="blossom-boundary"',
+    "Application/X-Www-Form-Urlencoded; charset=UTF-8",
+  ]
+) {
+  Deno.test({
+    name: `PUT /media: rejects and cancels envelope ${contentType} before malformed auth`,
+    async fn() {
+      let cancelCount = 0;
+      let pullCount = 0;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2, 3]));
+        },
+        pull() {
+          pullCount++;
+          throw new Error("rejected media envelope must not be pulled");
+        },
+        cancel() {
+          cancelCount++;
+        },
+      });
+
+      const res = await app.fetch(
+        new Request("http://localhost/media", {
+          method: "PUT",
+          headers: {
+            "Content-Length": "3",
+            "Content-Type": contentType,
+            Authorization: "Nostr not-valid-base64url%",
+          },
+          body,
+        }),
+      );
+
+      assertEquals(res.status, 415);
+      assertEquals(cancelCount, 1);
+      assertEquals(pullCount, 0);
+      assertMatch(res.headers.get("X-Reason") ?? "", /^[\x20-\x7e]+$/);
+      await res.body?.cancel();
+    },
+    ...testOpts,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // HEAD /media — acceptable request (200)
 // ---------------------------------------------------------------------------
@@ -454,6 +500,63 @@ Deno.test({
     );
     assertEquals(res.status, 415);
     await res.body?.cancel();
+  },
+  ...testOpts,
+});
+
+for (
+  const contentType of [
+    'Multipart/Related; boundary="blossom-boundary"',
+    "Application/X-Www-Form-Urlencoded; charset=UTF-8",
+  ]
+) {
+  Deno.test({
+    name: `HEAD /media: rejects envelope X-Content-Type ${contentType}`,
+    async fn() {
+      const res = await app.fetch(
+        new Request("http://localhost/media", {
+          method: "HEAD",
+          headers: { "X-Content-Type": contentType },
+        }),
+      );
+
+      assertEquals(res.status, 415);
+      assertMatch(res.headers.get("X-Reason") ?? "", /^[\x20-\x7e]+$/);
+    },
+    ...testOpts,
+  });
+}
+
+Deno.test({
+  name: "HEAD /media: X-Content-Type takes precedence over Content-Type",
+  async fn() {
+    const res = await app.fetch(
+      new Request("http://localhost/media", {
+        method: "HEAD",
+        headers: {
+          "X-Content-Type": "image/png",
+          "Content-Type": "multipart/form-data",
+        },
+      }),
+    );
+
+    assertEquals(res.status, 200);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "HEAD /media: falls back to envelope Content-Type",
+  async fn() {
+    const res = await app.fetch(
+      new Request("http://localhost/media", {
+        method: "HEAD",
+        headers: { "Content-Type": "multipart/form-data; boundary=fallback" },
+      }),
+    );
+
+    assertEquals(res.status, 415);
+    assertMatch(res.headers.get("X-Reason") ?? "", /^[\x20-\x7e]+$/);
   },
   ...testOpts,
 });

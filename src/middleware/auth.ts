@@ -1,7 +1,8 @@
 import type { Context, MiddlewareHandler } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
+import { decodeBase64 } from "@std/encoding/base64";
 import { decodeBase64Url } from "@std/encoding/base64url";
-import { verifyEvent } from "nostr-tools/pure";
+import { validateEvent, verifyEvent } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import { debug } from "./debug.ts";
 
@@ -20,6 +21,12 @@ export interface BlossomVariables {
   auth: NostrEvent | undefined;
   authType: string | undefined;
   authExpiration: number | undefined;
+}
+
+function isNostrEvent(value: unknown): value is NostrEvent {
+  if (!validateEvent(value)) return false;
+  const candidate = value as Partial<NostrEvent>;
+  return typeof candidate.id === "string" && typeof candidate.sig === "string";
 }
 
 /**
@@ -64,22 +71,29 @@ export function parseAuthEvent(
 ): NostrEvent {
   const now = Math.floor(Date.now() / 1000);
 
-  let auth: NostrEvent;
+  let parsed: unknown;
   try {
-    // BUD-11 specifies Base64url; fall back to standard Base64 (atob) for
+    // BUD-11 specifies Base64url; fall back to standard Base64 for
     // clients that encode with the standard alphabet (e.g. older nak versions).
     let decoded: string;
     try {
       decoded = new TextDecoder().decode(decodeBase64Url(raw));
     } catch {
-      decoded = atob(raw);
+      decoded = new TextDecoder().decode(decodeBase64(raw));
     }
-    auth = JSON.parse(decoded) as NostrEvent;
+    parsed = JSON.parse(decoded);
   } catch {
     throw new HTTPException(400, {
       message: "Invalid Authorization header encoding",
     });
   }
+
+  if (!isNostrEvent(parsed)) {
+    throw new HTTPException(400, {
+      message: "Invalid Authorization event",
+    });
+  }
+  const auth = parsed;
 
   // BUD-11 validation
   if (auth.kind !== 24242) {
@@ -98,7 +112,18 @@ export function parseAuthEvent(
       message: "Auth event missing expiration tag",
     });
   }
-  if (parseInt(expiration, 10) < now) {
+  if (!/^\d+$/.test(expiration)) {
+    throw new HTTPException(400, {
+      message: "Auth event expiration must be a unix-seconds integer",
+    });
+  }
+  const expiresAt = Number(expiration);
+  if (!Number.isSafeInteger(expiresAt)) {
+    throw new HTTPException(400, {
+      message: "Auth event expiration out of range",
+    });
+  }
+  if (expiresAt < now) {
     throw new HTTPException(401, { message: "Auth token expired" });
   }
 
@@ -157,10 +182,7 @@ export function authMiddleware(
         ctx.set("authType", auth.tags.find((t) => t[0] === "t")?.[1]);
         ctx.set(
           "authExpiration",
-          parseInt(
-            auth.tags.find((t) => t[0] === "expiration")?.[1] ?? "0",
-            10,
-          ),
+          Number(auth.tags.find((t) => t[0] === "expiration")?.[1]),
         );
       } catch (err) {
         debug("[auth]", "Auth parse error", err);
@@ -217,8 +239,8 @@ export function optionalAuth(
  * Required for upload, delete operations per BUD-11.
  */
 export function requireXTag(auth: NostrEvent, hash: string): void {
-  const xTags = auth.tags.filter((t) => t[0] === "x");
-  if (xTags.length > 0 && !xTags.some((t) => t[1] === hash)) {
+  const matches = auth.tags.some((tag) => tag[0] === "x" && tag[1] === hash);
+  if (!matches) {
     throw new HTTPException(403, {
       message: `Auth token does not authorize operation on blob ${hash}`,
     });

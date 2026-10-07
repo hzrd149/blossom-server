@@ -15,6 +15,7 @@ import { encodeHex } from "@std/encoding/hex";
 import { crypto as stdCrypto } from "@std/crypto";
 import { join } from "@std/path";
 import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
+import { serveStatic } from "@hono/hono/deno";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
@@ -22,7 +23,11 @@ import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import type { Hono } from "@hono/hono";
+import type { MiddlewareHandler } from "@hono/hono";
+import type { Client } from "@libsql/client";
 import type { BlossomVariables } from "../../src/middleware/auth.ts";
+import type { Config } from "../../src/config/schema.ts";
+import { PUBLIC_DIR } from "../../src/routes/landing.tsx";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,8 +93,19 @@ const BLOB_DATA = new Uint8Array([
   19,
 ]);
 const BLOB_SIZE = BLOB_DATA.byteLength; // 20
+const EXACT_MAX_BYTE_PATH = `/${Array.from({ length: 8 }, () => "界".repeat(85)).join("/")}`;
+const OVER_MAX_BYTE_PATH = `/${
+  [
+    ...Array.from({ length: 7 }, () => "界".repeat(85)),
+    "界".repeat(42),
+    "界".repeat(43),
+  ].join("/")
+}`;
 
 let app: Hono<{ Variables: BlossomVariables }>;
+let db: Client;
+let storage: LocalStorage;
+let config: Config;
 let blobHash: string;
 let blobUrl: string;
 let cleanup: () => Promise<void>;
@@ -107,13 +123,13 @@ Deno.test({
     const dbPath = join(tmpDir, "test.db");
     const storageDir = join(tmpDir, "blobs");
 
-    const db = await initDb({ path: dbPath });
-    const storage = new LocalStorage(storageDir);
+    db = await initDb({ path: dbPath });
+    storage = new LocalStorage(storageDir);
     await storage.setup();
 
     const pool = initPool(1, 4, 500, db, { path: dbPath });
 
-    const config = ConfigSchema.parse({
+    config = ConfigSchema.parse({
       publicDomain: "localhost",
       upload: { requireAuth: false, enabled: true },
     });
@@ -145,6 +161,209 @@ Deno.test({
       db.close();
       await Deno.remove(tmpDir, { recursive: true });
     };
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "static candidacy seam bypasses malformed paths and observes a safe control",
+  async fn() {
+    let staticInvocations = 0;
+    const staticMiddleware: MiddlewareHandler = async (_ctx, next) => {
+      staticInvocations++;
+      await next();
+    };
+    const observedApp = await buildApp(db, storage, config, { staticMiddleware });
+
+    const malformed = await observedApp.fetch(new Request("http://localhost/bad%252fpath"));
+    assertEquals(malformed.status, 404);
+    assertEquals(staticInvocations, 0, "malformed path must bypass static middleware");
+    await malformed.body?.cancel();
+
+    const safe = await observedApp.fetch(new Request("http://localhost/nested/asset.css"));
+    assertEquals(safe.status, 404);
+    assertEquals(staticInvocations, 1, "safe control must prove the injected middleware is live");
+    await safe.body?.cancel();
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "static candidacy invokes middleware only for safe nested, space, Unicode, and boundary paths",
+  async fn() {
+    let staticInvocations = 0;
+    const staticMiddleware: MiddlewareHandler = async (_ctx, next) => {
+      staticInvocations++;
+      await next();
+    };
+    const observedApp = await buildApp(db, storage, config, { staticMiddleware });
+    const exactMaxPath = `/${Array.from({ length: 8 }, () => "a".repeat(255)).join("/")}`;
+    const overMaxPath = `/${
+      [
+        ...Array.from({ length: 8 }, () => "a".repeat(226)),
+        "b".repeat(232),
+      ].join("/")
+    }`;
+
+    const safePaths = [
+      "/nested/assets/app.js",
+      "/operator%20assets/logo.png",
+      "/caf%C3%A9/%F0%9F%8C%B8.png",
+      `/${"😀".repeat(63)}`,
+      `/${"%3F".repeat(85)}`,
+      exactMaxPath,
+      EXACT_MAX_BYTE_PATH,
+    ];
+    for (const pathname of safePaths) {
+      const before = staticInvocations;
+      const response = await observedApp.fetch(new Request(`http://localhost${pathname}`));
+      assertEquals(response.status, 404);
+      assertEquals(staticInvocations, before + 1, `${pathname} should invoke static middleware`);
+      await response.body?.cancel();
+    }
+
+    const unsafePaths = [
+      "/bad%encoding.js",
+      "/bad%2fpath",
+      "/bad%252Fpath",
+      "/bad%5cpath",
+      "/bad%00path",
+      "/nested//asset.js",
+      `/${"a".repeat(256)}`,
+      `/${"😀".repeat(64)}`,
+      `/${"%3F".repeat(86)}`,
+      overMaxPath,
+      OVER_MAX_BYTE_PATH,
+    ];
+    for (const pathname of unsafePaths) {
+      const before = staticInvocations;
+      const response = await observedApp.fetch(new Request(`http://localhost${pathname}`));
+      assertEquals(response.status, 404);
+      assertEquals(staticInvocations, before, `${pathname} must bypass static middleware`);
+      await response.body?.cancel();
+    }
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "real static adapter observes exact byte controls and bypasses overflows without warnings",
+  async fn() {
+    const notFoundPaths: string[] = [];
+    const warnings: unknown[][] = [];
+    const staticMiddleware = serveStatic({
+      root: PUBLIC_DIR,
+      onNotFound: (path) => {
+        notFoundPaths.push(path);
+      },
+    });
+    const observedApp = await buildApp(db, storage, config, { staticMiddleware });
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnings.push(args);
+    try {
+      const safePaths = [
+        `/${"😀".repeat(63)}`,
+        `/${"%3F".repeat(85)}`,
+        EXACT_MAX_BYTE_PATH,
+      ];
+      for (const pathname of safePaths) {
+        const before = notFoundPaths.length;
+        const response = await observedApp.fetch(new Request(`http://localhost${pathname}`));
+        assertEquals(response.status, 404, pathname);
+        assertEquals(notFoundPaths.length, before + 1, `${pathname} should reach the real static adapter`);
+        await response.body?.cancel();
+      }
+
+      const overflowPaths = [
+        `/${"😀".repeat(64)}`,
+        `/${"%3F".repeat(86)}`,
+        OVER_MAX_BYTE_PATH,
+      ];
+      for (const pathname of overflowPaths) {
+        const before = notFoundPaths.length;
+        const response = await observedApp.fetch(new Request(`http://localhost${pathname}`));
+        assertEquals(response.status, 404, pathname);
+        assertEquals(notFoundPaths.length, before, `${pathname} must bypass the real static adapter`);
+        await response.body?.cancel();
+      }
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assertEquals(notFoundPaths.length, 3, "all exact-boundary controls should reach the real static adapter");
+    assertEquals(warnings, [], "rejected overflow must not provoke a filesystem warning");
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "production Request canonicalization serves the tracked public favicon from inside PUBLIC_DIR",
+  async fn() {
+    const normalizedRequest = new Request("http://localhost/nested/%2e%2e/favicon.ico");
+    const canonicalRequest = new Request("http://localhost/favicon.ico");
+    assertEquals(new URL(normalizedRequest.url).pathname, "/favicon.ico");
+
+    const normalizedResponse = await app.fetch(normalizedRequest);
+    const canonicalResponse = await app.fetch(canonicalRequest);
+    const trackedFavicon = await Deno.readFile(join(PUBLIC_DIR, "favicon.ico"));
+
+    assertEquals(normalizedResponse.status, 200);
+    assertEquals(canonicalResponse.status, 200);
+    assertEquals(new Uint8Array(await normalizedResponse.arrayBuffer()), trackedFavicon);
+    assertEquals(new Uint8Array(await canonicalResponse.arrayBuffer()), trackedFavicon);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "GET and HEAD blob: accepted hash variants and cosmetic suffixes use stored metadata",
+  async fn() {
+    const acceptedPaths = [
+      `/${blobHash.toUpperCase()}`,
+      `/${blobHash}.a`,
+      `/${blobHash}.abcdefghij`,
+      `/${blobHash}.tar.gz.123/`,
+      `/${blobHash}.html/`,
+    ];
+
+    for (const pathname of acceptedPaths) {
+      const getResponse = await app.fetch(new Request(`http://localhost${pathname}`));
+      assertEquals(getResponse.status, 200, pathname);
+      assertEquals(getResponse.headers.get("Content-Type"), "application/octet-stream", pathname);
+      assertEquals(new Uint8Array(await getResponse.arrayBuffer()), BLOB_DATA, pathname);
+
+      const headResponse = await app.fetch(new Request(`http://localhost${pathname}`, { method: "HEAD" }));
+      assertEquals(headResponse.status, 200, pathname);
+      assertEquals(headResponse.headers.get("Content-Type"), "application/octet-stream", pathname);
+    }
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "GET blob: malformed hash and suffix matrix falls through to normal 404",
+  async fn() {
+    const malformedPaths = [
+      `/${blobHash.slice(1)}`,
+      `/${blobHash}a`,
+      `/${blobHash}.abcdefghijk`,
+      `/${blobHash}.`,
+      `/${blobHash}.png//extra`,
+      `/${blobHash}//`,
+      `/${blobHash}%22`,
+      `/${blobHash},png`,
+      `/${blobHash}%7B%22ext%22%3A%22png%22%7D`,
+      `/${blobHash}%20.png`,
+      `/${blobHash}%2fextra`,
+      `/${blobHash}%252Fextra`,
+      `/${blobHash}%5cextra`,
+    ];
+
+    for (const pathname of malformedPaths) {
+      const response = await app.fetch(new Request(`http://localhost${pathname}`));
+      assertEquals(response.status, 404, pathname);
+      await response.body?.cancel();
+    }
   },
   ...testOpts,
 });

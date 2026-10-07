@@ -72,6 +72,20 @@ nix build path:.#styles --rebuild --print-build-logs
 > force-rebuilds `denoDeps`, `clientBundle`, `styles`, and the final package, so old store paths cannot hide stale outputs or fixed-output hashes. If Nix
 > reports a hash mismatch, run `deno task update:nix-hashes` to refresh `denoDepsHash` and `clientBundle.hash` in `nix/package.nix` and verify all outputs.
 
+### Release development workflow
+
+- Develop each release milestone on a dedicated `v<version>` release-candidate branch, such as `v6.4.1`. Do not implement milestone work directly on `master`.
+- Base the release-candidate branch on the current `master`. Every pull request selected for the release must target and merge into that branch, including
+  adapted upstream contributions and locally authored milestone work.
+- Open a GitHub release pull request from `v<version>` into `master` after the candidate is complete. Use that PR to run the full CI suite and resolve every
+  required failure before merge.
+- Do not merge the release pull request while required CI checks are failing or pending.
+- After the release pull request merges, update local `master`, confirm the merge contains the intended version and changelog, then create and push the
+  `v<version>` tag from `master`.
+- Publish the Deno package only from the tagged, merged `master` state. Never publish from a release-candidate or contribution branch.
+- Preserve traceability from each selected contribution PR to the release-candidate branch, its verification evidence, the release PR, the tag, and the
+  published package.
+
 ---
 
 ## Project Structure

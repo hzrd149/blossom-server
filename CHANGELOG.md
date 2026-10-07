@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 6.4.1 - 2026-10-06
+
+### Patch Changes
+
+- Omit query strings from paired access logs while preserving encoded paths, request methods, response status, timing, and error context; contributed by
+  [@mptfire](https://github.com/mptfire) in [#64](https://github.com/hzrd149/blossom-server/pull/64).
+- Honor weak `If-None-Match` validators and validator lists while preserving strong emitted ETags and conditional security/cache headers.
+- Serve stored HTML, XML-derived, and `multipart/x-mixed-replace` blobs as attachments and add `nosniff` to successful blob responses while keeping ordinary
+  media inline; contributed by [@mptfire](https://github.com/mptfire) in [#63](https://github.com/hzrd149/blossom-server/pull/63).
+- Strictly validate BUD-11 expiration integers and require matching blob-hash scope for protected upload and delete operations; contributed by
+  [@mptfire](https://github.com/mptfire) in [#62](https://github.com/hzrd149/blossom-server/pull/62).
+- Reject malformed blob and static-asset paths before unnecessary filesystem access, including conservative filesystem byte bounds, while retaining bounded
+  cosmetic blob extensions; contributed by [@mptfire](https://github.com/mptfire) in [#54](https://github.com/hzrd149/blossom-server/pull/54).
+- Reject multipart and URL-encoded envelopes before authentication or upload processing so only raw blob bytes reach `/upload` and `/media`; contributed by
+  [@mptfire](https://github.com/mptfire) in [#53](https://github.com/hzrd149/blossom-server/pull/53).
+
 ## 6.4.0
 
 ### Minor Changes

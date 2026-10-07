@@ -39,7 +39,7 @@ let
     inherit version src;
 
     entrypoint = "main.ts";
-    denoDepsHash = "sha256-C4ACwnUpS3EqOfczefKQDi7HckZwGfRWbggeccuUQfs=";
+    denoDepsHash = "sha256-LaV+xImSqlEx0YZKOEIse0/LHHDdNauLGgR9VtTpzzs=";
     runtimeInputs = [ pkgs.ffmpeg ];
     runFlags = [
       "-P"
