@@ -105,7 +105,7 @@ Any other Nix failure stops the release and is not permission to edit hashes.
 ## 7. Deno publication dry run
 
 ```sh
-deno publish --dry-run --check=all
+deno publish --dry-run --check=local
 ```
 
 Expected: exit zero and package identity `@hzrd149/blossom-server@6.4.1`; no upload occurs.
@@ -208,7 +208,7 @@ Create a separate clean worktree at the exact merged-master/tag commit. Require 
 
 ```sh
 deno check --frozen main.ts
-deno publish --dry-run --check=all
+deno publish --dry-run --check=local
 ```
 
 Expected: the tagged clean source passes validation and dry run as `@hzrd149/blossom-server@6.4.1`.
@@ -222,7 +222,7 @@ Immediately before asking, display the clean-worktree status, branch/tag/HEAD/ma
 Protected command:
 
 ```sh
-deno publish --check=all
+deno publish --check=local
 ```
 
 Consequence: creates immutable JSR version `@hzrd149/blossom-server@6.4.1`; interactive authentication may open. Do not record authentication material. If JSR rejects local publication as CI-only, stop for direction; do not redesign publication during this patch release.

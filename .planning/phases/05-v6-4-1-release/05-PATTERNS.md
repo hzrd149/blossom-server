@@ -71,7 +71,7 @@ packages = forAllSystems (
   })
 ```
 
-Treat Nix versions and `deno publish --dry-run --check=all` output as assertions, not extra version edit sites. Assert manifest `6.4.1`, tag string `v6.4.1`, default/client-bundle Nix output `6.4.1`, and package identity `@hzrd149/blossom-server@6.4.1`.
+Treat Nix versions and `deno publish --dry-run --check=local` output as assertions, not extra version edit sites. Assert manifest `6.4.1`, tag string `v6.4.1`, default/client-bundle Nix output `6.4.1`, and package identity `@hzrd149/blossom-server@6.4.1`.
 
 ---
 
@@ -99,7 +99,7 @@ deno task test
 # Then deterministic two-build assets, fresh Docker, Nix rebuild, publish dry-run.
 ```
 
-The checklist should spell out exact commands and expected invariants for: manifest/changelog structure, frozen check, format, lint, full tests, two fresh asset builds with matching non-empty SHA-256 digests, `docker build --pull --no-cache`, `deno task check:nix`, and `deno publish --dry-run --check=all`.
+The checklist should spell out exact commands and expected invariants for: manifest/changelog structure, frozen check, format, lint, full tests, two fresh asset builds with matching non-empty SHA-256 digests, `docker build --pull --no-cache`, `deno task check:nix`, and `deno publish --dry-run --check=local`.
 
 **Safe human-checkpoint pattern:** each irreversible action is its own non-autonomous task. Immediately before asking, re-read and display the exact identity, successful prerequisite receipts, consequence, and single command. Prior blanket approval does not count.
 
@@ -107,7 +107,7 @@ The checklist should spell out exact commands and expected invariants for: manif
 |---|---|---|---|
 | Merge release PR | PR URL/number, base `master`, reviewed `headRefOid`, complete successful check table, merge strategy | `gh pr merge ... --merge --match-head-commit "$reviewed_head"` | Mutates `master` and triggers master Docker publication |
 | Push tag | merged-master SHA, local master SHA, peeled tag SHA, remote tag absence | `git push gh refs/tags/v6.4.1:refs/tags/v6.4.1` | Creates public release ref and triggers SemVer GHCR images |
-| Publish package | clean tree, branch/tag/HEAD equality, manifest tuple, successful dry run | `deno publish --check=all` | Creates immutable JSR version; interactive auth may open |
+| Publish package | clean tree, branch/tag/HEAD equality, manifest tuple, successful dry run | `deno publish --check=local` | Creates immutable JSR version; interactive auth may open |
 
 Never use `--admin`, `--auto`, `--squash`, `--allow-dirty`, `--set-version`, a force push, or `git push --tags`. Creating the local lightweight tag is reversible, but it must explicitly target the recorded merge SHA and be verified before its push checkpoint.
 

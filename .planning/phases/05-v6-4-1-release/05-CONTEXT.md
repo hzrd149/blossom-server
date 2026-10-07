@@ -32,6 +32,7 @@ Prepare, verify, and ship the v6.4.1 maintenance patch release with accurate rel
 - Create `v6.4.1` only after the release PR merges and local `master` is updated to that verified merge.
 - The tag must reference the exact merged `master` commit recorded in release evidence, not the release branch or a later documentation commit.
 - Publish the Deno package only from the tagged, merged `master` checkout after verifying version metadata and clean release artifacts.
+- Use Deno's default local-module type checking for publish dry runs and live publication. Do not use `--check=all`: it checks third-party npm declarations and exposes pre-existing upstream type errors that are outside this maintenance patch.
 - Pause for explicit human confirmation immediately before each irreversible remote action: merging the release PR, pushing the `v6.4.1` tag, and publishing the Deno package. These actions must not be auto-approved.
 
 ### the agent's Discretion

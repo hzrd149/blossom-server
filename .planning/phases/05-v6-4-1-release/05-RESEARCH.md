@@ -47,7 +47,7 @@ Planning may choose the exact release-note layout, checklist filename, evidence-
 |----|-------------|------------------|
 | RELS-01 | Users can read accurate v6.4.1 release notes describing every included user-facing fix. | Move the complete six-entry `Unreleased` patch list into one ISO-dated `6.4.1` section, preserve five contribution links/credits, and reuse that section as the PR release summary. [VERIFIED: CHANGELOG.md:3-17] |
 | RELS-02 | Maintainer can bump all authoritative package-version references from 6.4.0 to 6.4.1. | Edit the root `deno.json` version only; `flake.nix` derives Nix package versions from it. Verify the manifest, tag/version equality, Nix evaluations, and Deno dry-run output. [VERIFIED: deno.json:3-5; flake.nix:54-59] |
-| RELS-03 | Maintainer can produce and verify the v6.4.1 release artifacts using a documented, repeatable release checklist. | Use a committed checklist with SHA-bound local gates, fresh generated assets, no-cache Docker, deterministic Nix, and `deno publish --dry-run --check=all` before any release PR is opened. [VERIFIED: AGENTS.md:44-59,71-73; 04-VERIFICATION-EVIDENCE.md:45-116] |
+| RELS-03 | Maintainer can produce and verify the v6.4.1 release artifacts using a documented, repeatable release checklist. | Use a committed checklist with SHA-bound local gates, fresh generated assets, no-cache Docker, deterministic Nix, and `deno publish --dry-run --check=local` before any release PR is opened. [VERIFIED: AGENTS.md:44-59,71-73; 04-VERIFICATION-EVIDENCE.md:45-116] |
 | RELS-04 | Maintainer can close the milestone with traceability from selected PRs through implementation, tests, changelog entries, and release output. | Seed an evidence matrix from the Phase 1 and Phase 4 ledgers, then append the final PR/check/merge/tag/JSR receipts without rewriting historical evidence. [VERIFIED: 04-VERIFICATION-EVIDENCE.md:25-43,118-123] |
 | RELS-05 | Maintainer can open a GitHub release PR from `v6.4.1` to `master` and merge it only after all required CI checks pass. | Record the latest PR head SHA, all check conclusions and URLs, and use a human-only merge checkpoint plus `--match-head-commit`; do not rely on currently absent server-side protection. [CITED: https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks] |
 | RELS-06 | Maintainer can create and push the `v6.4.1` tag and publish the Deno package only from the merged `master` state. | Prove `HEAD == merged master == v6.4.1^{commit}` before the exact tag push and again before `deno publish`; keep tag push and JSR publication as separate, explicit human confirmations. [CITED: https://git-scm.com/docs/git-rev-parse; https://docs.deno.com/runtime/reference/cli/publish/] |
@@ -267,7 +267,7 @@ REPO_A7K2M9QX_END
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Semantic package validation | Custom archive/version checker | `deno publish --dry-run --check=all` | Runs the same package validations without upload and shows the publish set. [CITED: https://docs.deno.com/runtime/reference/cli/publish/] |
+| Semantic package validation | Custom archive/version checker | `deno publish --dry-run --check=local` | Runs package validations and checks local modules without uploading or making third-party declaration health a patch-release blocker. [CITED: https://docs.deno.com/runtime/reference/cli/publish/] |
 | JSON manifest parsing | `grep`/`sed` version extraction | `jq` or `deno eval` JSON parsing | Avoids matching lockfile versions or historical notes. [VERIFIED: deno.json:1-65; deno.lock:1-14] |
 | Required-check polling | Ad hoc REST loops | `gh pr checks` plus `gh pr view --json statusCheckRollup` | Exposes check state/URLs and supports watching while preserving complete evidence. [CITED: https://cli.github.com/manual/gh_pr_checks] |
 | Merge race protection | Manual visual comparison only | `gh pr merge --merge --match-head-commit <SHA>` after human confirmation | Refuses a merge if the PR head moved after review. [CITED: https://cli.github.com/manual/gh_pr_merge] |
@@ -355,10 +355,10 @@ test "v$release_version" = "v6.4.1"
 test "$(nix eval --raw --no-write-lock-file .#packages.x86_64-linux.default.version)" = "$release_version"
 test "$(nix eval --raw --no-write-lock-file .#packages.x86_64-linux.clientBundle.version)" = "$release_version"
 deno check --frozen main.ts
-deno publish --dry-run --check=all
+deno publish --dry-run --check=local
 ```
 
-The installed Deno 2.9.5 help exposes `--dry-run` and `--check=all`, but not the current online docs' `--frozen-lockfile` publish option. Keep lock enforcement as the separate `deno check --frozen main.ts` gate instead of planning an unsupported flag. [VERIFIED: installed `deno publish --help=full` on 2026-10-06; CITED: https://docs.deno.com/runtime/reference/cli/publish/]
+The installed Deno 2.9.5 help exposes `--dry-run` and local/all checking modes, but not the current online docs' `--frozen-lockfile` publish option. Local checking is the default and is intentional for v6.4.1: `--check=all` fails on pre-existing third-party declarations also present in v6.4.0. Keep lock enforcement as the separate `deno check --frozen main.ts` gate instead of planning an unsupported flag. [VERIFIED: installed `deno publish --help=full` and candidate dry run on 2026-10-06; CITED: https://docs.deno.com/runtime/reference/cli/publish/]
 
 ### Local Release Gate Order
 
@@ -374,7 +374,7 @@ deno task test
 deno task build
 docker build --pull --no-cache --progress=plain -t "blossom-server:v6.4.1-rc-${release_head}" .
 deno task check:nix
-deno publish --dry-run --check=all
+deno publish --dry-run --check=local
 
 test "$(git rev-parse HEAD)" = "$release_head"
 test -z "$(git status --porcelain --untracked-files=all)"
@@ -435,10 +435,10 @@ test "$(git rev-parse HEAD)" = "$merge_sha"
 test "$(git rev-parse 'v6.4.1^{commit}')" = "$merge_sha"
 test -z "$(git status --porcelain --untracked-files=all)"
 test "$(jq -r '.version' deno.json)" = "6.4.1"
-deno publish --dry-run --check=all
+deno publish --dry-run --check=local
 
 # HUMAN CHECKPOINT 3 — only after the user confirms the exact source state and dry-run result.
-deno publish --check=all
+deno publish --check=local
 
 curl -fsSL -H 'Accept: application/json' \
   'https://jsr.io/@hzrd149/blossom-server/6.4.1_meta.json' >/dev/null

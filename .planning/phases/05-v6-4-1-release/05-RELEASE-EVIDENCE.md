@@ -44,7 +44,7 @@ The sixth v6.4.1 patch note records the Phase 4 validator-list compatibility cor
 | Asset determinism | `pending` | two bounded fresh `deno task build` runs | Non-empty identical SHA-256 digests for both generated assets | `pending` | `pending` | `pending` | pending |
 | Docker image | `pending` | `docker build --pull --no-cache --progress=plain` | SHA-named image has inspectable ID | `pending` | `pending` | `pending` | pending |
 | Nix gate | `pending` | `deno task check:nix` plus two version evaluations | All declared outputs rebuild/check; derived versions equal 6.4.1 | `pending` | `pending` | `pending` | pending |
-| Deno dry run | `pending` | `deno publish --dry-run --check=all` | `@hzrd149/blossom-server@6.4.1`, no upload | `pending` | `pending` | `pending` | pending |
+| Deno dry run | `pending` | `deno publish --dry-run --check=local` | `@hzrd149/blossom-server@6.4.1`, no upload | `pending` | `pending` | `pending` | pending |
 | GitHub branch | `pending` | `git ls-remote gh refs/heads/v6.4.1` | Remote branch equals verified preparation head | `pending` | `pending` | `pending` | pending |
 | Release PR | `pending` | GitHub PR `v6.4.1` → `master` | Exactly one open non-draft PR at verified head | `pending` | `pending` | `pending` | pending |
 | PR checks | `pending` | GitHub `statusCheckRollup` | `Deno Tests`, `Flake Check`, and every observed check successful on reviewed head | `pending` | `pending` | `pending` | pending |
@@ -52,7 +52,7 @@ The sixth v6.4.1 patch note records the Phase 4 validator-list compatibility cor
 | Master GHCR run | `pending` | GitHub Actions receipt | `master`-push image workflow succeeds for merge SHA | `pending` | `pending` | `pending` | pending |
 | Tag | `pending` | `refs/tags/v6.4.1:refs/tags/v6.4.1` | Remote lightweight tag peels to exact merged-master SHA | `pending` | `pending` | `pending` | pending — blocking-human gate 2 |
 | Tag GHCR run | `pending` | GitHub Actions receipt | Tag workflow succeeds and publishes expected SemVer image tags/digests | `pending` | `pending` | `pending` | pending |
-| JSR publication | `pending` | `deno publish --check=all` and public metadata read | Immutable `@hzrd149/blossom-server@6.4.1` originates from clean tagged merged master | `pending` | `pending` | `pending` | pending — blocking-human gate 3 |
+| JSR publication | `pending` | `deno publish --check=local` and public metadata read | Immutable `@hzrd149/blossom-server@6.4.1` originates from clean tagged merged master | `pending` | `pending` | `pending` | pending — blocking-human gate 3 |
 | Evidence follow-up | `pending` | documentation-only PR | Only this ledger is backfilled; `v6.4.1` does not move | `pending` | `pending` | `pending` | pending |
 
 ## Preparation artifact details
