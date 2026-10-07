@@ -77,6 +77,11 @@ nix build path:.#styles --rebuild --print-build-logs
 - Develop each release milestone on a dedicated `v<version>` release-candidate branch, such as `v6.4.1`. Do not implement milestone work directly on `master`.
 - Base the release-candidate branch on the current `master`. Every pull request selected for the release must target and merge into that branch, including
   adapted upstream contributions and locally authored milestone work.
+- For an existing contribution PR, change its base to `v<version>`, work with the contributor to put any agreed adaptations on that PR's head branch, and merge
+  the PR through GitHub. Verify that GitHub marks it **Merged**; copying or cherry-picking its changes into the release branch does not merge the PR. If the
+  original PR cannot be updated, open and merge a separate adaptation PR, link the original, and close the original with an explanation after release.
+- Use **Create a merge commit** for contribution PRs and the release PR when preserving the contributors' original commit SHAs and authorship in `master` is
+  required. Squash merging combines their commits into a new commit, so the individual commits are not retained in `master` history.
 - Open a GitHub release pull request from `v<version>` into `master` after the candidate is complete. Use that PR to run the full CI suite and resolve every
   required failure before merge.
 - Do not merge the release pull request while required CI checks are failing or pending.
