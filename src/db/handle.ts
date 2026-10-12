@@ -22,13 +22,13 @@ export interface IDbHandle {
 
   // ── Admin blob ops ─────────────────────────────────────────────────────────
   listAllBlobs(opts?: {
-    filter?: { q?: string; type?: string | string[] };
+    filter?: { q?: string; type?: string | string[]; kind?: string };
     sort?: [string, string];
     limit?: number;
     offset?: number;
   }): Promise<AdminBlobRecord[]>;
   countBlobs(
-    filter?: { q?: string; type?: string | string[] },
+    filter?: { q?: string; type?: string | string[]; kind?: string },
   ): Promise<number>;
   listAllUsers(opts?: {
     filter?: { q?: string; pubkey?: string };
