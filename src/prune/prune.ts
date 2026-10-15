@@ -29,7 +29,7 @@ import {
   type PruneSource,
 } from "../db/blobs.ts";
 import { mimeToExt } from "../utils/mime.ts";
-import { mimeMatchesRule, parseDuration } from "./rules.ts";
+import { isPubkeyScoped, mimeMatchesRule, parseDuration } from "./rules.ts";
 
 export interface PruneResult {
   /** Total blobs removed (DB row + physical file) this run. */
@@ -61,8 +61,7 @@ function getGoverningRuleIndex(row: BlobPruneRecord, rules: StorageRule[]): numb
   for (let index = 0; index < rules.length; index++) {
     const rule = rules[index];
     if (!mimeMatchesRule(row.type, rule.type)) continue;
-    const pubkeys = rule.pubkeys;
-    if (pubkeys?.length && !row.owners.some((owner) => pubkeys.includes(owner))) continue;
+    if (isPubkeyScoped(rule) && !row.owners.some((owner) => rule.pubkeys?.includes(owner))) continue;
     return index;
   }
   return -1;

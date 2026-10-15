@@ -167,34 +167,36 @@ Compose example and NixOS module enable this safeguard automatically; direct sou
 
 ### Key Options
 
-| Key                          | Default          | Description                                                                                                            |
-| ---------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `port`                       | `3000`           | TCP port to listen on                                                                                                  |
-| `host`                       | `0.0.0.0`        | Bind interface (`127.0.0.1` for loopback-only behind a proxy)                                                          |
-| `publicDomain`               | _(Host header)_  | Bare hostname this server is publicly reachable at, used in blob URLs and BUD-11 server-tag validation (no `https://`) |
-| `database.path`              | `data/sqlite.db` | Local SQLite database path                                                                                             |
-| `database.url`               | —                | Remote libSQL/Turso URL (`libsql://your-db.turso.io` or `http://localhost:8080`)                                       |
-| `storage.backend`            | `local`          | Storage backend: `local` or `s3`                                                                                       |
-| `storage.local.dir`          | `./data/blobs`   | Directory for blob files (local backend)                                                                               |
-| `storage.removeWhenNoOwners` | `false`          | Delete blobs with no owners on each prune cycle, regardless of expiry rules                                            |
-| `upload.enabled`             | `true`           | Enable `PUT /upload`                                                                                                   |
-| `upload.requireAuth`         | `true`           | Require Nostr auth for uploads                                                                                         |
-| `upload.maxSize`             | `2147483648`     | Maximum upload size in bytes (2 GB)                                                                                    |
-| `upload.workers`             | `0`              | Upload worker threads (0 = one per CPU core)                                                                           |
-| `upload.requirePubkeyInRule` | `false`          | Reject uploads unless the uploader's pubkey appears in a storage rule                                                  |
-| `mirror.enabled`             | `true`           | Enable `PUT /mirror` (BUD-04)                                                                                          |
-| `mirror.connectTimeout`      | `30000`          | Timeout (ms) to connect to the origin; 0 = no limit                                                                    |
-| `mirror.bodyTimeout`         | `0`              | Timeout (ms) for full body transfer from origin; 0 = no limit                                                          |
-| `delete.requireAuth`         | `true`           | Require Nostr auth for deletes                                                                                         |
-| `list.enabled`               | `false`          | Enable `GET /list/:pubkey` (BUD-02); disabled by default                                                               |
-| `list.requireAuth`           | `false`          | Require Nostr auth for list requests                                                                                   |
-| `list.allowListOthers`       | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
-| `media.enabled`              | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
-| `media.requirePubkeyInRule`  | `true`           | Reject media uploads unless the uploader's pubkey appears in the matching storage rule                                 |
-| `report.enabled`             | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
-| `landing.enabled`            | `true`           | Enable the landing page at `/`                                                                                         |
-| `landing.title`              | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
-| `dashboard.enabled`          | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
+| Key                               | Default          | Description                                                                                                            |
+| --------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `port`                            | `3000`           | TCP port to listen on                                                                                                  |
+| `host`                            | `0.0.0.0`        | Bind interface (`127.0.0.1` for loopback-only behind a proxy)                                                          |
+| `publicDomain`                    | _(Host header)_  | Bare hostname this server is publicly reachable at, used in blob URLs and BUD-11 server-tag validation (no `https://`) |
+| `database.path`                   | `data/sqlite.db` | Local SQLite database path                                                                                             |
+| `database.url`                    | —                | Remote libSQL/Turso URL (`libsql://your-db.turso.io` or `http://localhost:8080`)                                       |
+| `storage.backend`                 | `local`          | Storage backend: `local` or `s3`                                                                                       |
+| `storage.local.dir`               | `./data/blobs`   | Directory for blob files (local backend)                                                                               |
+| `storage.removeWhenNoOwners`      | `false`          | Delete blobs with no owners on each prune cycle, regardless of expiry rules                                            |
+| `storage.nip05.refreshIntervalMs` | `600000`         | How often (ms) rules with `nip05Domains` re-fetch `/.well-known/nostr.json`; 0 = startup only                          |
+| `storage.nip05.timeoutMs`         | `5000`           | Timeout (ms) for a single `nostr.json` fetch; a failed fetch keeps the previously fetched pubkeys                      |
+| `upload.enabled`                  | `true`           | Enable `PUT /upload`                                                                                                   |
+| `upload.requireAuth`              | `true`           | Require Nostr auth for uploads                                                                                         |
+| `upload.maxSize`                  | `2147483648`     | Maximum upload size in bytes (2 GB)                                                                                    |
+| `upload.workers`                  | `0`              | Upload worker threads (0 = one per CPU core)                                                                           |
+| `upload.requirePubkeyInRule`      | `false`          | Reject uploads unless the uploader's pubkey appears in a storage rule                                                  |
+| `mirror.enabled`                  | `true`           | Enable `PUT /mirror` (BUD-04)                                                                                          |
+| `mirror.connectTimeout`           | `30000`          | Timeout (ms) to connect to the origin; 0 = no limit                                                                    |
+| `mirror.bodyTimeout`              | `0`              | Timeout (ms) for full body transfer from origin; 0 = no limit                                                          |
+| `delete.requireAuth`              | `true`           | Require Nostr auth for deletes                                                                                         |
+| `list.enabled`                    | `false`          | Enable `GET /list/:pubkey` (BUD-02); disabled by default                                                               |
+| `list.requireAuth`                | `false`          | Require Nostr auth for list requests                                                                                   |
+| `list.allowListOthers`            | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
+| `media.enabled`                   | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
+| `media.requirePubkeyInRule`       | `true`           | Reject media uploads unless the uploader's pubkey appears in the matching storage rule                                 |
+| `report.enabled`                  | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
+| `landing.enabled`                 | `true`           | Enable the landing page at `/`                                                                                         |
+| `landing.title`                   | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
+| `dashboard.enabled`               | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
 
 For all options with inline documentation, see [`config.example.yml`](config.example.yml).
 
@@ -249,6 +251,25 @@ storage:
     - type: "*"
       expiration: 1 week
 ```
+
+Together with `upload.requirePubkeyInRule: true`, pubkey-scoped rules turn the server into a closed/invite-only one: only pubkeys named in some rule may upload.
+Instead of (or in addition to) listing pubkeys by hand, a rule can name NIP-05 domains — every pubkey published in the domain's `/.well-known/nostr.json` is
+added to the rule's allowlist, fetched at startup and refreshed every `storage.nip05.refreshIntervalMs` (default 10 minutes), so new members need no server
+restart:
+
+```yaml
+upload:
+  requirePubkeyInRule: true
+storage:
+  rules:
+    - type: "*"
+      expiration: 1 year
+      nip05Domains: ["example.org"]
+```
+
+A failed refresh keeps the previously fetched pubkeys; a domain that has never been fetched successfully grants nothing. A rule with `nip05Domains` is always
+pubkey-scoped, even while its fetched list is still empty, so it never matches everyone. Removing a name from `nostr.json` revokes that user's upload access on
+the next refresh and moves their existing blobs to the next matching rule for retention.
 
 ## Authentication (BUD-11)
 

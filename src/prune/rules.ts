@@ -42,6 +42,16 @@ export function parseDuration(s: string): number {
 }
 
 /**
+ * Whether a rule restricts uploaders to an allowlist. A rule with static
+ * pubkeys is scoped; so is a rule with nip05Domains even while its fetched
+ * list is still empty — it must never fall back to matching everyone. An
+ * explicit empty `pubkeys: []` without domains stays unscoped, as before.
+ */
+export function isPubkeyScoped(rule: StorageRule): boolean {
+  return (rule.pubkeys?.length ?? 0) > 0 || (rule.nip05Domains?.length ?? 0) > 0;
+}
+
+/**
  * Whether a pubkey would be allowed by ANY rule under requirePubkeyInRule
  * semantics — i.e. it appears in at least one rule's pubkeys allowlist.
  *
@@ -58,7 +68,7 @@ export function pubkeyAllowedByRules(
   if (!requirePubkeyInRule) return true;
   if (!pubkey) return false;
   return rules.some(
-    (rule) => rule.pubkeys !== undefined && rule.pubkeys.includes(pubkey),
+    (rule) => isPubkeyScoped(rule) && rule.pubkeys !== undefined && rule.pubkeys.includes(pubkey),
   );
 }
 
@@ -108,8 +118,8 @@ export function getFileRule(
     // Pubkey scoping: if the rule restricts to specific pubkeys, the uploader
     // must be in that list. If requirePubkeyInRule is set globally, an anonymous
     // uploader (no pubkey) can never satisfy a pubkey-scoped rule.
-    if (rule.pubkeys && rule.pubkeys.length > 0) {
-      if (!pubkey || !rule.pubkeys.includes(pubkey)) {
+    if (isPubkeyScoped(rule)) {
+      if (!pubkey || !rule.pubkeys?.includes(pubkey)) {
         // If requirePubkeyInRule: only pubkey-scoped rules are valid gates,
         // so we continue searching instead of skipping to an unscoped rule.
         continue;

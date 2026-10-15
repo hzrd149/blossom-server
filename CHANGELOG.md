@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Minor Changes
+
+- Add `nip05Domains` to storage rules: every pubkey published in a domain's `/.well-known/nostr.json` joins the rule's `pubkeys` allowlist, fetched at startup
+  and refreshed on `storage.nip05.refreshIntervalMs`, so closed servers (`upload.requirePubkeyInRule`) admit new NIP-05 members without a restart. A failed
+  refresh keeps the previously fetched pubkeys.
+
 ## 6.4.1 - 2026-10-06
 
 ### Patch Changes

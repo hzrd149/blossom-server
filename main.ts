@@ -21,6 +21,7 @@ import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
 import { buildApp } from "./src/server.ts";
 import { createPruneState, pruneStorage } from "./src/prune/prune.ts";
+import { createNip05Allowlist, startNip05Refresh } from "./src/allowlist/nip05.ts";
 
 const configPath = Deno.args[0] ?? "config.yml";
 const config = await loadConfig(configPath);
@@ -108,6 +109,36 @@ if (config.dashboard.enabled) {
   console.log("  Admin:    ready");
 }
 
+// NIP-05 domain allowlists — rules with nip05Domains get the pubkeys published in
+// each domain's /.well-known/nostr.json unioned into their pubkeys list. The first
+// fetch happens before the app is built so the allowlist is populated from the
+// first request on; a failed fetch is logged but never aborts startup.
+let stopNip05Refresh: (() => void) | undefined;
+const nip05Allowlist = createNip05Allowlist(config.storage.rules, { timeoutMs: config.storage.nip05.timeoutMs });
+const nip05Enabled = nip05Allowlist.domains.length > 0;
+if (nip05Enabled) {
+  const { domains } = await nip05Allowlist.refresh();
+  const failed = domains.filter((result) => result.error).map((result) => result.domain);
+  for (const result of domains) {
+    if (result.error) {
+      console.warn(`  NIP-05:   ${result.domain}: fetch failed (${result.error}) — no pubkeys until a refresh succeeds`);
+    } else {
+      console.log(`  NIP-05:   ${result.domain}: ${result.count} pubkeys`);
+    }
+  }
+  const intervalMs = config.storage.nip05.refreshIntervalMs;
+  if (intervalMs > 0) {
+    // A failed startup fetch is retried soon rather than after the full interval.
+    const initialDelayMs = failed.length > 0 ? Math.min(30_000, intervalMs) : intervalMs;
+    if (failed.length > 0) console.warn(`  NIP-05:   retrying ${failed.join(", ")} in ${initialDelayMs / 1000}s`);
+    stopNip05Refresh = startNip05Refresh(nip05Allowlist, intervalMs, { initialDelayMs });
+  } else if (failed.length > 0) {
+    console.warn(
+      `  NIP-05:   WARNING — storage.nip05.refreshIntervalMs is 0, so the allowlist for ${failed.join(", ")} stays EMPTY until the server is restarted`,
+    );
+  }
+}
+
 // Build Hono app (async — landing router loads the prebuilt client JS at startup).
 const app = await buildApp(db, storage, config);
 
@@ -181,6 +212,12 @@ const server = Deno.serve(
             : "disabled (no rules configured)"),
       );
       console.log(
+        "  NIP-05:  domain allowlists      " +
+          (nip05Enabled
+            ? `active (refresh ${config.storage.nip05.refreshIntervalMs > 0 ? `every ${config.storage.nip05.refreshIntervalMs / 1000}s` : "at startup only"})`
+            : "disabled (no rules with nip05Domains)"),
+      );
+      console.log(
         "  Admin:   dashboard              " +
           (config.dashboard.enabled ? `ready (user=${config.dashboard.username}) — http://${hostname}:${port}/admin` : "disabled"),
       );
@@ -193,6 +230,7 @@ const server = Deno.serve(
 const shutdown = () => {
   console.log("\nShutting down...");
   if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
+  stopNip05Refresh?.();
   pool.shutdown();
   server.shutdown();
   db.close();

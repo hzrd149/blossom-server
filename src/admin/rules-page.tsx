@@ -17,18 +17,27 @@ function ruleTypeColor(type: string): string {
   }
 }
 
-const PubkeyList: FC<{ pubkeys?: string[] }> = ({ pubkeys }) => {
-  if (!pubkeys || pubkeys.length === 0) {
+const PubkeyList: FC<{ pubkeys?: string[]; nip05Domains?: string[] }> = ({ pubkeys, nip05Domains }) => {
+  const hasPubkeys = pubkeys !== undefined && pubkeys.length > 0;
+  const hasDomains = nip05Domains !== undefined && nip05Domains.length > 0;
+  if (!hasPubkeys && !hasDomains) {
     return <span class="text-gray-600">all</span>;
   }
 
   return (
     <div class="space-y-0.5">
-      {pubkeys.map((pk) => (
-        <div key={pk} class="font-mono text-xs text-gray-300">
-          {pk.slice(0, 16)}…
+      {hasPubkeys
+        ? pubkeys.map((pk) => (
+          <div key={pk} class="font-mono text-xs text-gray-300">
+            {pk.slice(0, 16)}…
+          </div>
+        ))
+        : <span class="text-gray-600">none yet</span>}
+      {hasDomains && (
+        <div class="text-xs text-gray-500">
+          + nip05: {nip05Domains.join(", ")}
         </div>
-      ))}
+      )}
     </div>
   );
 };
@@ -74,7 +83,7 @@ export const RulesPage: FC<RulesPageProps> = ({ config }) => {
                   <span class="text-gray-200">{rule.type}</span>
                 </Td>
                 <Td>
-                  <PubkeyList pubkeys={rule.pubkeys} />
+                  <PubkeyList pubkeys={rule.pubkeys} nip05Domains={rule.nip05Domains} />
                 </Td>
                 <Td>
                   <Badge color="yellow">{rule.expiration}</Badge>
@@ -83,7 +92,7 @@ export const RulesPage: FC<RulesPageProps> = ({ config }) => {
                   <span class="text-gray-600">—</span>
                 </Td>
                 <Td>
-                  <PubkeyList pubkeys={rule.pubkeys} />
+                  <PubkeyList pubkeys={rule.pubkeys} nip05Domains={rule.nip05Domains} />
                 </Td>
                 <Td>
                   {rule.expiration ? <Badge color="yellow">{rule.expiration}</Badge> : <span class="text-gray-600">—</span>}

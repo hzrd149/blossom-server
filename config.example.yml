@@ -93,6 +93,12 @@ storage:
   #               Human-readable duration: "7 days", "1 month", "24 hours".
   #   pubkeys     Optional list of uploader Nostr pubkeys (hex) this rule applies to.
   #               When set, only blobs from these pubkeys are matched by this rule.
+  #   nip05Domains
+  #               Optional list of NIP-05 domains. Every pubkey published in
+  #               https://<domain>/.well-known/nostr.json is added to this rule's
+  #               pubkeys list — fetched at startup and refreshed on the schedule
+  #               in storage.nip05 below. The domain must return its full "names"
+  #               map when queried without ?name=.
   rules:
     - type: "image/*"
       expiration: 1 month
@@ -111,6 +117,29 @@ storage:
   #     expiration: 1 month
   #   - type: "*"
   #     expiration: 1 week
+
+  # Example: NIP-05 domain allowlist — everyone with a handle on example.org may
+  # upload (combine with upload.requirePubkeyInRule: true for a closed server).
+  # Static pubkeys and domains can be mixed in one rule. A rule with nip05Domains
+  # is always pubkey-scoped, even while its fetched list is still empty.
+  # rules:
+  #   - type: "*"
+  #     expiration: 1 year
+  #     pubkeys:
+  #       - "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d"
+  #     nip05Domains:
+  #       - example.org
+
+  # NIP-05 domain allowlist refresh. Only used by rules that set nip05Domains.
+  nip05:
+    # Minimum gap (ms) between the end of one refresh and the start of the next.
+    # Uses recursive setTimeout — the next refresh begins only after the current one completes.
+    # 0 = fetch once at startup and never refresh. Otherwise at least 60000 (1 minute).
+    refreshIntervalMs: 600000 # 10 minutes
+
+    # Timeout (ms) for a single nostr.json fetch. A failed or timed-out fetch keeps
+    # the previously fetched pubkeys; a domain that never succeeded grants nothing.
+    timeoutMs: 5000
 
 # ---------------------------------------------------------------------------
 # Upload  (BUD-02 / BUD-06)

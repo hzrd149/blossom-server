@@ -250,6 +250,52 @@ Deno.test("pruneStorage preserves first-match pubkey retention semantics", async
   });
 });
 
+Deno.test("pruneStorage: a nip05 rule with an empty fetched list governs nobody", async () => {
+  await withDb(async (db) => {
+    // Owner is "f"*64 (see seed). The nip05 rule has not fetched anything yet,
+    // so it must not claim the blob; the short unscoped rule governs and deletes it.
+    await seed(db, 1, 14 * DAY);
+    const storage = recordingStorage();
+
+    const result = await pruneStorage(
+      db,
+      storage,
+      [
+        { type: "*", expiration: "1 month", pubkeys: [], nip05Domains: ["example.org"] },
+        { type: "*", expiration: "1 week" },
+      ],
+      false,
+      10,
+      createPruneState(),
+    );
+
+    assertEquals(result, { deleted: 1, errors: 0 });
+    assertEquals(storage.removed, [sha(0)]);
+  });
+});
+
+Deno.test("pruneStorage: a populated nip05 rule governs its members like a static pubkey rule", async () => {
+  await withDb(async (db) => {
+    await seed(db, 1, 14 * DAY);
+    const storage = recordingStorage();
+
+    const result = await pruneStorage(
+      db,
+      storage,
+      [
+        { type: "*", expiration: "1 month", pubkeys: ["f".repeat(64)], nip05Domains: ["example.org"] },
+        { type: "*", expiration: "1 week" },
+      ],
+      false,
+      10,
+      createPruneState(),
+    );
+
+    assertEquals(result, { deleted: 0, errors: 0 });
+    assertEquals(storage.removed, []);
+  });
+});
+
 Deno.test("pruneStorage advances past candidates governed by earlier rules", async () => {
   await withDb(async (db) => {
     await seed(db, 2, 14 * DAY);
