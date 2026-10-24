@@ -88,6 +88,25 @@ export function buildListRouter(
     const rawSince = ctx.req.query("since");
     const rawUntil = ctx.req.query("until");
     const cursor = ctx.req.query("cursor") ?? undefined;
+    const rawType = ctx.req.query("type") ?? undefined;
+
+    // Optional MIME-type prefix filter: /list/<pk>?type=image (-> image/*) or
+    // type=image/png. Charset-validated so the value is safe as a LIKE prefix.
+    let type: string | undefined;
+    if (rawType !== undefined) {
+      const normalized = rawType.toLowerCase().replace(/\/+$/, "");
+      if (
+        !/^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}(\/[a-z0-9][a-z0-9!#$&^_.+-]{0,63})?$/
+          .test(normalized)
+      ) {
+        return errorResponse(
+          ctx,
+          400,
+          "Invalid type: use a MIME type like image or image/png",
+        );
+      }
+      type = normalized;
+    }
 
     const limit = rawLimit !== undefined ? parseInt(rawLimit, 10) : undefined;
     if (limit !== undefined && (isNaN(limit) || limit < 1)) {
@@ -121,6 +140,7 @@ export function buildListRouter(
       cursor,
       since,
       until,
+      type,
     });
 
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
