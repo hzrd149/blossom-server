@@ -20,7 +20,7 @@ let
       "--platform=browser"
     ];
 
-    hash = "sha256-f6m9WuXk0BFxstULgQHyAdWPPGv7uvYHXqEfFAEnXqY=";
+    hash = "sha256-/nxNuxegMsOwKR0RmlKCeoOayUgqozyA4juPPQoZESs=";
   };
 
   styles = pkgs.runCommand "blossom-server-styles-${version}.css" {
