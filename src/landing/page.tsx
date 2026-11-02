@@ -9,7 +9,7 @@ import { UploadIsland } from "./upload-island.tsx";
 export const LandingPage: FC<{ db: IDbHandle; config: Config }> = async (
   { db, config },
 ) => {
-  const stats = await db.getStats();
+  const stats = config.landing.showStats ? await db.getStats() : null;
   return (
     <Layout title={config.landing.title}>
       <header class="space-y-1">
@@ -27,7 +27,7 @@ export const LandingPage: FC<{ db: IDbHandle; config: Config }> = async (
           blob server
         </p>
       </header>
-      <StatsBar stats={stats} />
+      {stats && <StatsBar stats={stats} />}
       <ServerInfo config={config} />
       <UploadIsland
         requireAuth={config.upload.requireAuth}

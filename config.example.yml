@@ -335,6 +335,9 @@ landing:
   # Page title shown in <title> and <h1>.
   title: "Blossom Server"
 
+  # Show the "Server Stats" section (blob count, storage used, uploads in the last 24h).
+  showStats: true
+
 # ---------------------------------------------------------------------------
 # Blob reports (BUD-09)
 # ---------------------------------------------------------------------------
