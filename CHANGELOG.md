@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Minor Changes
+
+- Add the `landing.showStats` option to hide the "Server Stats" section of the landing page.
+
 ## 6.4.1 - 2026-10-06
 
 ### Patch Changes

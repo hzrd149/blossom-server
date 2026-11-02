@@ -24,6 +24,11 @@ Deno.test("ConfigSchema: media pubkey rule requirement can be disabled", () => {
   assertEquals(config.media.requirePubkeyInRule, false);
 });
 
+Deno.test("ConfigSchema: landing stats are shown by default and can be hidden", () => {
+  assertEquals(ConfigSchema.parse({}).landing.showStats, true);
+  assertEquals(ConfigSchema.parse({ landing: { showStats: false } }).landing.showStats, false);
+});
+
 Deno.test("loadConfig: legacy media config inherits upload pubkey setting", async () => {
   const dir = await Deno.makeTempDir();
   const configPath = join(dir, "config.yml");
