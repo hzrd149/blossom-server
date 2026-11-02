@@ -6,6 +6,12 @@
 
 - Add the `landing.showStats` option to hide the "Server Stats" section of the landing page.
 
+### Patch Changes
+
+- Fix the `docker-compose.yml` health check, which always marked the container unhealthy because the image has no `wget`. It now probes with Deno and also
+  passes when the landing page is disabled.
+- Fix the landing page showing two nested scrollbars by disabling the window.nostr.js page overflow style injection.
+
 ## 6.4.1 - 2026-10-06
 
 ### Patch Changes
