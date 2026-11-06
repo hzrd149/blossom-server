@@ -16,11 +16,14 @@ services:
       - ./config.yml:/app/config.yml:ro
     restart: unless-stopped
     healthcheck:
-      # Lightweight TCP probe — avoids needing curl/wget in the alpine image.
-      # Deno's HTTP server is ready when it accepts connections on port 3000.
+      # The Debian image has no curl or wget, so probe with Deno. Any non-5xx answer
+      # counts as healthy because GET / is a 404 when the landing page is disabled.
       test: [
-        "CMD-SHELL",
-        "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1",
+        "CMD",
+        "deno",
+        "eval",
+        "--no-config",
+        "const res = await fetch('http://127.0.0.1:3000/'); Deno.exit(res.status < 500 ? 0 : 1);",
       ]
       interval: 5s
       timeout: 3s

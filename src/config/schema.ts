@@ -458,6 +458,9 @@ const LandingSchema = z.object({
   title: z.string().default("Blossom Server").describe(
     "Page title displayed in <title> and <h1> on the landing page.",
   ),
+  showStats: z.boolean().default(true).describe(
+    "Show the blob count, storage used, and 24h uploads on the landing page.",
+  ),
 });
 
 const ReportSchema = z.object({
