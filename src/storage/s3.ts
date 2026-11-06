@@ -103,11 +103,7 @@ export class S3Storage implements IBlobStorage {
     hash: string,
     ext: string,
   ): Promise<ReadableStream<Uint8Array> | null> {
-    // If a public CDN URL is configured, the route layer should redirect
-    // rather than proxy. Return null so the route falls through to its redirect
-    // logic. (The blobs route checks storage.read() and, on null with a
-    // publicURL config, should issue a 302. That routing logic lives in the
-    // route, not here — returning null is the correct signal.)
+    // The blobs route redirects before reading when publicURL is configured.
     if (this.publicURL) {
       return null;
     }

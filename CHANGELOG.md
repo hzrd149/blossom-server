@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Restore S3 publicURL redirects for blob downloads, including Range requests, instead of returning 404 (#68).
+
 - Count prune query and invalid-rule failures, surface S3 deletion failures, and settle pending jobs when workers crash, stream transfer fails, or the pool
   shuts down.
 

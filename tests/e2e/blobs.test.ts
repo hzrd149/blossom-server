@@ -19,6 +19,8 @@ import { serveStatic } from "@hono/hono/deno";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
+import { S3Storage } from "../../src/storage/s3.ts";
+import { buildBlobsRouter } from "../../src/routes/blobs.ts";
 import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
 import { HttpMetrics } from "../../src/metrics/http.ts";
@@ -164,6 +166,59 @@ Deno.test({
       db.close();
       await Deno.remove(tmpDir, { recursive: true });
     };
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "S3 publicURL redirects full and range GETs while preserving HEAD, validators, and missing checks",
+  async fn() {
+    for (const publicURL of ["https://cdn.example.com/blobs", "https://cdn.example.com/blobs/"]) {
+      const s3Config = {
+        endpoint: "http://localhost:9000",
+        bucket: "blossom",
+        accessKey: "test",
+        secretKey: "test",
+        tmpDir: "/unused",
+        publicURL,
+      };
+      const s3 = new S3Storage(s3Config);
+      let exists = true;
+      s3.has = (hash, ext) => {
+        assertEquals(hash, blobHash);
+        assertEquals(ext, "");
+        return Promise.resolve(exists);
+      };
+      s3.read = s3.readRange = () => {
+        throw new Error("Public downloads must not read S3 object bodies");
+      };
+      const router = buildBlobsRouter(db, s3, {
+        ...config,
+        storage: { ...config.storage, backend: "s3", s3: s3Config },
+      });
+      for (const path of [`/${blobHash}`, `/${blobHash}.jpg`]) {
+        for (const headers of [undefined, { Range: "bytes=0-3" }]) {
+          const response = await router.request(path, { headers });
+          assertEquals(response.status, 302);
+          assertEquals(response.headers.get("location"), `https://cdn.example.com/blobs/${blobHash}`);
+          assertEquals(response.headers.get("content-range"), null);
+          assertEquals(response.headers.get("content-length"), null);
+          await response.body?.cancel();
+        }
+      }
+      const head = await router.request(`/${blobHash}`, { method: "HEAD" });
+      assertEquals(head.status, 200);
+      assertEquals(head.headers.get("content-length"), String(BLOB_SIZE));
+      assertEquals(head.headers.get("location"), null);
+      const conditional = await router.request(`/${blobHash}`, { headers: { "If-None-Match": `"${blobHash}"` } });
+      assertEquals(conditional.status, 304);
+      assertEquals(conditional.headers.get("location"), null);
+      exists = false;
+      const missing = await router.request(`/${blobHash}`);
+      assertEquals(missing.status, 404);
+      assertEquals(missing.headers.get("location"), null);
+      await missing.body?.cancel();
+    }
   },
   ...testOpts,
 });

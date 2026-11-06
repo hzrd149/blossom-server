@@ -46,7 +46,7 @@ export function ifNoneMatchMatches(headerValue: string | undefined, etag: string
 export function buildBlobsRouter(
   db: Client,
   storage: IBlobStorage,
-  _config: Config,
+  config: Config,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -119,6 +119,14 @@ export function buildBlobsRouter(
 
     if (ctx.req.method === "HEAD") {
       return ctx.body(null, 200, headers);
+    }
+
+    // S3 public downloads are served by the CDN, including Range requests.
+    // Use the stored extension, not the cosmetic extension in the request URL.
+    const publicURL = config.storage.backend === "s3" ? config.storage.s3?.publicURL : undefined;
+    if (publicURL) {
+      const key = ext ? `${hash}.${ext}` : hash;
+      return ctx.redirect(`${publicURL.replace(/\/$/, "")}/${key}`, 302);
     }
 
     // Range request support (BUD-01)
