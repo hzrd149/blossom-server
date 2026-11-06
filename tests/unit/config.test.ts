@@ -1,7 +1,16 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { join } from "@std/path";
 import { loadConfig, loadConfigStrict, MissingConfigError } from "../../src/config/loader.ts";
-import { ConfigSchema } from "../../src/config/schema.ts";
+import { ConfigSchema, StorageRuleSchema } from "../../src/config/schema.ts";
+
+Deno.test("StorageRuleSchema accepts legacy rules and validates optional basis", () => {
+  const rule = { type: "*", expiration: "1 week" };
+  assertEquals(StorageRuleSchema.parse(rule), rule);
+  for (const basis of ["accessed", "uploaded"] as const) {
+    assertEquals(StorageRuleSchema.parse({ ...rule, basis }), { ...rule, basis });
+  }
+  assertEquals(StorageRuleSchema.safeParse({ ...rule, basis: "created" }).success, false);
+});
 
 Deno.test("ConfigSchema: media thumbnail defaults are enabled", () => {
   const config = ConfigSchema.parse({ media: { enabled: true } });

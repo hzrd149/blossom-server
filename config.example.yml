@@ -98,8 +98,13 @@ storage:
   # Fields:
   #   type        MIME type pattern. Supports glob wildcards:
   #               "image/*" matches all image types, "*" matches everything.
-  #   expiration  How long a blob may go unaccessed before being pruned.
+  #   expiration  Retention duration measured from the rule basis.
   #               Human-readable duration: "7 days", "1 month", "24 hours".
+  #   basis       Optional: "accessed" (default) or "uploaded".
+  #               accessed: last access, falling back to upload time.
+  #               uploaded: first upload to this server, shared across owners;
+  #               downloads and repeat uploads do not extend retention.
+  #               Uploading after deletion starts a new lifetime.
   #   pubkeys     Optional list of uploader Nostr pubkeys (hex) this rule applies to.
   #               When set, only blobs from these pubkeys are matched by this rule.
   rules:
@@ -109,6 +114,14 @@ storage:
       expiration: 1 week
     - type: "*"
       expiration: 1 week
+
+  # Example: expire videos one week after first upload, even if still accessed
+  # rules:
+  #   - type: "video/*"
+  #     expiration: 1 week
+  #     basis: uploaded
+  #   - type: "*"
+  #     expiration: 1 month
 
   # Example: pubkey-scoped rule — give specific users longer image retention
   # rules:

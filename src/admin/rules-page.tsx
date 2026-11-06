@@ -57,6 +57,7 @@ export const RulesPage: FC<RulesPageProps> = ({ config }) => {
               <Th>MIME Pattern</Th>
               <Th>Pubkeys</Th>
               <Th>Expiration</Th>
+              <Th>Basis</Th>
             </tr>
           </Thead>
           <Tbody>
@@ -80,13 +81,7 @@ export const RulesPage: FC<RulesPageProps> = ({ config }) => {
                   <Badge color="yellow">{rule.expiration}</Badge>
                 </Td>
                 <Td>
-                  <span class="text-gray-600">—</span>
-                </Td>
-                <Td>
-                  <PubkeyList pubkeys={rule.pubkeys} />
-                </Td>
-                <Td>
-                  {rule.expiration ? <Badge color="yellow">{rule.expiration}</Badge> : <span class="text-gray-600">—</span>}
+                  {rule.basis === "uploaded" ? "First upload" : "Last access"}
                 </Td>
               </tr>
             ))}

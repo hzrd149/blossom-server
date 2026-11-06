@@ -2,13 +2,63 @@ import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import type { Client } from "@libsql/client";
 import { initDb } from "../../src/db/client.ts";
-import { getBlobsForPrune, getOwnerlessBlobCandidates } from "../../src/db/blobs.ts";
+import { getBlob, getBlobsForPrune, getOwnerlessBlobCandidates, insertBlob } from "../../src/db/blobs.ts";
+import type { StorageRule } from "../../src/config/schema.ts";
 import { createPruneState, pruneStorage } from "../../src/prune/prune.ts";
 import type { IBlobStorage } from "../../src/storage/interface.ts";
 import { OperationMetrics } from "../../src/metrics/operations.ts";
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
+
+for (const basis of [undefined, "accessed", "uploaded"] as const) {
+  Deno.test(`pruneStorage respects ${basis ?? "legacy"} basis with recent access and never-accessed blobs`, async () => {
+    await withDb(async (db) => {
+      await seed(db, 3, 30 * DAY, { accessed: false });
+      const now = Math.floor(Date.now() / 1000);
+      await db.execute({ sql: "INSERT INTO accessed (blob, timestamp) VALUES (?, ?)", args: [sha(0), now] });
+      await db.execute({ sql: "UPDATE blobs SET uploaded = ? WHERE sha256 = ?", args: [now, sha(2)] });
+      const storage = recordingStorage();
+      const result = await pruneStorage(db, storage, [{ type: "*", expiration: "1 week", basis }], false);
+      assertEquals(result, { deleted: basis === "uploaded" ? 2 : 1, errors: 0 });
+      assertEquals(await blobHashes(db), basis === "uploaded" ? [sha(2)] : [sha(0), sha(2)]);
+    });
+  });
+}
+
+Deno.test("upload-based retention is not extended by repeat uploads from another owner", async () => {
+  await withDb(async (db) => {
+    await seed(db, 1, 30 * DAY);
+    const original = (await getBlob(db, sha(0)))!;
+    await insertBlob(db, { ...original, uploaded: Math.floor(Date.now() / 1000) }, "a".repeat(64));
+    assertEquals((await getBlob(db, sha(0)))!.uploaded, original.uploaded);
+    const result = await pruneStorage(db, recordingStorage(), [{ type: "*", expiration: "1 week", basis: "uploaded" }], false);
+    assertEquals(result, { deleted: 1, errors: 0 });
+    assertEquals(await blobHashes(db), []);
+  });
+});
+
+for (const basis of ["accessed", "uploaded"] as const) {
+  Deno.test(`mixed-basis rules preserve first-match ${basis} policy and advance bounded cursors`, async () => {
+    await withDb(async (db) => {
+      await seed(db, 3, 30 * DAY);
+      await db.execute({ sql: "UPDATE accessed SET timestamp = ?", args: [Math.floor(Date.now() / 1000)] });
+      await db.execute({ sql: "UPDATE blobs SET type = 'video/mp4' WHERE sha256 != ?", args: [sha(0)] });
+      const rules: StorageRule[] = [
+        { type: "image/*", expiration: "1 week", basis },
+        { type: "*", expiration: "1 week", basis: basis === "accessed" ? "uploaded" : "accessed" },
+      ];
+      const state = createPruneState();
+      const storage = recordingStorage();
+      for (let cycle = 0; cycle < 4; cycle++) {
+        const result = await pruneStorage(db, storage, rules, false, 1, state);
+        assertEquals(result.errors, 0);
+        assertEquals(result.deleted <= 1, true);
+      }
+      assertEquals(await blobHashes(db), basis === "accessed" ? [sha(0)] : [sha(1), sha(2)]);
+    });
+  });
+}
 
 Deno.test("prune metrics count logical deleted bytes for expiry and ownerless cleanup", async () => {
   await withDb(async (db) => {

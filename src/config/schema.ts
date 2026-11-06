@@ -9,7 +9,13 @@ export const StorageRuleSchema = z.object({
   expiration: z
     .string()
     .describe(
-      'How long a blob may go unaccessed before being pruned. Human-readable duration: "7 days", "1 month", "24 hours".',
+      'Retention duration measured from the rule basis. Human-readable duration: "7 days", "1 month", "24 hours".',
+    ),
+  basis: z
+    .enum(["accessed", "uploaded"])
+    .optional()
+    .describe(
+      'Expiration basis: "accessed" (default) uses last access, falling back to upload time; "uploaded" uses first upload to this server, regardless of later access or repeat uploads.',
     ),
   pubkeys: z
     .array(z.string())

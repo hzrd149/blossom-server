@@ -11,6 +11,8 @@
 
 ### Minor Changes
 
+- Add optional storage rule `basis: uploaded` to expire blobs from first upload regardless of later access; omitted or `accessed` preserves existing retention.
+
 - Add worker capacity, active jobs, saturation, duration and crash metrics; add scheduled prune health and cached inventory by MIME group, with collection
   freshness and failures.
 

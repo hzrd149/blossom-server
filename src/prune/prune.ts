@@ -2,9 +2,8 @@
  * Prune engine — deletes expired and ownerless blobs on a schedule.
  *
  * Two phases per run:
- *   Phase 1 — Rule-based expiry: for each storage rule, find blobs whose last
- *             access time (or upload time if never accessed) is older than the
- *             rule's expiration window, and delete them.
+ *   Phase 1 — Rule-based expiry: use last access (falling back to upload time)
+ *             by default, or first upload time for rules with basis: uploaded.
  *   Phase 2 — Ownerless cleanup (optional): delete blobs with no owner rows.
  *
  * Fixes vs the legacy Node.js implementation:
@@ -78,8 +77,8 @@ async function getRuleCandidates(
   onError: () => void,
 ): Promise<BlobPruneRecord[]> {
   const first = state.nextSource;
-  const sources: PruneSource[] = [first, first === "accessed" ? "uploaded" : "accessed"];
-  state.nextSource = sources[1];
+  const sources: PruneSource[] = rule.basis === "uploaded" ? ["uploaded"] : [first, first === "accessed" ? "uploaded" : "accessed"];
+  if (rule.basis !== "uploaded") state.nextSource = sources[1];
 
   const rows: BlobPruneRecord[] = [];
   for (const source of sources) {
@@ -169,7 +168,7 @@ export async function pruneStorage(
 
     for (const row of rows) {
       if (row.thumbnail) continue;
-      if (row.pruneSource === "uploaded" && row.accessed !== null) continue;
+      if (rule.basis !== "uploaded" && row.pruneSource === "uploaded" && row.accessed !== null) continue;
 
       // SQL finds candidates for this rule, but ordered rules are a first-match
       // policy. A candidate governed by an earlier rule must never be deleted by
@@ -181,9 +180,9 @@ export async function pruneStorage(
       // Expiry is decided in SQL now, so this is a guard rather than a filter:
       // it should never reject a row. Kept because the failure it protects
       // against — a query change that widens the match — deletes user data.
-      const lastSeen = row.accessed ?? row.uploaded;
+      const basisTimestamp = rule.basis === "uploaded" ? row.uploaded : row.accessed ?? row.uploaded;
 
-      if (lastSeen < cutoffSeconds) {
+      if (basisTimestamp < cutoffSeconds) {
         try {
           const ext = mimeToExt(row.type);
           const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
