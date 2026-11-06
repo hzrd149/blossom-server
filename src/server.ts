@@ -20,9 +20,11 @@ import { envelopeAdmissionMiddleware } from "./middleware/envelope.ts";
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
 import { buildLandingRouter, PUBLIC_DIR, warnIfStylesheetMissing } from "./routes/landing.tsx";
 import { isStaticCandidate } from "./utils/url.ts";
+import type { HttpMetrics } from "./metrics/http.ts";
 
 export interface BuildAppOptions {
   staticMiddleware?: MiddlewareHandler;
+  metrics?: HttpMetrics;
 }
 
 export async function buildApp(
@@ -38,6 +40,8 @@ export async function buildApp(
   // X-Reason formatting is handled by the Blossom sub-app's own onError.
   app.onError(onError);
 
+  if (options.metrics) app.use("*", options.metrics.middleware);
+
   // Request/response logging
   app.use("*", requestLogger);
 
@@ -52,7 +56,13 @@ export async function buildApp(
 
   // Serve any file from the public directory at its root-relative URL.
   // Requests that do not map to a file fall through to the app routes below.
-  const staticMiddleware = options.staticMiddleware ?? serveStatic({ root: PUBLIC_DIR });
+  const staticMiddleware = options.staticMiddleware ?? serveStatic({
+    root: PUBLIC_DIR,
+    onFound: (_path, ctx) => {
+      // Public assets have stable, unversioned URLs and may change on deployment.
+      ctx.header("Cache-Control", "no-cache");
+    },
+  });
   app.use("*", (ctx, next) => {
     if (!isStaticCandidate(new URL(ctx.req.url).pathname)) return next();
     return staticMiddleware(ctx, next);

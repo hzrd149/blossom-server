@@ -21,6 +21,15 @@ port: 3000
 # Use 127.0.0.1 to accept only loopback connections (behind a local reverse proxy).
 host: 0.0.0.0
 
+# Optional Prometheus endpoint on a separate, unauthenticated private listener.
+# Scrape http://127.0.0.1:3001/metrics locally or through private transport.
+metrics:
+  enabled: false
+  host: 127.0.0.1
+  port: 3001
+  # Cached DB inventory refresh; runs after each prior collection completes.
+  inventoryIntervalMs: 60000
+
 # Override the domain used in blob descriptor "url" fields.
 # Defaults to the Host header of each incoming request.
 # Set this when running behind a reverse proxy that rewrites the Host header.

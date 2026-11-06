@@ -5,9 +5,23 @@ import { initDb } from "../../src/db/client.ts";
 import { getBlobsForPrune, getOwnerlessBlobCandidates } from "../../src/db/blobs.ts";
 import { createPruneState, pruneStorage } from "../../src/prune/prune.ts";
 import type { IBlobStorage } from "../../src/storage/interface.ts";
+import { OperationMetrics } from "../../src/metrics/operations.ts";
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
+
+Deno.test("prune metrics count logical deleted bytes for expiry and ownerless cleanup", async () => {
+  await withDb(async (db) => {
+    await seed(db, 2, 30 * DAY);
+    const metrics = new OperationMetrics();
+    const result = await pruneStorage(db, recordingStorage(), [{ type: "*", expiration: "1 day" }], false, 1, createPruneState(), metrics);
+    assertEquals(result.deleted, 1);
+    await db.execute("DELETE FROM owners");
+    const ownerless = await pruneStorage(db, recordingStorage(), [], true, 10, createPruneState(), metrics);
+    assertEquals(ownerless.deleted, 1);
+    assertEquals(metrics.render().includes("blossom_prune_deleted_bytes_total 20"), true);
+  });
+});
 
 function sha(n: number): string {
   return n.toString(16).padStart(64, "0");

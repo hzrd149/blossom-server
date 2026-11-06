@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Patch Changes
+
+- Count prune query and invalid-rule failures, surface S3 deletion failures, and settle pending jobs when workers crash, stream transfer fails, or the pool
+  shuts down.
+
+- Require cache revalidation for the landing page and public assets so browsers pick up UI and configuration changes after deployment.
+
+### Minor Changes
+
+- Add worker capacity, active jobs, saturation, duration and crash metrics; add scheduled prune health and cached inventory by MIME group, with collection
+  freshness and failures.
+
+- Observe download and storage-read stream bytes, concurrency, duration, and terminal outcomes; add storage API timings and S3 caught-error counters. Preserve
+  backpressure and cancellation in fallback Range reads.
+
+- Add an optional Docker Compose monitoring profile with a local Prometheus UI and persistent, bounded test history.
+
+- Publish the optional Docker Compose metrics endpoint on host loopback port 3001 and document local testing.
+
+- Add an opt-in private Prometheus listener with bounded HTTP request counts, handler latency, active handlers, and build/start identity.
+
 ## 6.4.1 - 2026-10-06
 
 ### Patch Changes

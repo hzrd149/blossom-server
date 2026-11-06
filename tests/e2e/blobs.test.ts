@@ -21,6 +21,8 @@ import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
 import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
+import { HttpMetrics } from "../../src/metrics/http.ts";
+import { instrumentStorage } from "../../src/metrics/storage.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import type { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
@@ -134,7 +136,8 @@ Deno.test({
       upload: { requireAuth: false, enabled: true },
     });
 
-    app = await buildApp(db, storage, config);
+    const metrics = new HttpMetrics("test");
+    app = await buildApp(db, instrumentStorage(storage, metrics.operations, "local"), config, { metrics });
 
     // Upload the test blob
     blobHash = await sha256Hex(BLOB_DATA);

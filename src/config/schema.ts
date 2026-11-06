@@ -574,6 +574,12 @@ export const ConfigSchema = z
     port: z.number().int().min(1).max(65535).default(3000).describe(
       "TCP port to listen on.",
     ),
+    metrics: z.object({
+      inventoryIntervalMs: z.number().int().min(1000).default(60000),
+      enabled: z.boolean().default(false),
+      host: z.string().min(1).default("127.0.0.1"),
+      port: z.number().int().min(1).max(65535).default(3001),
+    }).prefault({}).describe("Private Prometheus listener. Has no authentication; bind to a trusted interface."),
     storage: StorageSchema.optional()
       .transform((v) => v ?? StorageSchema.parse({}))
       .describe("Blob storage configuration."),

@@ -635,6 +635,7 @@ export async function countBlobsByPubkey(
 }
 
 export interface OwnerlessScanRecord {
+  size: number;
   sha256: string;
   type: string | null;
   prunable: boolean;
@@ -650,7 +651,8 @@ export async function getOwnerlessBlobCandidates(
     sql: `
       SELECT b.sha256, b.type,
              NOT EXISTS (SELECT 1 FROM owners o WHERE o.blob = b.sha256)
-             AND NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS prunable
+              AND NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS prunable,
+              b.size
       FROM blobs b
       ${cursorCondition}
       ORDER BY b.sha256 ASC
@@ -662,5 +664,6 @@ export async function getOwnerlessBlobCandidates(
     sha256: row[0] as string,
     type: row[1] as string | null,
     prunable: Boolean(row[2]),
+    size: Number(row[3]),
   }));
 }

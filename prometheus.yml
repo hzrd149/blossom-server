@@ -1,0 +1,9 @@
+# Local development collector. Blossom must enable metrics on 0.0.0.0:3001.
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+
+scrape_configs:
+  - job_name: blossom
+    static_configs:
+      - targets: ["blossom:3001"]

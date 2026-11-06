@@ -39,5 +39,6 @@ RUN deno cache main.ts && deno task build
 VOLUME ["/app/data"]
 
 EXPOSE 3000
+EXPOSE 3001
 
 ENTRYPOINT ["deno", "task", "start"]

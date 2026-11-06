@@ -75,6 +75,8 @@ export async function buildLandingRouter(
   const app = new Hono();
 
   app.get("/", (c) => {
+    // Render current server configuration and statistics on every visit.
+    c.header("Cache-Control", "no-cache");
     return c.html(<LandingPage db={handle} config={config} />);
   });
 

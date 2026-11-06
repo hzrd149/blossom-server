@@ -21,9 +21,15 @@ import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
 import { buildApp } from "./src/server.ts";
 import { createPruneState, pruneStorage } from "./src/prune/prune.ts";
+import { HttpMetrics } from "./src/metrics/http.ts";
+import { instrumentStorage } from "./src/metrics/storage.ts";
+import { InventoryCollector } from "./src/metrics/inventory.ts";
+import { PruneMetrics } from "./src/metrics/prune.ts";
+import packageInfo from "./deno.json" with { type: "json" };
 
 const configPath = Deno.args[0] ?? "config.yml";
 const config = await loadConfig(configPath);
+const metrics = config.metrics.enabled ? new HttpMetrics(packageInfo.version) : undefined;
 
 // Config schema resolves deprecated databasePath into config.database automatically.
 const dbConfig: DbConfig = config.database;
@@ -70,6 +76,13 @@ if (config.storage.backend === "local") {
     region: s3Config.region,
     publicURL: s3Config.publicURL,
     tmpDir: s3Config.tmpDir,
+    onReadError: (operation, missing) =>
+      metrics?.operations.add(
+        "blossom_s3_caught_errors_total",
+        `operation="${operation}",reason="${missing ? "not_found" : "backend_error"}"`,
+        1,
+        "S3 errors caught by the adapter, including internal dedup checks.",
+      ),
   });
   console.log(
     `  Storage:  s3 — verifying bucket access (${s3Config.bucket} @ ${s3Config.endpoint})...`,
@@ -81,6 +94,8 @@ if (config.storage.backend === "local") {
   );
 }
 
+if (metrics) storage = instrumentStorage(storage, metrics.operations, config.storage.backend);
+
 // Init upload worker pool — dbConfig determines whether workers use MessageChannel
 // (local SQLite) or open their own direct connections (remote libSQL / Turso).
 const pool = initPool(
@@ -89,6 +104,7 @@ const pool = initPool(
   config.upload.throughputWindowMs,
   db,
   dbConfig,
+  metrics?.operations,
 );
 console.log(`  Workers:  ${pool.size} upload workers`);
 
@@ -109,26 +125,34 @@ if (config.dashboard.enabled) {
 }
 
 // Build Hono app (async — landing router loads the prebuilt client JS at startup).
-const app = await buildApp(db, storage, config);
+const app = await buildApp(db, storage, config, { metrics });
+const metricsServer = metrics ? Deno.serve({ hostname: config.metrics.host, port: config.metrics.port }, metrics.fetch) : undefined;
+const inventory = metrics ? new InventoryCollector(db, metrics.operations) : undefined;
+inventory?.start(config.metrics.inventoryIntervalMs);
 
 // Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
 // Uses recursive setTimeout (not setInterval) so the next run starts only after the
 // current one fully completes, preventing overlapping runs under slow I/O.
 const pruneEnabled = config.storage.rules.length > 0 ||
   config.storage.removeWhenNoOwners;
+const pruneMetrics = metrics ? new PruneMetrics(metrics.operations, pruneEnabled) : undefined;
+let stopping = false;
 let pruneTimeout: ReturnType<typeof setTimeout> | undefined;
 if (pruneEnabled) {
   const pruneState = createPruneState();
   const runPrune = async () => {
     try {
-      const result = await pruneStorage(
-        db,
-        storage,
-        config.storage.rules,
-        config.storage.removeWhenNoOwners,
-        config.prune.batchSize,
-        pruneState,
-      );
+      const action = () =>
+        pruneStorage(
+          db,
+          storage,
+          config.storage.rules,
+          config.storage.removeWhenNoOwners,
+          config.prune.batchSize,
+          pruneState,
+          metrics?.operations,
+        );
+      const result = await (pruneMetrics ? pruneMetrics.run(action) : action());
       if (result.deleted > 0 || result.errors > 0) {
         console.log(
           `[prune] deleted=${result.deleted} errors=${result.errors}`,
@@ -137,7 +161,7 @@ if (pruneEnabled) {
     } catch (err) {
       console.error("[prune] Unexpected error in prune loop:", err);
     }
-    pruneTimeout = setTimeout(runPrune, config.prune.intervalMs);
+    if (!stopping) pruneTimeout = setTimeout(runPrune, config.prune.intervalMs);
   };
   pruneTimeout = setTimeout(runPrune, config.prune.initialDelayMs);
 }
@@ -190,10 +214,14 @@ const server = Deno.serve(
 );
 
 // Graceful shutdown
-const shutdown = () => {
+const shutdown = async () => {
+  if (stopping) return;
+  stopping = true;
+  await inventory?.stop();
   console.log("\nShutting down...");
   if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
   pool.shutdown();
+  metricsServer?.shutdown();
   server.shutdown();
   db.close();
 

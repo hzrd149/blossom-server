@@ -30,6 +30,7 @@ export class S3Storage implements IBlobStorage {
 
   private readonly client: S3Client;
   private readonly publicURL: string | null;
+  private readonly onReadError?: (operation: "has" | "read" | "readRange" | "size" | "remove", missing: boolean) => void;
 
   constructor(opts: {
     endpoint: string;
@@ -39,9 +40,11 @@ export class S3Storage implements IBlobStorage {
     region?: string;
     publicURL?: string;
     tmpDir: string;
+    onReadError?: S3Storage["onReadError"];
   }) {
     this.publicURL = opts.publicURL?.replace(/\/$/, "") ?? null;
     this.tmpDir = opts.tmpDir;
+    this.onReadError = opts.onReadError;
 
     this.client = new S3Client({
       endPoint: opts.endpoint,
@@ -90,7 +93,8 @@ export class S3Storage implements IBlobStorage {
     try {
       await this.client.statObject(this.objectKey(hash, ext));
       return true;
-    } catch {
+    } catch (error) {
+      this.recordError("has", error);
       return false;
     }
   }
@@ -112,7 +116,8 @@ export class S3Storage implements IBlobStorage {
       const response = await this.client.getObject(this.objectKey(hash, ext));
       if (!response.body) return null;
       return response.body as ReadableStream<Uint8Array>;
-    } catch {
+    } catch (error) {
+      this.recordError("read", error);
       return null;
     }
   }
@@ -144,7 +149,8 @@ export class S3Storage implements IBlobStorage {
       );
       if (!response.body) return null;
       return response.body as ReadableStream<Uint8Array>;
-    } catch {
+    } catch (error) {
+      this.recordError("readRange", error);
       return null;
     }
   }
@@ -153,7 +159,8 @@ export class S3Storage implements IBlobStorage {
     try {
       const stat = await this.client.statObject(this.objectKey(hash, ext));
       return stat.size ?? null;
-    } catch {
+    } catch (error) {
+      this.recordError("size", error);
       return null;
     }
   }
@@ -234,9 +241,20 @@ export class S3Storage implements IBlobStorage {
     try {
       await this.client.deleteObject(this.objectKey(hash, ext));
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      this.recordError("remove", error);
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+      if (code === "NoSuchKey" || code === "NotFound") return false;
+      throw error;
     }
+  }
+
+  private recordError(operation: "has" | "read" | "readRange" | "size" | "remove", error: unknown): void {
+    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+    // Only explicit object-not-found codes count as missing; permissions and transport failures remain errors.
+    try {
+      this.onReadError?.(operation, code === "NoSuchKey" || code === "NotFound");
+    } catch { /* Telemetry must not affect storage. */ }
   }
 
   private async _uploadToS3AndCleanup(
