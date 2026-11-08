@@ -344,31 +344,70 @@ All error responses use `Content-Type: text/plain`. The reason is included in bo
 
 ## Admin Dashboard
 
-Enable the server-rendered admin dashboard (Hono JSX, no separate SPA) to manage blobs, users, rules, and reports:
+Enable the React admin console, served by the existing Hono/Deno application:
 
 ```yaml
 dashboard:
   enabled: true
   username: admin
   password: "" # Auto-generated and logged to stdout on first startup if blank
-  # Nostr relays used to look up kind:0 profiles in the user detail view
-  lookupRelays:
-    - wss://purplepag.es
-    - wss://index.hzrd149.com
-    - wss://indexer.coracle.social
 ```
 
-The dashboard is available at `http://localhost:3000/admin` and is protected by HTTP Basic Auth. It provides pages for:
+The console is available at `http://localhost:3000/admin` and is protected by HTTP Basic Auth. It is currently a minimal shell for building the new management
+interface. The previous blob, user, rule, and report pages have been removed; `/admin/console` redirects to `/admin`.
 
-- **Blobs** — browse, search, and force-delete blobs
-- **Users** — list uploaders with Nostr profile metadata lookup
-- **Rules** — view active storage retention rules
-- **Reports** — review and dismiss BUD-09 blob reports
+The management backend remains available under `/admin/api`, with read-only content, inventory, and sanitized configuration endpoints, plus blob/user-content
+deletion and report moderation actions. Configuration remains deployment-managed. The obsolete `dashboard.lookupRelays` setting is no longer used.
+
+Build assets with `deno task build:admin` and check the React client with `deno task check:admin`. Client code lives in `src/admin/client/`, API routes in
+`src/admin/server/`, and backend operations in `src/admin/services/`. Browser-safe API types live in `src/admin/contracts/`.
+
+The client is wrapped in TanStack Query's shared provider. Fetch data with `useQuery(adminQueries.summary())` or `useQuery(adminQueries.content(page, search))`,
+importing `adminQueries` from `src/admin/client/api/queries.ts`. Query functions pass cancellation signals to the authenticated API client. Reads stay fresh for
+30 seconds; network/server failures retry twice, while 4xx responses and mutations do not retry. Use `adminQueryKeys` to invalidate related queries after
+mutations. React Query Devtools is available through its floating toggle, initially closed, including in the built admin bundle.
+
+Admin styling uses Tailwind CSS 4 and daisyUI 5. Add Tailwind utilities and daisyUI component classes directly in React components; use semantic theme colors
+such as `bg-base-100`, `text-base-content`, and `btn-primary`. Light and dark themes follow the system preference. The CSS entry point is
+`src/admin/styles/input.css`, with separate pinned build dependencies in that directory. `deno task build:admin` builds both JS and CSS;
+`deno task build:admin:styles` rebuilds only CSS. For live styling work, run `deno task build:admin:styles --watch` alongside the server.
+
+### Browser-side Nostr
+
+The admin uses Applesauce directly: `src/admin/client/nostr/` exports shared `eventStore`, `eventLoader`, `pool`, `accounts`, and `actions` instances.
+`main.tsx` mounts Applesauce's native React providers. Use `applesauce-common` casts with `use$` for reactive Nostr data; TanStack Query owns HTTP admin API
+data. Metadata is fetched directly from relays by the browser.
+
+```tsx
+import { castUser } from "applesauce-common/casts";
+import { use$ } from "applesauce-react/hooks";
+import { eventStore } from "./nostr/event-store.ts";
+
+function UserName({ pubkey }: { pubkey: string }) {
+  const profile = use$(() => castUser(pubkey, eventStore).profile$, [pubkey]);
+  return <span>{profile?.displayName || profile?.name || pubkey.slice(0, 12)}</span>;
+}
+```
+
+Profile reads work anonymously, batch concurrent requests, verify signatures, and share an in-memory cache. Missing metadata returns `undefined` until it is
+available. Default lookup/fallback relays are in `src/admin/client/nostr/relays.ts`; no relay connections or signer prompts occur just from mounting the empty
+shell.
+
+- Create accounts with Applesauce's account classes, e.g. `await ExtensionAccount.fromExtension()` or `ReadonlyAccount.fromPubkey(pubkey)`, then call
+  `accounts.addAccount(account)` and `accounts.setActive(account)`. Observe the selection with `useActiveAccount()`.
+- `NostrConnectSigner.pool` uses the shared relay pool. Use the signer's native NIP-46 methods; close its connection when removing a bunker account.
+- Run actions with `actions` / `useActionRunner()`. Its publish callback uses explicit relays or NIP-65 outboxes with fallback relays and checks relay
+  acceptance.
+- Use `applesauce-common` factories and casts for event-specific behavior. For manual relay reads, use `pool.request` / `pool.subscription` with
+  `mapEventsToStore(eventStore)`; `use$` manages the subscription lifetime in React.
+
+Accounts and cached events currently live only for the browser session; no keys or sessions are persisted. Nostr account selection does not grant or replace
+HTTP Basic Auth access to the admin API.
 
 ## Development
 
 ```sh
-# Build the landing page assets (outputs: public/client.js and public/styles.css)
+# Build landing and admin assets (public/client.js, public/styles.css, public/admin/)
 # Recommended before running `deno task dev` or `deno task start` when the
 # landing page or admin dashboard is enabled. Missing assets produce warnings;
 # blob API routes still start normally.

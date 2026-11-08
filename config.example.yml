@@ -372,7 +372,7 @@ report:
 # ---------------------------------------------------------------------------
 
 # dashboard:
-#   # Enable the admin dashboard at /admin and the admin API endpoints.
+#   # Enable the new admin console shell at /admin and management API at /admin/api.
 #   # Protected by HTTP Basic Auth. Disabled by default — opt in explicitly.
 #   enabled: true
 #
@@ -382,16 +382,3 @@ report:
 #   # If blank, a random password is generated at startup and printed to stdout.
 #   # Set an explicit password for stable deployments.
 #   password: ""
-#
-#   # Nostr relay URLs used to look up kind:0 profile metadata for pubkeys
-#   # shown on user detail pages in the admin dashboard.
-#   #
-#   # purplepag.es   — NIP-65 outbox directory; finds most active Nostr users.
-#   # relay.nostr.band — broad aggregation relay; good fallback for older profiles.
-#   #
-#   # Profile fetch is attempted in parallel with a 4-second timeout per pubkey.
-#   # A slow or unreachable relay never stalls the page render.
-#   # Set to [] to disable profile metadata lookup entirely.
-#   lookupRelays:
-#     - wss://purplepag.es
-#     - wss://relay.nostr.band

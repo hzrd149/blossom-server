@@ -7,7 +7,7 @@
 # @libsql/client) ship glibc-linked binaries that require libc.so, which is
 # absent on Alpine/musl.
 #
-# The landing page client JS and Tailwind CSS are pre-built into public/ during
+# The landing and admin client JS and CSS are pre-built into public/ during
 # image build so the runtime container serves known-good assets instead of
 # relying on startup-time bundling.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ COPY main.ts ./
 COPY public/ ./public/
 COPY src/ ./src/
 
-# Warm the Deno module cache and pre-build the landing assets.
+# Warm the Deno module cache and pre-build the landing and admin assets.
 #
 # Step 1: deno cache downloads all JSR/npm module sources declared in deno.json.
 #

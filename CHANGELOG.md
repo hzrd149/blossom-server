@@ -13,6 +13,19 @@
 
 ### Minor Changes
 
+- Add browser-side Applesauce instances and native React providers to the admin console: profile loading through `applesauce-common` casts and `use$`, shared
+  event storage and relays, account/signing support, and action publishing. User metadata is fetched directly from Nostr without involving the admin backend.
+
+- Set up Tailwind CSS 4 and daisyUI 5 for the admin console, with compiled local styles and system-aware light/dark themes.
+
+- Add TanStack Query and React Query Devtools to the admin client, with shared API query definitions, cancellation, caching, and status-aware retries.
+
+- Replace the legacy SSR admin dashboard with a minimal React shell at `/admin` (`/admin/console` redirects there). Remove the old dashboard pages,
+  profile-lookup runtime and relay configuration, and temporary demo UI. Keep the isolated management API, services, authentication, and asset build as the
+  foundation for the new console; configuration remains deployment-managed.
+
+- Reject cross-site browser admin mutations and validate management API identifiers and pagination parameters.
+
 - Add optional storage rule `basis: uploaded` to expire blobs from first upload regardless of later access; omitted or `accessed` preserves existing retention.
 
 - Add worker capacity, active jobs, saturation, duration and crash metrics; add scheduled prune health and cached inventory by MIME group, with collection

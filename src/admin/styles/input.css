@@ -1,0 +1,13 @@
+@import "tailwindcss" source(none);
+@source "../client";
+
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+  logs: false;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen bg-base-200 text-base-content;
+  }
+}

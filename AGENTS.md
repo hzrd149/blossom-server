@@ -8,7 +8,7 @@ Guidance for AI coding agents working in this repository.
 
 Blossom Server is a **Deno 2**-based HTTP server implementing the [Blossom](https://github.com/hzrd149/blossom) blob-storage protocol (BUDs
 01/02/04/05/06/09/11). It uses **Hono** for routing, **LibSQL** (embedded SQLite) for metadata, and supports local-disk and S3 storage. Authentication is via
-BUD-11 Nostr signed events (kind 24242). The admin dashboard is server-side rendered Hono JSX, runs on the main thread, and is protected by HTTP Basic Auth.
+BUD-11 Nostr signed events (kind 24242). The admin console uses client-side React with a Hono management API on the main thread, protected by HTTP Basic Auth.
 
 ---
 
@@ -41,7 +41,7 @@ deno fmt --check
 # Format (auto-fix)
 deno fmt
 
-# Pre-build the landing page assets (outputs: public/client.js and public/styles.css)
+# Pre-build landing and admin assets (public/client.js, public/styles.css, public/admin/)
 # Recommended when the landing page or dashboard is enabled. Missing assets
 # produce startup warnings, while blob API routes remain available.
 deno task build
@@ -55,6 +55,7 @@ deno task update:nix-hashes
 # Individual fixed-output checks, useful when updating a reported hash.
 nix build path:.#denoDeps --rebuild --print-build-logs
 nix build path:.#clientBundle --rebuild --print-build-logs
+nix build path:.#adminBundle --rebuild --print-build-logs
 nix build path:.#styles --rebuild --print-build-logs
 ```
 
@@ -68,9 +69,10 @@ nix build path:.#styles --rebuild --print-build-logs
 > **Read before writing tests:** `TESTING.md` contains the full planned test matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or `tests/e2e/`
 > (full Hono app via `app.fetch()` — no real HTTP port needed).
 
-> **Nix deterministic validation:** Run `deno task check:nix` after changing Nix inputs, dependencies, or bundled client code. It realizes all outputs and then
-> force-rebuilds `denoDeps`, `clientBundle`, `styles`, and the final package, so old store paths cannot hide stale outputs or fixed-output hashes. If Nix
-> reports a hash mismatch, run `deno task update:nix-hashes` to refresh `denoDepsHash` and `clientBundle.hash` in `nix/package.nix` and verify all outputs.
+> **Nix deterministic validation (pre-commit only):** When Nix inputs, dependencies, or bundled client code have changed, defer Nix validation and hash
+> refreshes until preparing to commit, after all edits are complete. Do not refresh hashes after individual changes or during ongoing development. Before
+> committing, run `deno task check:nix`; if it reports a hash mismatch, run `deno task update:nix-hashes` to refresh `nix/package.nix` and verify all outputs.
+> These checks realize and force-rebuild `denoDeps`, `clientBundle`, `adminBundle`, `styles`, and the final package so cached outputs cannot hide stale hashes.
 
 ### Release development workflow
 
@@ -125,9 +127,12 @@ blossom-server/
     │   ├── mirror.ts         # PUT /mirror (BUD-04)
     │   ├── media.ts          # PUT /media, HEAD /media (BUD-05)
     │   ├── report.ts         # PUT /report (BUD-09)
-    │   ├── admin-router.tsx  # /admin/* SSR pages + action endpoints (main thread)
     │   └── landing.tsx       # GET /, GET /client.js
-    ├── admin/                # Admin dashboard SSR components (hono/jsx)
+    ├── admin/                # Optional management application
+    │   ├── server/           # Hono app, API routes, auth, React HTML shell
+    │   ├── services/         # Main-thread management operations and DB adapter
+    │   ├── contracts/        # Browser-safe API schemas and response types
+    │   └── client/           # React console, independent config and bundle
     ├── landing/
     │   ├── client/           # Client-side island (hono/jsx/dom, bundled to public/client.js)
     │   │   ├── index.tsx     # Entry point — hydrates #upload-root
@@ -232,73 +237,23 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 
 ---
 
-## Hono JSX (Admin Dashboard Pages)
+## Admin UI conventions
 
-All admin dashboard pages live in `src/admin/` and are `.tsx` files rendered server-side using `hono/jsx`.
-
-### Required pragma
-
-Every `.tsx` file must have this pragma as the **first line**:
-
-```tsx
-/** @jsxImportSource hono/jsx */
-```
-
-This overrides the `deno.json` global `jsxImportSource` at the file level. Do not omit it — without it, JSX will not compile in worker contexts or may resolve
-to the wrong runtime.
-
-### Component typing
-
-Use `FC` from `@hono/hono/jsx` for all function components:
-
-```tsx
-import type { FC } from "@hono/hono/jsx";
-
-interface MyProps {
-  title: string;
-}
-
-export const MyComponent: FC<MyProps> = ({ title }) => <div>{title}</div>;
-```
-
-### Async components
-
-`hono/jsx` supports async components natively — no wrappers needed. `c.html()` awaits them automatically:
-
-```tsx
-export const MyPage: FC<Props> = async ({ db, id }) => {
-  const record = await db.getRecord(id);
-  return <div>{record.name}</div>;
-};
-
-// In the route handler:
-app.get("/admin/foo/:id", (c) => {
-  return c.html(<MyPage db={dbHandle} id={c.req.param("id")} />);
-});
-```
-
-### Fragments
-
-Use `<></>` shorthand (configured via `deno.json`):
-
-```tsx
-const List = () => (
-  <>
-    <p>first</p>
-    <p>second</p>
-  </>
-);
-```
-
-### Admin page conventions
-
-- All pages import shared UI primitives from `./layout.tsx` (`AdminLayout`, `Table`, `Badge`, `PageHeader`, `Pagination`, etc.)
-- `AdminLayout` takes `section: "blobs" | "users" | "rules" | "reports"` to highlight the active nav item
-- DB access is via `IDbHandle` (passed as a prop); the router builds a `DirectDbHandle` wrapping the raw `Client`
-- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client` Client and implements every `IDbHandle` method
-- New admin DB operations must be added to: `src/db/blobs.ts` (SQL), `src/db/handle.ts` (interface), `src/db/direct.ts` (direct impl), `src/db/proxy.ts` (proxy
-  for upload workers), and `src/db/bridge.ts` (bridge discriminated union + switch case)
-- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client` Client and implements every `IDbHandle` method
+- The admin UI uses native React in `src/admin/client/`; its independent Deno configuration owns the JSX runtime.
+- Admin styling uses Tailwind CSS 4 and daisyUI 5, configured in `src/admin/styles/input.css` with an isolated Deno config and lockfile. Use daisyUI components
+  and semantic colors (`base-100`, `base-content`, `primary`) with Tailwind utilities. Light/dark themes follow the system preference. Run
+  `deno task build:admin` for both JS and CSS, or `deno task build:admin:styles` for CSS only. The Nix `adminBundle` contains both assets.
+- Hono serves the HTML mount point and authenticated API; components access backend operations through browser-safe API contracts.
+- Read the relevant Applesauce examples before implementing any Nostr-specific feature, and follow their established patterns.
+- Nostr data uses shared Applesauce instances in `src/admin/client/nostr/`. Use `applesauce-common` casts and `use$` directly, e.g.
+  `use$(() => castUser(pubkey, eventStore).profile$, [pubkey])`. Do not wrap Applesauce in a custom client/runtime facade, account helper API, provider, or
+  profile hook. Use its native stores, loaders, account classes, React providers, and hooks. TanStack Query owns HTTP admin API data. Do not add backend Nostr
+  profile fetching or additional app-wide EventStores/pools. Incoming relay events must enter the shared EventStore. Accounts are session-only and independent
+  of HTTP Basic Auth; signer requests require an explicit user action. Trust Applesauce's documented behavior; do not add Nostr client tests that retest the
+  library.
+- The public landing page continues to use Hono JSX. Do not mix its JSX runtime with the admin React runtime.
+- New admin-only DB operations belong in `src/db/` (SQL) and `src/admin/services/database.ts` (main-thread adapter). Do not expand the upload-worker RPC
+  interface for admin-only features. Existing methods on `IDbHandle` remain for compatibility until their callers migrate.
 
 ---
 
@@ -330,10 +285,27 @@ const List = () => (
 
 ## Architecture Constraints
 
+### Admin management application
+
+- `src/admin/server/app.ts` owns the authenticated `/admin` namespace and is dynamically loaded only when enabled. Mount it before public static middleware and
+  Blossom protocol middleware. API misses must remain JSON 404s, never frontend HTML.
+- The React shell lives at `/admin`; `/admin/console` redirects there. Old SSR pages and profile lookup have been removed. Unregistered admin pages return 404.
+- `src/admin/services/` coordinates management operations over the database and storage. HTTP handlers validate input and delegate to these services.
+- `src/admin/contracts/` is browser-safe: no imports from database, filesystem, worker, or runtime configuration modules. Return explicit DTOs, never the full
+  runtime configuration or resolved credentials.
+- `src/admin/client/` uses native React with its own Deno configuration and lockfile. Run `deno task check:admin` and `deno task build:admin` for frontend
+  changes. Do not use Hono JSX in this directory or React JSX in SSR pages.
+- Admin assets are built into `public/admin/` and served at `/admin/assets/`. Include `adminBundle` in Nix deterministic checks and hash refreshes.
+- Configuration is currently deployment-managed and read-only. Persistence, overrides, and hot application require an explicit lifecycle design.
+- Legacy user-content deletion force-deletes shared blobs for all owners and processes at most 10,000 records. Preserve this behavior during extraction;
+  ownership-only deletion and bounded background jobs are separate feature work.
+
+### Server invariants
+
 1. **No body buffering on rejection.** Cancel the request body before returning any error if streaming may have started.
 2. **Worker pool has no queue.** Handle `null` from `dispatch()` as a 503.
 3. **Auth middleware never blocks.** Add explicit enforcement in every new route handler.
-4. **JSX files** require `.tsx` extension and the `hono/jsx` import source (set globally in `deno.json`).
+4. **JSX files** require `.tsx` extension. Server JSX uses Hono; the isolated admin client uses React through its own `deno.json`.
 5. **Config uses YAML + Zod**, not `.env`. Env vars inject via `${VAR_NAME}` syntax in `config.yml`.
 6. **S3 storage** buffers to a local `tmpDir` before committing — the S3 bucket only ever receives hash-verified blobs.
 7. **`fluent-ffmpeg` requires a host `ffmpeg` binary** — not bundled. Video optimization silently fails without it.

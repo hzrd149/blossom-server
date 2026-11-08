@@ -45,6 +45,19 @@ export async function buildApp(
   // Request/response logging
   app.use("*", requestLogger);
 
+  // Administration owns its entire namespace before public static files and
+  // Blossom-specific middleware. Disabled administration cannot leak assets.
+  if (config.dashboard.enabled) {
+    const [{ buildAdminApp }, { createManagementServices }] = await Promise.all([
+      import("./admin/server/app.ts"),
+      import("./admin/services/index.ts"),
+    ]);
+    app.route("/admin", buildAdminApp({ config, services: createManagementServices(db, storage, config) }));
+  } else {
+    app.all("/admin", (c) => c.notFound());
+    app.all("/admin/*", (c) => c.notFound());
+  }
+
   // BUD-01: CORS headers on all responses + OPTIONS preflight
   app.use("*", corsMiddleware);
 
@@ -63,12 +76,15 @@ export async function buildApp(
       ctx.header("Cache-Control", "no-cache");
     },
   });
-  app.use("*", (ctx, next) => {
-    if (!isStaticCandidate(new URL(ctx.req.url).pathname)) return next();
-    return staticMiddleware(ctx, next);
+  app.use("*", async (ctx, next) => {
+    const pathname = new URL(ctx.req.url).pathname;
+    if (!isStaticCandidate(pathname)) return next();
+    // Encoded spellings must not expose public/admin outside its authenticated router.
+    if (decodeURIComponent(pathname).split("/")[1] === "admin") return ctx.notFound();
+    return await staticMiddleware(ctx, next);
   });
 
-  if (config.landing.enabled || config.dashboard.enabled) {
+  if (config.landing.enabled) {
     await warnIfStylesheetMissing();
   }
 
@@ -77,14 +93,6 @@ export async function buildApp(
   // buildLandingRouter is async — it loads the prebuilt client JS at startup.
   if (config.landing.enabled) {
     app.route("/", await buildLandingRouter(db, config));
-  }
-
-  // Admin dashboard — server-rendered Hono JSX, HTTP Basic Auth protected.
-  // Dynamically imported so nostr-profile.ts (EventStore, RelayPool, loader)
-  // is only initialised when the dashboard is actually enabled.
-  if (config.dashboard.enabled) {
-    const { buildAdminRouter } = await import("./routes/admin-router.tsx");
-    app.route("/admin", buildAdminRouter(db, storage, config));
   }
 
   // Blossom protocol routes (BUDs 01/02/04/05/06/09) — collected in a single

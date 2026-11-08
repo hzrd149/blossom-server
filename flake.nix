@@ -40,7 +40,10 @@
           ./deno.json
           ./deno.lock
           ./tailwind.config.js
-          ./src
+          (nixpkgs.lib.fileset.fromSource (nixpkgs.lib.cleanSourceWith {
+            src = ./src;
+            filter = path: _type: builtins.baseNameOf path != "node_modules";
+          }))
           ./public/favicon.ico
         ];
       };

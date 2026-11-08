@@ -480,7 +480,7 @@ const DashboardSchema = z.object({
     .boolean()
     .default(false)
     .describe(
-      "Enable the admin dashboard at /admin and the admin API at /api. Protected by HTTP Basic Auth.",
+      "Enable the admin console at /admin and the management API at /admin/api. Protected by HTTP Basic Auth.",
     ),
   username: z.string().default("admin").describe(
     "HTTP Basic Auth username for the admin dashboard.",
@@ -490,18 +490,6 @@ const DashboardSchema = z.object({
     .default("")
     .describe(
       "HTTP Basic Auth password. If blank, a random password is generated on startup and logged to stdout.",
-    ),
-  lookupRelays: z
-    .array(z.string().url())
-    .default([
-      "wss://purplepag.es",
-      "wss://index.hzrd149.com",
-      "wss://indexer.coracle.social",
-    ])
-    .describe(
-      "Nostr relay URLs used to look up kind:0 profile metadata for pubkeys displayed in the admin dashboard. " +
-        "purplepag.es is a NIP-65 outbox directory; index.hzrd149.com is a broad aggregation relay. " +
-        "Set to [] to disable profile metadata lookup entirely.",
     ),
 });
 
