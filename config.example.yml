@@ -89,6 +89,15 @@ storage:
   # regardless of expiry rules.
   removeWhenNoOwners: false
 
+  # Where storage rules are managed:
+  #   config    (default) Use the rules below. The admin console shows them read-only.
+  #   database  Copy the rules below into the database on first start. From then on
+  #             they are edited in the admin console (/admin/rules) and changes apply
+  #             immediately, without a restart. Later edits to the rules below are
+  #             ignored (a startup warning is logged); use "Reset to config" in the
+  #             console to re-import them.
+  # rulesManagement: config
+
   # Retention rules — evaluated in order; first match governs the blob's expiry.
   #
   # Rules also serve as the upload allowlist: when this list is non-empty, blobs
@@ -366,6 +375,23 @@ report:
   # Clients submit NIP-56 kind:1984 report events to flag blobs for review.
   # Reported blobs are stored in the database for operator review via the admin dashboard.
   enabled: true
+
+# ---------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------
+
+# network:
+#   # Reverse proxies (IP addresses or CIDR ranges) allowed to report the client
+#   # address. The client IP header is read only when the connecting peer is in
+#   # this list; otherwise the socket address is used, so clients cannot spoof it.
+#   trustedProxies:
+#     - 127.0.0.1
+#     - ::1
+#
+#   # Header carrying the client address from a trusted proxy:
+#   # x-forwarded-for (default), x-real-ip, cf-connecting-ip, or forwarded.
+#   # For multi-hop headers the right-most untrusted hop is used.
+#   clientIpHeader: x-forwarded-for
 
 # ---------------------------------------------------------------------------
 # Admin dashboard  (disabled by default)

@@ -17,6 +17,7 @@ import { HTTPException } from "@hono/hono/http-exception";
 import type { IBlobStorage } from "../storage/interface.ts";
 import type { Config } from "../config/schema.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
+import type { ServerRuntime } from "../runtime.ts";
 
 import { buildBlobsRouter } from "./blobs.ts";
 import { buildUploadRouter } from "./upload.ts";
@@ -30,6 +31,7 @@ export function buildBlossomRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -58,13 +60,13 @@ export function buildBlossomRouter(
 
   // BUD-02 + BUD-06: PUT /upload, HEAD /upload
   // Mounted before blob catch-all so HEAD /upload is not caught by /:sha256.
-  app.route("/", buildUploadRouter(db, storage, config));
+  app.route("/", buildUploadRouter(db, storage, config, runtime));
 
   // BUD-04: PUT /mirror
-  app.route("/", buildMirrorRouter(db, storage, config));
+  app.route("/", buildMirrorRouter(db, storage, config, runtime));
 
   // BUD-05: PUT /media, HEAD /media
-  app.route("/", buildMediaRouter(db, storage, config));
+  app.route("/", buildMediaRouter(db, storage, config, runtime));
 
   // BUD-02: DELETE /:sha256
   app.route("/", buildDeleteRouter(db, storage, config));

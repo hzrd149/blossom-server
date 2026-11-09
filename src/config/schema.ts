@@ -1,29 +1,8 @@
 import { z } from "zod";
+import { StorageRuleSchema } from "../policy/rule-schema.ts";
+import { parseCidr } from "../policy/cidr.ts";
 
-export const StorageRuleSchema = z.object({
-  type: z
-    .string()
-    .describe(
-      'MIME type pattern to match. Supports glob wildcards: "image/*" matches all image types, "*" matches everything.',
-    ),
-  expiration: z
-    .string()
-    .describe(
-      'Retention duration measured from the rule basis. Human-readable duration: "7 days", "1 month", "24 hours".',
-    ),
-  basis: z
-    .enum(["accessed", "uploaded"])
-    .optional()
-    .describe(
-      'Expiration basis: "accessed" (default) uses last access, falling back to upload time; "uploaded" uses first upload to this server, regardless of later access or repeat uploads.',
-    ),
-  pubkeys: z
-    .array(z.string())
-    .optional()
-    .describe(
-      "Optional list of Nostr pubkeys (hex) this rule applies to. When set, only blobs uploaded by one of these pubkeys are matched.",
-    ),
-});
+export { type StorageRule, StorageRuleSchema } from "../policy/rule-schema.ts";
 
 const LocalStorageSchema = z.object({
   dir: z
@@ -87,6 +66,13 @@ const StorageSchema = z.object({
     .describe(
       "Ordered list of retention rules. Rules are evaluated in order; the first matching rule governs a blob's expiry. " +
         "Rules also act as an upload allowlist: blobs whose MIME type matches no rule are rejected with 415.",
+    ),
+  rulesManagement: z
+    .enum(["config", "database"])
+    .default("config")
+    .describe(
+      'Where storage rules are managed. "config" uses storage.rules from this file (read-only in the admin console). ' +
+        '"database" copies storage.rules into the database on first start, then the admin console edits them and changes apply immediately; later edits to storage.rules in this file are ignored.',
     ),
   removeWhenNoOwners: z
     .boolean()
@@ -475,6 +461,21 @@ const ReportSchema = z.object({
     ),
 });
 
+const NetworkSchema = z.object({
+  trustedProxies: z
+    .array(z.string().refine((v) => parseCidr(v) !== null, { message: "Expected an IP address or CIDR range" }))
+    .default([])
+    .describe(
+      "Reverse proxies (IPs or CIDR ranges) whose client IP header is trusted. When empty, the socket peer address is always used as the client IP.",
+    ),
+  clientIpHeader: z
+    .enum(["x-forwarded-for", "x-real-ip", "cf-connecting-ip", "forwarded"])
+    .default("x-forwarded-for")
+    .describe(
+      "Header carrying the client IP when the request arrives from a trusted proxy. For X-Forwarded-For and Forwarded, the right-most untrusted hop is used.",
+    ),
+});
+
 const DashboardSchema = z.object({
   enabled: z
     .boolean()
@@ -600,6 +601,9 @@ export const ConfigSchema = z
       .describe(
         "Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules.",
       ),
+    network: NetworkSchema.optional()
+      .transform((v) => v ?? NetworkSchema.parse({}))
+      .describe("Client network settings: trusted reverse proxies and client IP header."),
     dashboard: DashboardSchema.optional()
       .transform((v) => v ?? DashboardSchema.parse({}))
       .describe("Admin dashboard and API settings."),
@@ -619,7 +623,7 @@ export const ConfigSchema = z
   });
 
 export type Config = z.infer<typeof ConfigSchema>;
-export type StorageRule = z.infer<typeof StorageRuleSchema>;
+export type NetworkConfig = z.infer<typeof NetworkSchema>;
 export type ReportConfig = z.infer<typeof ReportSchema>;
 export type ImageOptimizeConfig = z.infer<typeof ImageOptimizeSchema>;
 export type VideoOptimizeConfig = z.infer<typeof VideoOptimizeSchema>;

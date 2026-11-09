@@ -20,7 +20,7 @@ import { LocalStorage } from "./src/storage/local.ts";
 import { S3Storage } from "./src/storage/s3.ts";
 import { initPool } from "./src/workers/pool.ts";
 import { buildApp } from "./src/server.ts";
-import { createPruneState, pruneStorage } from "./src/prune/prune.ts";
+import { createServerRuntime, stopServerRuntime } from "./src/runtime.ts";
 import { HttpMetrics } from "./src/metrics/http.ts";
 import { instrumentStorage } from "./src/metrics/storage.ts";
 import { InventoryCollector } from "./src/metrics/inventory.ts";
@@ -124,47 +124,22 @@ if (config.dashboard.enabled) {
   console.log("  Admin:    ready");
 }
 
+// Live server state: hot-swappable storage rules and the prune scheduler.
+const pruneMetrics = metrics ? new PruneMetrics(metrics.operations, false) : undefined;
+const runtime = await createServerRuntime(db, storage, config, {
+  prune: { metrics: metrics?.operations, pruneMetrics },
+});
+
 // Build Hono app (async — landing router loads the prebuilt client JS at startup).
-const app = await buildApp(db, storage, config, { metrics });
+const app = await buildApp(db, storage, config, { metrics, runtime });
 const metricsServer = metrics ? Deno.serve({ hostname: config.metrics.host, port: config.metrics.port }, metrics.fetch) : undefined;
 const inventory = metrics ? new InventoryCollector(db, metrics.operations) : undefined;
 inventory?.start(config.metrics.inventoryIntervalMs);
 
-// Start prune loop — runs if any storage rules are configured or removeWhenNoOwners is set.
-// Uses recursive setTimeout (not setInterval) so the next run starts only after the
-// current one fully completes, preventing overlapping runs under slow I/O.
-const pruneEnabled = config.storage.rules.length > 0 ||
-  config.storage.removeWhenNoOwners;
-const pruneMetrics = metrics ? new PruneMetrics(metrics.operations, pruneEnabled) : undefined;
+// Start the prune loop. It is always scheduled because storage rules can change
+// at runtime; cycles with no rules and no ownerless cleanup do no work.
 let stopping = false;
-let pruneTimeout: ReturnType<typeof setTimeout> | undefined;
-if (pruneEnabled) {
-  const pruneState = createPruneState();
-  const runPrune = async () => {
-    try {
-      const action = () =>
-        pruneStorage(
-          db,
-          storage,
-          config.storage.rules,
-          config.storage.removeWhenNoOwners,
-          config.prune.batchSize,
-          pruneState,
-          metrics?.operations,
-        );
-      const result = await (pruneMetrics ? pruneMetrics.run(action) : action());
-      if (result.deleted > 0 || result.errors > 0) {
-        console.log(
-          `[prune] deleted=${result.deleted} errors=${result.errors}`,
-        );
-      }
-    } catch (err) {
-      console.error("[prune] Unexpected error in prune loop:", err);
-    }
-    if (!stopping) pruneTimeout = setTimeout(runPrune, config.prune.intervalMs);
-  };
-  pruneTimeout = setTimeout(runPrune, config.prune.initialDelayMs);
-}
+runtime.prune.start();
 
 const server = Deno.serve(
   {
@@ -200,9 +175,10 @@ const server = Deno.serve(
       );
       console.log(
         "  Prune:   storage rules          " +
-          (pruneEnabled
-            ? `active (${config.storage.rules.length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
-            : "disabled (no rules configured)"),
+          (runtime.prune.enabled
+            ? `active (${runtime.rules.current().length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
+            : "idle (no rules configured)") +
+          (runtime.rules.editable ? " — rules managed in database" : ""),
       );
       console.log(
         "  Admin:   dashboard              " +
@@ -219,7 +195,7 @@ const shutdown = async () => {
   stopping = true;
   await inventory?.stop();
   console.log("\nShutting down...");
-  if (pruneTimeout !== undefined) clearTimeout(pruneTimeout);
+  await stopServerRuntime(runtime);
   pool.shutdown();
   metricsServer?.shutdown();
   server.shutdown();

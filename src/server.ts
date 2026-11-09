@@ -15,16 +15,20 @@ import { authMiddleware } from "./middleware/auth.ts";
 import type { BlossomVariables } from "./middleware/auth.ts";
 import { onError } from "./middleware/errors.ts";
 import { requestLogger } from "./middleware/logger.ts";
+import { clientIpMiddleware } from "./middleware/client-ip.ts";
 import { envelopeAdmissionMiddleware } from "./middleware/envelope.ts";
 
 import { buildBlossomRouter } from "./routes/blossom-router.ts";
 import { buildLandingRouter, PUBLIC_DIR, warnIfStylesheetMissing } from "./routes/landing.tsx";
 import { isStaticCandidate } from "./utils/url.ts";
 import type { HttpMetrics } from "./metrics/http.ts";
+import { createServerRuntime, type ServerRuntime } from "./runtime.ts";
 
 export interface BuildAppOptions {
   staticMiddleware?: MiddlewareHandler;
   metrics?: HttpMetrics;
+  /** Live server state. When omitted, a runtime is created from config with a stopped prune scheduler. */
+  runtime?: ServerRuntime;
 }
 
 export async function buildApp(
@@ -34,6 +38,7 @@ export async function buildApp(
   options: BuildAppOptions = {},
 ): Promise<Hono<{ Variables: BlossomVariables }>> {
   const app = new Hono<{ Variables: BlossomVariables }>();
+  const runtime = options.runtime ?? await createServerRuntime(db, storage, config);
 
   // Global fallback error handler — preserves pre-built responses on
   // HTTPException (e.g. basicAuth's WWW-Authenticate header). Blossom-specific
@@ -45,6 +50,9 @@ export async function buildApp(
   // Request/response logging
   app.use("*", requestLogger);
 
+  // Resolve the client address (trusted-proxy aware) for enforcement and activity logging.
+  app.use("*", clientIpMiddleware(config.network));
+
   // Administration owns its entire namespace before public static files and
   // Blossom-specific middleware. Disabled administration cannot leak assets.
   if (config.dashboard.enabled) {
@@ -52,7 +60,7 @@ export async function buildApp(
       import("./admin/server/app.ts"),
       import("./admin/services/index.ts"),
     ]);
-    app.route("/admin", buildAdminApp({ config, services: createManagementServices(db, storage, config) }));
+    app.route("/admin", buildAdminApp({ config, services: createManagementServices(db, storage, config, runtime) }));
   } else {
     app.all("/admin", (c) => c.notFound());
     app.all("/admin/*", (c) => c.notFound());
@@ -92,12 +100,12 @@ export async function buildApp(
   // Mounted first so GET / is claimed before the Blossom blob catch-all.
   // buildLandingRouter is async — it loads the prebuilt client JS at startup.
   if (config.landing.enabled) {
-    app.route("/", await buildLandingRouter(db, config));
+    app.route("/", await buildLandingRouter(db, config, runtime));
   }
 
   // Blossom protocol routes (BUDs 01/02/04/05/06/09) — collected in a single
   // sub-app with its own BUD-01-compliant onError (text/plain + X-Reason).
-  app.route("/", buildBlossomRouter(db, storage, config));
+  app.route("/", buildBlossomRouter(db, storage, config, runtime));
 
   return app;
 }

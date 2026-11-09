@@ -162,8 +162,9 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
 
   for (const o of owners) {
     await fresh.execute({
-      sql: "INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)",
-      args: [o.blob, o.pubkey],
+      // Legacy owners have no timestamp; use the blob's first upload time.
+      sql: "INSERT OR IGNORE INTO owners (blob, pubkey, uploaded) VALUES (?, ?, (SELECT uploaded FROM blobs WHERE sha256 = ?))",
+      args: [o.blob, o.pubkey, o.blob],
     });
   }
 

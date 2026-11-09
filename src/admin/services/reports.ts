@@ -3,6 +3,7 @@ import type { ManagementDatabase } from "./database.ts";
 
 export function createReportService(db: ManagementDatabase, content: ContentService) {
   return {
+    list: db.listAdminReports,
     dismiss: (id: number) => db.deleteReport(id),
     async deleteContent(id: number): Promise<boolean> {
       const report = await db.getReport(id);

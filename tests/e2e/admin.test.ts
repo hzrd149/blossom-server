@@ -44,7 +44,7 @@ Deno.test("admin namespace isolates auth, API contracts, the React shell, and di
     assertEquals(wrongPassword.status, 401);
     await wrongPassword.body?.cancel();
 
-    for (const path of ["/admin"]) {
+    for (const path of ["/admin", "/admin/content", "/admin/rules", "/admin/settings", `/admin/blobs/${owner}`, "/admin/content/"]) {
       const response = await request(path);
       assertEquals(response.status, 200, path);
       assertStringIncludes(response.headers.get("content-type") ?? "", "text/html");
@@ -59,7 +59,7 @@ Deno.test("admin namespace isolates auth, API contracts, the React shell, and di
     assertEquals(redirect.headers.get("location"), "/admin");
     await redirect.body?.cancel();
     for (
-      const path of ["/admin/blobs", "/admin/users", "/admin/reports", "/admin/rules", `/admin/blobs/${owner}`, `/admin/users/${owner}`, "/admin/reports/1"]
+      const path of ["/admin/blobs", "/admin/blobs/a/b", "/admin/nope", "/admin/rulesx", "/admin/assets", "/admin/%ZZ"]
     ) {
       const response = await request(path);
       assertEquals(response.status, 404, path);
@@ -85,8 +85,20 @@ Deno.test("admin namespace isolates auth, API contracts, the React shell, and di
     assertEquals(page.total, 3);
     assertEquals(page.items.length, 1);
     assertEquals(page.items[0].sha256, "0".repeat(64));
-    assertEquals(Object.keys(page.items[0]).sort(), ["owners", "sha256", "size", "type", "uploaded"]);
-    for (const query of ["page=NaN", "page=-1", "pageSize=101", "page=1.5", "page=1000001"]) {
+    assertEquals(Object.keys(page.items[0]).sort(), ["owners", "path", "sha256", "size", "type", "uploaded"]);
+    assertEquals(page.items[0].path, `/${"0".repeat(64)}.png`);
+    const owned = await (await request(`/admin/api/content?owner=${owner}`)).json();
+    assertEquals(owned.total, 3);
+    const notOwned = await (await request(`/admin/api/content?owner=${otherOwner}`)).json();
+    assertEquals(notOwned.total, 0);
+    const detail = await (await request(`/admin/api/blobs/${"1".repeat(64)}`)).json();
+    assertEquals(detail.owners.map((o: { pubkey: string }) => o.pubkey), [owner]);
+    assertEquals(detail.retention.ruleIndex, 0);
+    assertEquals(detail.retention.rule.type, "image/*");
+    const missingBlob = await request(`/admin/api/blobs/${"f".repeat(64)}`);
+    assertEquals(missingBlob.status, 404);
+    await missingBlob.body?.cancel();
+    for (const query of ["page=NaN", "page=-1", "pageSize=101", "page=1.5", "page=1000001", "sort=owners", "owner=npub1x"]) {
       const response = await request(`/admin/api/content?${query}`);
       assertEquals(response.status, 400, query);
       await response.body?.cancel();

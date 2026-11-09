@@ -47,6 +47,7 @@ import type { IBlobStorage, WriteSession } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import { byteCapGuard } from "../utils/streams.ts";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
@@ -212,6 +213,7 @@ export function buildMirrorRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -284,7 +286,7 @@ export function buildMirrorRouter(
     // make the server issue outbound requests it would never store for them.
     if (
       config.upload.requirePubkeyInRule &&
-      !pubkeyAllowedByRules(auth?.pubkey, config.storage.rules, true)
+      !pubkeyAllowedByRules(auth?.pubkey, runtime.rules.current(), true)
     ) {
       debug(
         debugPrefix,
@@ -376,7 +378,7 @@ export function buildMirrorRouter(
 
     const mimeRule = getFileRule(
       { mimeType, pubkey: auth?.pubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!mimeRule) {

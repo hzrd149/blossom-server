@@ -30,6 +30,7 @@ import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import { byteCapGuard } from "../utils/streams.ts";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 
 interface BlobDescriptor {
   url: string;
@@ -213,6 +214,7 @@ export function buildMediaRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -265,7 +267,7 @@ export function buildMediaRouter(
       const mimeType = xContentType.split(";")[0].trim();
       const mimeRule = getFileRule(
         { mimeType, pubkey: ctx.get("auth")?.pubkey },
-        config.storage.rules,
+        runtime.rules.current(),
         config.media.requirePubkeyInRule,
       );
       if (!mimeRule) {
@@ -361,7 +363,7 @@ export function buildMediaRouter(
       const mimeType = contentType.split(";")[0].trim();
       const mimeRule = getFileRule(
         { mimeType, pubkey: auth?.pubkey },
-        config.storage.rules,
+        runtime.rules.current(),
         config.media.requirePubkeyInRule,
       );
       if (!mimeRule) {

@@ -1,7 +1,8 @@
 import type { Config } from "../../config/schema.ts";
+import type { ServerRuntime } from "../../runtime.ts";
 import type { ConfigurationSummary } from "../contracts/configuration.ts";
 
-export function createConfigurationService(config: Config) {
+export function createConfigurationService(config: Config, runtime: ServerRuntime) {
   return {
     summary(): ConfigurationSummary {
       return {
@@ -11,7 +12,7 @@ export function createConfigurationService(config: Config) {
         applyMode: "restart",
         settings: {
           storageBackend: config.storage.backend,
-          storageRuleCount: config.storage.rules.length,
+          storageRuleCount: runtime.rules.current().length,
           uploadEnabled: config.upload.enabled,
           uploadMaxSize: config.upload.maxSize,
           uploadRequireAuth: config.upload.requireAuth,

@@ -12,6 +12,11 @@ export class PruneMetrics {
     metrics.add("blossom_prune_deleted_bytes_total", "", 0, "Logical bytes removed by pruning; not physical backend usage.");
   }
 
+  /** Rules are hot-applied, so whether pruning has work to do can change at runtime. */
+  setEnabled(enabled: boolean): void {
+    this.metrics.set("blossom_prune_enabled", "", Number(enabled), "Whether scheduled pruning is configured.");
+  }
+
   async run(action: () => Promise<PruneResult>): Promise<PruneResult> {
     const start = performance.now();
     this.metrics.set("blossom_prune_running", "", 1, "Whether a scheduled prune cycle is running.");

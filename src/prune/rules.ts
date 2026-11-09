@@ -4,42 +4,11 @@
  * Used at upload time to select a rule and at prune time to evaluate retention.
  */
 
-import type { StorageRule } from "../config/schema.ts";
+import type { StorageRule } from "../policy/rule-schema.ts";
 
-/** Seconds per named unit. Month = 30 days, year = 365 days. */
-const DURATION_UNITS: Record<string, number> = {
-  second: 1,
-  seconds: 1,
-  minute: 60,
-  minutes: 60,
-  hour: 3600,
-  hours: 3600,
-  day: 86400,
-  days: 86400,
-  week: 604800,
-  weeks: 604800,
-  month: 2592000, // 30 days
-  months: 2592000,
-  year: 31536000, // 365 days
-  years: 31536000,
-};
+import { parseDuration } from "../policy/rule-schema.ts";
 
-/**
- * Parse a human-readable duration string into seconds.
- * Accepts formats like "1 month", "7 days", "2 weeks", "30 minutes".
- * Throws if the string cannot be parsed.
- */
-export function parseDuration(s: string): number {
-  const match = s.trim().match(/^(\d+)\s*(\w+)$/);
-  if (!match) throw new Error(`Invalid duration: "${s}"`);
-  const count = parseInt(match[1], 10);
-  const unit = match[2].toLowerCase();
-  const multiplier = DURATION_UNITS[unit];
-  if (multiplier === undefined) {
-    throw new Error(`Unknown duration unit: "${unit}" in "${s}"`);
-  }
-  return count * multiplier;
-}
+export { parseDuration };
 
 /**
  * Whether a pubkey would be allowed by ANY rule under requirePubkeyInRule
@@ -124,4 +93,41 @@ export function getFileRule(
   }
 
   return null;
+}
+
+/**
+ * Index of the rule that governs an existing blob's retention, or -1.
+ *
+ * Retention is first-match over the ordered rules: a pubkey-scoped rule applies
+ * when ANY owner is in its pubkeys list. Unlike getFileRule (the upload gate),
+ * requirePubkeyInRule is not considered — it controls admission, not retention.
+ */
+export function getGoverningRuleIndex(
+  blob: { type: string | null; owners: readonly string[] },
+  rules: readonly StorageRule[],
+): number {
+  for (let index = 0; index < rules.length; index++) {
+    const rule = rules[index];
+    if (!mimeMatchesRule(blob.type, rule.type)) continue;
+    const pubkeys = rule.pubkeys;
+    if (pubkeys?.length && !blob.owners.some((owner) => pubkeys.includes(owner))) continue;
+    return index;
+  }
+  return -1;
+}
+
+/**
+ * Unix time at which a blob governed by `rule` becomes eligible for pruning,
+ * or null when the rule's expiration is invalid.
+ */
+export function computeExpiry(
+  blob: { uploaded: number; accessed: number | null },
+  rule: StorageRule,
+): number | null {
+  try {
+    const basis = rule.basis === "uploaded" ? blob.uploaded : blob.accessed ?? blob.uploaded;
+    return basis + parseDuration(rule.expiration);
+  } catch {
+    return null;
+  }
 }

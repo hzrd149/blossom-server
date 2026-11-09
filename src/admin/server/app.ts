@@ -4,6 +4,13 @@ import type { Config } from "../../config/schema.ts";
 import type { ManagementServices } from "../services/index.ts";
 import { adminAuth, adminMutationGuard } from "./middleware/auth.ts";
 import { buildAdminApi } from "./routes/api.ts";
+import { isAdminPage } from "../contracts/pages.ts";
+
+const SHELL_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blossom management</title><link rel="stylesheet" href="/admin/assets/styles.css"></head>
+<body><div id="admin-root"><p>Loading management console…</p></div><noscript>This console requires JavaScript.</noscript>
+<script type="module" src="/admin/assets/client.js"></script></body></html>`;
 
 export interface AdminDependencies {
   config: Config;
@@ -36,12 +43,12 @@ export function buildAdminApp({ config, services }: AdminDependencies): Hono {
     }
   });
   app.get("/console", (c) => c.redirect("/admin", 302));
-  app.get("/", (c) =>
-    c.html(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Blossom management</title><link rel="stylesheet" href="/admin/assets/styles.css"></head>
-<body><div id="admin-root"><p>Loading management console…</p></div><noscript>This console requires JavaScript.</noscript>
-<script type="module" src="/admin/assets/client.js"></script></body></html>`));
+  // The React shell is served for every registered console page; the client router renders it.
+  app.get("*", (c, next) => {
+    const path = c.req.path.replace(/^\/admin/, "") || "/";
+    if (!isAdminPage(path)) return next();
+    return c.html(SHELL_HTML);
+  });
   app.all("*", (c) => c.text("Admin page not found", 404));
   return app;
 }

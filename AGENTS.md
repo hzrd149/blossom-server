@@ -239,6 +239,10 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 
 ## Admin UI conventions
 
+- Default interactive controls to standard daisyUI sizes. Reserve small controls for dense table rows or inline utilities with a concrete space constraint; do
+  not default forms, search, pagination, or page actions to small sizes. Success notifications use bottom-right toasts, never page-top banners that shift
+  content.
+
 - The admin UI uses native React in `src/admin/client/`; its independent Deno configuration owns the JSX runtime.
 - Admin styling uses Tailwind CSS 4 and daisyUI 5, configured in `src/admin/styles/input.css` with an isolated Deno config and lockfile. Use daisyUI components
   and semantic colors (`base-100`, `base-content`, `primary`) with Tailwind utilities. Light/dark themes follow the system preference. Run
@@ -252,8 +256,8 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
   of HTTP Basic Auth; signer requests require an explicit user action. Trust Applesauce's documented behavior; do not add Nostr client tests that retest the
   library.
 - The public landing page continues to use Hono JSX. Do not mix its JSX runtime with the admin React runtime.
-- New admin-only DB operations belong in `src/db/` (SQL) and `src/admin/services/database.ts` (main-thread adapter). Do not expand the upload-worker RPC
-  interface for admin-only features. Existing methods on `IDbHandle` remain for compatibility until their callers migrate.
+- New admin-only DB operations belong in `src/db/` (SQL, e.g. `src/db/admin.ts`) and `src/admin/services/database.ts` (main-thread adapter). Do not expand the
+  upload-worker RPC interface for admin-only features. Existing methods on `IDbHandle` remain for compatibility until their callers migrate.
 
 ---
 
@@ -296,9 +300,19 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 - `src/admin/client/` uses native React with its own Deno configuration and lockfile. Run `deno task check:admin` and `deno task build:admin` for frontend
   changes. Do not use Hono JSX in this directory or React JSX in SSR pages.
 - Admin assets are built into `public/admin/` and served at `/admin/assets/`. Include `adminBundle` in Nix deterministic checks and hash refreshes.
-- Configuration is currently deployment-managed and read-only. Persistence, overrides, and hot application require an explicit lifecycle design.
+- Configuration is deployment-managed and read-only, except storage rules when `storage.rulesManagement` is `database`. Live, mutable state lives in
+  `ServerRuntime` (`src/runtime.ts`): routes, landing, prune, and admin services read rules through `runtime.rules.current()`, never `config.storage.rules`.
+  `RuleStore` writes the database first, then swaps its snapshot; the `PruneScheduler` resets its cursors on rule changes.
+- Console pages are listed in `src/admin/contracts/pages.ts`; the server serves the HTML shell only for those paths and the client router renders them. Add new
+  pages there. Client API calls resolve against `location.origin` so consoles opened with credentials in the URL still work.
+- Browser-safe rule validation (`ManagedStorageRuleSchema`, `parseDuration`) lives in `src/policy/rule-schema.ts`; contracts import it from there.
 - Legacy user-content deletion force-deletes shared blobs for all owners and processes at most 10,000 records. Preserve this behavior during extraction;
   ownership-only deletion and bounded background jobs are separate feature work.
+
+### Database migrations
+
+- `runMigrations()` records each applied file in `schema_migrations` and skips it afterwards, so new migrations may contain one-time backfills. Files are split
+  on `;` without parsing, so never put a semicolon in a SQL comment, and triggers (whose bodies contain semicolons) are not supported.
 
 ### Server invariants
 

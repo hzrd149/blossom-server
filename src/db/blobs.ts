@@ -62,10 +62,16 @@ export async function hasBlob(db: Client, sha256: string): Promise<boolean> {
   return rs.rows.length > 0;
 }
 
+/**
+ * Insert blob metadata (ignored if it exists) and grant ownership to a pubkey.
+ * `ownerUploaded` is when this pubkey gained ownership; for dedup grants on an
+ * existing blob it must be the current time, not the blob's first upload time.
+ */
 export async function insertBlob(
   db: Client,
   blob: BlobRecord,
   uploaderPubkey: string,
+  ownerUploaded: number = Math.floor(Date.now() / 1000),
 ): Promise<void> {
   await db.batch(
     [
@@ -80,8 +86,8 @@ export async function insertBlob(
         ],
       },
       {
-        sql: `INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)`,
-        args: [blob.sha256, uploaderPubkey],
+        sql: `INSERT OR IGNORE INTO owners (blob, pubkey, uploaded) VALUES (?, ?, ?)`,
+        args: [blob.sha256, uploaderPubkey, ownerUploaded],
       },
       {
         sql: `INSERT OR REPLACE INTO accessed (blob, timestamp) VALUES (?, ?)`,
@@ -410,7 +416,7 @@ const BLOB_SORT_COLUMNS = new Set(["sha256", "type", "size", "uploaded"]);
 export async function listAllBlobs(
   db: Client,
   opts: {
-    filter?: { q?: string; type?: string | string[] };
+    filter?: { q?: string; type?: string | string[]; owner?: string };
     sort?: [string, string];
     limit?: number;
     offset?: number;
@@ -422,6 +428,10 @@ export async function listAllBlobs(
   if (opts.filter?.q) {
     conditions.push("(b.sha256 LIKE ? OR b.type LIKE ?)");
     args.push(`%${opts.filter.q}%`, `%${opts.filter.q}%`);
+  }
+  if (opts.filter?.owner) {
+    conditions.push("EXISTS (SELECT 1 FROM owners ox WHERE ox.blob = b.sha256 AND ox.pubkey = ?)");
+    args.push(opts.filter.owner);
   }
   if (opts.filter?.type !== undefined) {
     const types = Array.isArray(opts.filter.type) ? opts.filter.type : [opts.filter.type];
@@ -476,7 +486,7 @@ export async function listAllBlobs(
  */
 export async function countBlobs(
   db: Client,
-  filter?: { q?: string; type?: string | string[] },
+  filter?: { q?: string; type?: string | string[]; owner?: string },
 ): Promise<number> {
   const conditions: string[] = [];
   const args: (string | number)[] = [];
@@ -484,6 +494,10 @@ export async function countBlobs(
   if (filter?.q) {
     conditions.push("(sha256 LIKE ? OR type LIKE ?)");
     args.push(`%${filter.q}%`, `%${filter.q}%`);
+  }
+  if (filter?.owner) {
+    conditions.push("EXISTS (SELECT 1 FROM owners ox WHERE ox.blob = blobs.sha256 AND ox.pubkey = ?)");
+    args.push(filter.owner);
   }
   if (filter?.type !== undefined) {
     const types = Array.isArray(filter.type) ? filter.type : [filter.type];

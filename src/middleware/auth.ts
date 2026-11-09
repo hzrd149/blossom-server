@@ -21,6 +21,8 @@ export interface BlossomVariables {
   auth: NostrEvent | undefined;
   authType: string | undefined;
   authExpiration: number | undefined;
+  /** Resolved client address (see middleware/client-ip.ts); null when unknown. */
+  clientIp: string | null;
 }
 
 function isNostrEvent(value: unknown): value is NostrEvent {

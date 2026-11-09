@@ -4,6 +4,22 @@
 
 ### Patch Changes
 
+- Use standard-size admin buttons, search fields, forms, and pagination; reserve compact controls for dense table rows and inline copy actions.
+
+- Show admin success notifications as dismissible, auto-clearing bottom-right toasts instead of page-shifting inline banners.
+
+- Separate user profile details, uploads, and reports into tabs in the admin console.
+
+- Compact admin page headers and search-bar spacing, removing redundant page subtitles to leave more room for content.
+
+- Separate storage rule editing, prune previews and runs, and upload debugging into Rules, Prune, and Debug tabs in the admin console.
+
+- Record when each pubkey gained ownership of a blob (including repeat uploads of existing blobs), backfilling existing owners from the blob upload time.
+
+- Track applied database migrations so one-time migration steps never re-run on startup.
+
+- Keep the prune loop scheduled even when no rules are configured, so rules added at runtime take effect.
+
 - Restore S3 publicURL redirects for blob downloads, including Range requests, instead of returning 404 (#68).
 
 - Count prune query and invalid-rule failures, surface S3 deletion failures, and settle pending jobs when workers crash, stream transfer fails, or the pool
@@ -12,6 +28,23 @@
 - Require cache revalidation for the landing page and public assets so browsers pick up UI and configuration changes after deployment.
 
 ### Minor Changes
+
+- Add a Reports console view with searchable, filtered, paginated moderation, reporter and blob links, matching totals, and dismissal or shared-blob deletion
+  actions.
+
+- Add a searchable, sortable Users directory for blob owners and reporters, with browser-loaded Nostr profiles, paginated owned blobs and reports, storage and
+  ownership summaries, report moderation, and explicit shared-content deletion controls. Link users from blob details and the content browser.
+
+- Add an admin console with a dashboard (inventory, users, reports, and prune status), a sortable content browser with owner filtering and bulk delete, blob
+  detail pages (blurred preview of reported media, owners with upload times, reports, retention rule and expiry), a settings view, and global search by hash,
+  blob URL, npub, or MIME type.
+
+- Add `storage.rulesManagement: database` to manage storage rules from the admin console. Rules are seeded once from `storage.rules`, then edited with ordering,
+  enable/disable, and notes, and apply immediately to uploads, mirrors, media, the landing page, and pruning without a restart. The console can test whether an
+  upload would be accepted, preview what the next prune would delete, and start a prune cycle on demand. The default `config` mode keeps rules in `config.yml`,
+  read-only in the console.
+
+- Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IP addresses behind reverse proxies without trusting spoofed forwarding headers.
 
 - Add browser-side Applesauce instances and native React providers to the admin console: profile loading through `applesauce-common` casts and `use$`, shared
   event storage and relays, account/signing support, and action publishing. User metadata is fetched directly from Nostr without involving the admin backend.

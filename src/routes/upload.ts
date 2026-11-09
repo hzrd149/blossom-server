@@ -36,6 +36,7 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { byteCapGuard, drainBody } from "../utils/streams.ts";
@@ -58,6 +59,7 @@ export function buildUploadRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -122,7 +124,7 @@ export function buildUploadRouter(
     const preflightPubkey = ctx.get("auth")?.pubkey;
     const rule = getFileRule(
       { mimeType: xContentType, pubkey: preflightPubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!rule) {
@@ -216,7 +218,7 @@ export function buildUploadRouter(
 
     const mimeRule = getFileRule(
       { mimeType, pubkey: auth?.pubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!mimeRule) {
