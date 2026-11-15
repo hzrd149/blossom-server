@@ -43,6 +43,29 @@ const S3StorageSchema = z.object({
     ),
 });
 
+const Nip05Schema = z.object({
+  refreshIntervalMs: z
+    .number()
+    .int()
+    .max(2_147_483_647, "Must be at most 2147483647 ms (~24.8 days), the largest delay setTimeout supports")
+    .refine((v) => v === 0 || v >= 60_000, {
+      message: "Must be 0 (fetch once at startup) or at least 60000 (1 minute)",
+    })
+    .default(600_000)
+    .describe(
+      "Minimum gap in milliseconds between the end of one NIP-05 refresh and the start of the next. Uses recursive setTimeout, so the next refresh begins only after the current one completes. " +
+        "0 = fetch at startup (and when a domain is added through the admin console) and never refresh. Minimum otherwise: 60 000 ms. Default: 10 minutes.",
+    ),
+  timeoutMs: z
+    .number()
+    .int()
+    .min(1000)
+    .default(5000)
+    .describe(
+      "Timeout in milliseconds for a single https://<domain>/.well-known/nostr.json fetch. A timed-out or failed fetch keeps the previously fetched pubkeys. Default: 5 seconds.",
+    ),
+});
+
 const StorageSchema = z.object({
   backend: z
     .enum(["local", "s3"])
@@ -80,6 +103,9 @@ const StorageSchema = z.object({
     .describe(
       "When true, blobs with no owners are deleted during each prune cycle, regardless of expiry rules.",
     ),
+  nip05: Nip05Schema.optional()
+    .transform((v) => v ?? Nip05Schema.parse({}))
+    .describe("NIP-05 domain allowlist refresh settings. Only used by rules that set nip05Domains."),
 });
 
 const UploadSchema = z.object({

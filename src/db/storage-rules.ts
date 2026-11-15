@@ -10,7 +10,7 @@ export interface StoredRules {
   rules: ManagedStorageRule[];
 }
 
-function parsePubkeys(value: unknown): string[] | undefined {
+function parseStringArray(value: unknown): string[] | undefined {
   if (typeof value !== "string") return undefined;
   try {
     const parsed = JSON.parse(value) as unknown;
@@ -22,7 +22,9 @@ function parsePubkeys(value: unknown): string[] | undefined {
 
 export async function listStorageRules(db: Pick<Client, "execute">): Promise<StoredRules> {
   const [rs, version] = await Promise.all([
-    db.execute("SELECT type, expiration, basis, pubkeys, enabled, note FROM storage_rules ORDER BY position ASC, id ASC"),
+    db.execute(
+      "SELECT type, expiration, basis, pubkeys, enabled, note, nip05_domains FROM storage_rules ORDER BY position ASC, id ASC",
+    ),
     getVersion(db, RULES_VERSION_KEY),
   ]);
   return {
@@ -31,7 +33,8 @@ export async function listStorageRules(db: Pick<Client, "execute">): Promise<Sto
       type: row[0] as string,
       expiration: row[1] as string,
       ...(row[2] ? { basis: row[2] as "accessed" | "uploaded" } : {}),
-      ...(parsePubkeys(row[3]) ? { pubkeys: parsePubkeys(row[3]) } : {}),
+      ...(parseStringArray(row[3]) ? { pubkeys: parseStringArray(row[3]) } : {}),
+      ...(parseStringArray(row[6]) ? { nip05Domains: parseStringArray(row[6]) } : {}),
       enabled: Boolean(row[4]),
       ...(row[5] ? { note: row[5] as string } : {}),
     })),
@@ -63,8 +66,8 @@ export async function replaceStorageRules(
     await tx.execute("DELETE FROM storage_rules");
     for (const [position, rule] of rules.entries()) {
       await tx.execute({
-        sql: `INSERT INTO storage_rules (position, type, expiration, basis, pubkeys, enabled, note, created, updated)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO storage_rules (position, type, expiration, basis, pubkeys, enabled, note, nip05_domains, created, updated)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           position,
           rule.type,
@@ -73,6 +76,7 @@ export async function replaceStorageRules(
           rule.pubkeys ? JSON.stringify(rule.pubkeys) : null,
           rule.enabled === false ? 0 : 1,
           rule.note ?? null,
+          rule.nip05Domains ? JSON.stringify(rule.nip05Domains) : null,
           now,
           now,
         ],

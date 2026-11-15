@@ -11,6 +11,15 @@ import { parseDuration } from "../policy/rule-schema.ts";
 export { parseDuration };
 
 /**
+ * Whether a rule restricts uploaders to an allowlist. A rule with static
+ * pubkeys is scoped; so is a rule with nip05Domains even while its fetched
+ * list is still empty — it must never fall back to matching everyone.
+ */
+export function isPubkeyScoped(rule: StorageRule): boolean {
+  return (rule.pubkeys?.length ?? 0) > 0 || (rule.nip05Domains?.length ?? 0) > 0;
+}
+
+/**
  * Whether a pubkey would be allowed by ANY rule under requirePubkeyInRule
  * semantics — i.e. it appears in at least one rule's pubkeys allowlist.
  *
@@ -77,8 +86,8 @@ export function getFileRule(
     // Pubkey scoping: if the rule restricts to specific pubkeys, the uploader
     // must be in that list. If requirePubkeyInRule is set globally, an anonymous
     // uploader (no pubkey) can never satisfy a pubkey-scoped rule.
-    if (rule.pubkeys && rule.pubkeys.length > 0) {
-      if (!pubkey || !rule.pubkeys.includes(pubkey)) {
+    if (isPubkeyScoped(rule)) {
+      if (!pubkey || !rule.pubkeys?.includes(pubkey)) {
         // If requirePubkeyInRule: only pubkey-scoped rules are valid gates,
         // so we continue searching instead of skipping to an unscoped rule.
         continue;
@@ -109,8 +118,7 @@ export function getGoverningRuleIndex(
   for (let index = 0; index < rules.length; index++) {
     const rule = rules[index];
     if (!mimeMatchesRule(blob.type, rule.type)) continue;
-    const pubkeys = rule.pubkeys;
-    if (pubkeys?.length && !blob.owners.some((owner) => pubkeys.includes(owner))) continue;
+    if (isPubkeyScoped(rule) && !blob.owners.some((owner) => rule.pubkeys?.includes(owner))) continue;
     return index;
   }
   return -1;

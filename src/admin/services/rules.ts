@@ -1,6 +1,6 @@
 import type { Config } from "../../config/schema.ts";
 import { getFileRule, pubkeyAllowedByRules } from "../../prune/rules.ts";
-import { type ManagedStorageRule, toActiveRules } from "../../policy/rule-schema.ts";
+import type { ManagedStorageRule } from "../../policy/rule-schema.ts";
 import type { ServerRuntime } from "../../runtime.ts";
 import type { PruneCandidateDto, PruneStatusDto, RulePreviewBodySchema, RulePreviewResult, RuleProbeResult, RulesView } from "../contracts/rules.ts";
 import type { z } from "zod";
@@ -34,7 +34,7 @@ export function createRuleService(config: Config, runtime: ServerRuntime) {
     /** Evaluate upload probes and (optionally) a prune sample against proposed or saved rules. */
     async preview(body: z.output<typeof RulePreviewBodySchema>): Promise<RulePreviewResult> {
       const entries = body.rules ?? runtime.rules.entries();
-      const active = toActiveRules(entries);
+      const active = runtime.rules.resolve(entries);
       const indexMap = activeIndexMap(entries);
 
       const probes = body.probes.map((probe): RuleProbeResult => {

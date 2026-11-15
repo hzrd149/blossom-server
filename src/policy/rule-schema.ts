@@ -1,10 +1,11 @@
 /**
- * Storage rule schema and duration parsing — pure, browser-safe (imports zod only).
+ * Storage rule schema and duration parsing — pure, browser-safe (imports zod and the pure NIP-05 domain helper only).
  *
  * Shared by runtime configuration, the rule store, and admin API contracts.
  */
 
 import { z } from "zod";
+import { normalizeNip05Domain } from "../allowlist/nip05-domain.ts";
 
 /** Seconds per named unit. Month = 30 days, year = 365 days. */
 const DURATION_UNITS: Record<string, number> = {
@@ -41,6 +42,16 @@ export function parseDuration(s: string): number {
   return count * multiplier;
 }
 
+/** A bare NIP-05 domain, normalized to its URL host (lowercase, punycode). */
+const Nip05DomainSchema = z.string().transform((domain, ctx) => {
+  try {
+    return normalizeNip05Domain(domain);
+  } catch (err) {
+    ctx.addIssue({ code: "custom", message: err instanceof Error ? err.message : String(err) });
+    return z.NEVER;
+  }
+});
+
 export const StorageRuleSchema = z.object({
   type: z
     .string()
@@ -63,6 +74,14 @@ export const StorageRuleSchema = z.object({
     .optional()
     .describe(
       "Optional list of Nostr pubkeys (hex) this rule applies to. When set, only blobs uploaded by one of these pubkeys are matched.",
+    ),
+  nip05Domains: z
+    .array(Nip05DomainSchema)
+    .optional()
+    .describe(
+      "Optional list of NIP-05 domains. Every pubkey listed in https://<domain>/.well-known/nostr.json is added to this rule's pubkeys allowlist. " +
+        "Fetched at startup and refreshed every storage.nip05.refreshIntervalMs. A rule with domains stays pubkey-scoped even while no members have been fetched. " +
+        "The domain must return its full names map when queried without ?name=.",
     ),
 });
 
@@ -89,6 +108,7 @@ export const ManagedStorageRuleSchema = z.object({
   basis: z.enum(["accessed", "uploaded"]).optional(),
   pubkeys: z.array(z.string().trim().toLowerCase().regex(HEX_PUBKEY_RE, "Expected a 64-character hex pubkey")).max(1000)
     .optional(),
+  nip05Domains: z.array(Nip05DomainSchema).max(100).optional(),
   enabled: z.boolean().default(true),
   note: z.string().trim().max(500).optional(),
 });
@@ -99,10 +119,11 @@ export const ManagedStorageRulesSchema = z.array(ManagedStorageRuleSchema).max(M
 
 /** Strip editor metadata and drop disabled rules, producing the evaluated rule list. */
 export function toActiveRules(rules: readonly ManagedStorageRule[]): StorageRule[] {
-  return rules.filter((rule) => rule.enabled !== false).map(({ type, expiration, basis, pubkeys }) => ({
+  return rules.filter((rule) => rule.enabled !== false).map(({ type, expiration, basis, pubkeys, nip05Domains }) => ({
     type,
     expiration,
     ...(basis ? { basis } : {}),
     ...(pubkeys?.length ? { pubkeys } : {}),
+    ...(nip05Domains?.length ? { nip05Domains } : {}),
   }));
 }

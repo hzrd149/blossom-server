@@ -130,6 +130,32 @@ const runtime = await createServerRuntime(db, storage, config, {
   prune: { metrics: metrics?.operations, pruneMetrics },
 });
 
+// NIP-05 domain allowlists: rules with nip05Domains get the pubkeys published in
+// each domain's /.well-known/nostr.json merged into their pubkeys. The first fetch
+// happens before the app is built so members can upload from the first request;
+// a failed fetch is logged but never aborts startup.
+const nip05Failed: string[] = [];
+for (const result of (await runtime.nip05.refresh()).domains) {
+  if (result.error) {
+    nip05Failed.push(result.domain);
+    console.warn(`  NIP-05:   ${result.domain}: fetch failed (${result.error}) — no pubkeys until a refresh succeeds`);
+  } else {
+    console.log(`  NIP-05:   ${result.domain}: ${result.count} pubkeys`);
+  }
+}
+const nip05IntervalMs = config.storage.nip05.refreshIntervalMs;
+const nip05RetryMs = Math.min(30_000, nip05IntervalMs);
+if (nip05Failed.length > 0 && nip05IntervalMs === 0) {
+  console.warn(
+    `  NIP-05:   WARNING — storage.nip05.refreshIntervalMs is 0, so the allowlist for ${nip05Failed.join(", ")} stays EMPTY until the server is restarted`,
+  );
+} else if (nip05Failed.length > 0) {
+  console.warn(`  NIP-05:   retrying ${nip05Failed.join(", ")} in ${nip05RetryMs / 1000}s`);
+}
+// Always started (rules can gain domains at runtime); a refresh with no domains does nothing.
+// A failed startup fetch is retried soon rather than after the full interval.
+runtime.startNip05({ initialDelayMs: nip05Failed.length > 0 ? nip05RetryMs : undefined });
+
 // Build Hono app (async — landing router loads the prebuilt client JS at startup).
 const app = await buildApp(db, storage, config, { metrics, runtime });
 const metricsServer = metrics ? Deno.serve({ hostname: config.metrics.host, port: config.metrics.port }, metrics.fetch) : undefined;
@@ -179,6 +205,12 @@ const server = Deno.serve(
             ? `active (${runtime.rules.current().length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
             : "idle (no rules configured)") +
           (runtime.rules.editable ? " — rules managed in database" : ""),
+      );
+      console.log(
+        "  NIP-05:  domain allowlists      " +
+          (runtime.nip05.domains.length > 0
+            ? `active (${runtime.nip05.domains.length} domains, refresh ${nip05IntervalMs > 0 ? `every ${nip05IntervalMs / 1000}s` : "at startup only"})`
+            : "idle (no rules with nip05Domains)"),
       );
       console.log(
         "  Admin:   dashboard              " +
