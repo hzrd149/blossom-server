@@ -204,6 +204,9 @@ Existing configurations with a `media` section that omit `media.requirePubkeyInR
 warning. Set the media option explicitly to avoid the compatibility fallback. New configurations default it to `true` so media processing is limited to pubkeys
 named by matching storage rules.
 
+Media processing also enforces fixed concurrency, pixel, frame, duration and subprocess budgets. See [media processing limits](docs/media-security.md) for
+supported containers, rejection behavior and deployment isolation recommendations.
+
 ### S3 Storage Backend
 
 ```yaml

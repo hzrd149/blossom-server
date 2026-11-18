@@ -29,6 +29,7 @@ import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import { byteCapGuard } from "../utils/streams.ts";
+import { mediaGate } from "../optimize/limits.ts";
 import type { Config } from "../config/schema.ts";
 import type { ServerRuntime } from "../runtime.ts";
 
@@ -248,6 +249,10 @@ export function buildMediaRouter(
       );
     }
 
+    if (!mediaGate.available) {
+      return errorResponse(ctx, 503, "Server busy. Media processing capacity is full.");
+    }
+
     const xContentLength = ctx.req.header("x-content-length") ??
       ctx.req.header("content-length");
     if (xContentLength) {
@@ -296,6 +301,7 @@ export function buildMediaRouter(
     // Track temp paths for cleanup on error
     let tmpPath: string | null = null;
     let optimizedTmpPath: string | null = null;
+    let releaseProcessing: (() => void) | null = null;
 
     try {
       if (!config.media.enabled) {
@@ -410,6 +416,11 @@ export function buildMediaRouter(
         );
       }
 
+      releaseProcessing = mediaGate.tryAcquire();
+      if (!releaseProcessing) {
+        await body.cancel();
+        return errorResponse(ctx, 503, "Server busy. Media processing capacity is full.");
+      }
       const session = await storage.beginWrite(contentLength);
       tmpPath = session.tmpPath;
       debug(
@@ -739,11 +750,12 @@ export function buildMediaRouter(
         201,
       );
     } catch (err) {
-      // Global catch: clean up any remaining temp files
-      if (tmpPath) await Deno.remove(tmpPath).catch(() => {});
-      if (optimizedTmpPath) await Deno.remove(optimizedTmpPath).catch(() => {});
       const msg = err instanceof Error ? err.message : "Internal server error";
       return errorResponse(ctx, 500, msg);
+    } finally {
+      if (tmpPath) await Deno.remove(tmpPath).catch(() => {});
+      if (optimizedTmpPath) await Deno.remove(optimizedTmpPath).catch(() => {});
+      releaseProcessing?.();
     }
   });
 

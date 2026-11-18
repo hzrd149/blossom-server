@@ -8,6 +8,8 @@
 
 import type { ThumbnailConfig } from "../config/schema.ts";
 import { debug } from "../middleware/debug.ts";
+import { openImage } from "./image-input.ts";
+import { runMediaProcess, VIDEO_INPUT_ARGS } from "./process.ts";
 
 function ffmpegQuality(
   format: ThumbnailConfig["outputFormat"],
@@ -25,21 +27,11 @@ async function thumbnailImage(
   opts: ThumbnailConfig,
   tmpDir: string,
 ): Promise<string> {
-  const { default: sharp } = await import("sharp");
-  const outputPath = await Deno.makeTempFile({
-    dir: tmpDir,
-    suffix: `.${opts.outputFormat}`,
-  });
-
-  let pipeline = sharp(inputPath).rotate().resize(
+  let pipeline = (await openImage(inputPath)).rotate().resize(
     opts.maxWidth,
     opts.maxHeight,
-    {
-      fit: "inside",
-      withoutEnlargement: true,
-    },
+    { fit: "inside", withoutEnlargement: true },
   );
-
   switch (opts.outputFormat) {
     case "webp":
       pipeline = pipeline.webp({ quality: opts.quality });
@@ -52,8 +44,17 @@ async function thumbnailImage(
       break;
   }
 
-  await pipeline.toFile(outputPath);
-  return outputPath;
+  const outputPath = await Deno.makeTempFile({
+    dir: tmpDir,
+    suffix: `.${opts.outputFormat}`,
+  });
+  try {
+    await pipeline.toFile(outputPath);
+    return outputPath;
+  } catch (err) {
+    await Deno.remove(outputPath).catch(() => {});
+    throw err;
+  }
 }
 
 async function thumbnailVideo(
@@ -66,34 +67,38 @@ async function thumbnailVideo(
     suffix: `.${opts.outputFormat}`,
   });
   const args = [
+    "-nostdin",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    ...VIDEO_INPUT_ARGS,
     "-ss",
     String(opts.videoSeek),
     "-i",
     inputPath,
+    "-map",
+    "0:v:0",
     "-frames:v",
     "1",
     "-vf",
     `scale=w='min(${opts.maxWidth},iw)':h='min(${opts.maxHeight},ih)':force_original_aspect_ratio=decrease`,
     ...ffmpegQuality(opts.outputFormat, opts.quality),
+    "-threads",
+    "2",
+    "-filter_threads",
+    "1",
     "-y",
     outputPath,
   ];
 
-  const cmd = new Deno.Command("ffmpeg", {
-    args,
-    stdout: "null",
-    stderr: "piped",
-  });
-  const { success, stderr } = await cmd.output();
-  if (!success) {
-    const stderrText = new TextDecoder().decode(stderr);
-    if (stderrText.length > 0) {
-      debug("[ffmpeg thumbnail stderr]\n" + stderrText);
-    }
-    throw new Error("ffmpeg thumbnail extraction failed");
+  try {
+    const { stderr } = await runMediaProcess("ffmpeg", args, 30_000);
+    if (stderr.length) debug("[ffmpeg thumbnail stderr]\n" + new TextDecoder().decode(stderr));
+    return outputPath;
+  } catch (err) {
+    await Deno.remove(outputPath).catch(() => {});
+    throw err;
   }
-
-  return outputPath;
 }
 
 export async function createThumbnail(

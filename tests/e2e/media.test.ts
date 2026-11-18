@@ -29,6 +29,7 @@ import type { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
 import type { BlossomVariables } from "../../src/middleware/auth.ts";
 import { getMediaDerivative } from "../../src/db/blobs.ts";
+import { mediaGate } from "../../src/optimize/limits.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -146,6 +147,59 @@ Deno.test({
       db.close();
       await Deno.remove(tmpDir, { recursive: true });
     };
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /media: rejects saturated processing without reading the body; preflight also reports busy",
+  async fn() {
+    const a = mediaGate.tryAcquire()!;
+    const b = mediaGate.tryAcquire()!;
+    let cancelled = false;
+    try {
+      const res = await app.fetch(
+        new Request("http://localhost/media", {
+          method: "PUT",
+          headers: { "Content-Length": "1", "Content-Type": "image/png" },
+          body: new ReadableStream({
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        }),
+      );
+      assertEquals(res.status, 503);
+      assertEquals(cancelled, true);
+      await res.body?.cancel();
+      const preflight = await app.fetch(new Request("http://localhost/media", { method: "HEAD" }));
+      assertEquals(preflight.status, 503);
+      await preflight.body?.cancel();
+    } finally {
+      a();
+      b();
+    }
+    assertEquals(mediaGate.available, true);
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "PUT /media: unsupported input cleans staged files and releases processing capacity",
+  async fn() {
+    const res = await app.fetch(
+      new Request("http://localhost/media", {
+        method: "PUT",
+        headers: { "Content-Length": "4", "Content-Type": "image/png" },
+        body: new Uint8Array([1, 2, 3, 4]),
+      }),
+    );
+    assertEquals(res.status, 422);
+    await res.body?.cancel();
+    assertEquals(mediaGate.available, true);
+    const entries = [];
+    for await (const entry of Deno.readDir(join(tmpDir, "blobs", ".tmp"))) entries.push(entry.name);
+    assertEquals(entries, []);
   },
   ...testOpts,
 });

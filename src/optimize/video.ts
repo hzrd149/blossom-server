@@ -7,6 +7,8 @@
 
 import type { VideoOptimizeConfig } from "../config/schema.ts";
 import { debug } from "../middleware/debug.ts";
+import { checkDimensions, MAX_OUTPUT_BYTES, MAX_VIDEO_SECONDS } from "./limits.ts";
+import { probeVideo, runMediaProcess, VIDEO_INPUT_ARGS } from "./process.ts";
 
 export type { VideoOptimizeConfig as VideoOptimizeOptions };
 
@@ -17,69 +19,30 @@ const FORMAT_EXTRA_ARGS: Partial<Record<"mp4" | "webm" | "mkv", string[]>> = {
   mp4: ["-movflags", "+faststart"],
 };
 
-/** Minimal shape of the ffprobe JSON output we actually use. */
-interface FfprobeStream {
-  codec_type?: string;
-  r_frame_rate?: string;
-}
-
-interface FfprobeOutput {
-  streams: FfprobeStream[];
-}
-
-/**
- * Probe the source video frame rate using ffprobe.
- * Returns the average FPS as a number, or null on failure.
- */
-async function probeFps(inputPath: string): Promise<number | null> {
-  try {
-    const cmd = new Deno.Command("ffprobe", {
-      args: [
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_streams",
-        inputPath,
-      ],
-      stdout: "piped",
-      stderr: "null",
-    });
-
-    const { success, stdout } = await cmd.output();
-    if (!success) return null;
-
-    const json: FfprobeOutput = JSON.parse(new TextDecoder().decode(stdout));
-    const videoStream = json.streams.find((s) => s.codec_type === "video");
-    if (!videoStream?.r_frame_rate) return null;
-
-    // r_frame_rate is a rational string like "30/1" or "24000/1001"
-    const parts = videoStream.r_frame_rate.split("/");
-    const num = parseFloat(parts[0]);
-    const den = parseFloat(parts[1] ?? "1");
-    if (isNaN(num) || isNaN(den) || den === 0) return null;
-
-    return num / den;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Transcodes a video file using ffmpeg.
  * Returns the path to the transcoded temp file.
- * Caller is responsible for deleting the output file on any error.
+ * Removes partial output on error.
  *
  * Quality → CRF mapping: CRF = round(51 − (quality / 100) × 51)
  *   quality=100 → CRF=0, quality=90 → CRF≈5, quality=0 → CRF=51
  *
- * Size filter: `?x<maxHeight>` — ffmpeg maintains aspect ratio automatically.
+ * Fit inside the configured height and the fixed output budget, preserving aspect ratio.
  */
 export async function optimizeVideo(
   inputPath: string,
   opts: VideoOptimizeConfig,
   tmpDir: string,
 ): Promise<string> {
+  const { video, duration } = await probeVideo(inputPath);
+  checkDimensions(video.width, video.height);
+  if (!Number.isFinite(duration) || duration <= 0 || duration > MAX_VIDEO_SECONDS) {
+    throw new Error(`Video duration must be known and at most ${MAX_VIDEO_SECONDS} seconds`);
+  }
+  const [num, den = 1] = (video.r_frame_rate ?? "").split("/").map(Number);
+  const originalFps = num / den;
+  const maxFps = Math.min(opts.maxFps, 60);
+  const targetFps = Number.isFinite(originalFps) && originalFps > 0 ? Math.min(originalFps, maxFps) : maxFps;
   const outputPath = await Deno.makeTempFile({
     dir: tmpDir,
     suffix: `.${opts.format}`,
@@ -87,44 +50,55 @@ export async function optimizeVideo(
   const crf = Math.round(51 - (opts.quality / 100) * 51);
   const extraArgs = FORMAT_EXTRA_ARGS[opts.format] ?? [];
 
-  // Probe original FPS; clamp to min(originalFps, maxFps)
-  const originalFps = await probeFps(inputPath);
-  const targetFps = originalFps !== null ? Math.min(originalFps, opts.maxFps) : opts.maxFps;
-
   const args = [
+    "-nostdin",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    ...VIDEO_INPUT_ARGS,
     "-i",
     inputPath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-sn",
+    "-dn",
     "-vcodec",
     opts.videoCodec,
     "-acodec",
     opts.audioCodec,
     // fit-inside: scale to maxHeight, preserve aspect ratio
     "-vf",
-    `scale=trunc(oh*a/2)*2:${opts.maxHeight}`,
+    `scale=w='min(${Math.min(opts.maxHeight * 2, 3840)},iw)':h='min(${
+      Math.min(opts.maxHeight, 2160)
+    },ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`,
     "-crf",
     String(crf),
     "-r",
     String(targetFps),
+    "-threads",
+    "2",
+    "-filter_threads",
+    "1",
+    "-t",
+    String(MAX_VIDEO_SECONDS),
+    "-fs",
+    String(MAX_OUTPUT_BYTES),
     ...extraArgs,
     "-y", // overwrite output without prompting (temp file already exists)
     outputPath,
   ];
 
-  const cmd = new Deno.Command("ffmpeg", {
-    args,
-    stdout: "null",
-    stderr: "piped",
-  });
-
-  const { success, stderr } = await cmd.output();
-
-  if (!success) {
-    const stderrText = new TextDecoder().decode(stderr);
-    if (stderrText.length > 0) {
-      debug("[ffmpeg stderr]\n" + stderrText);
+  try {
+    const { stderr } = await runMediaProcess("ffmpeg", args, 300_000);
+    if (stderr.length) debug("[ffmpeg stderr]\n" + new TextDecoder().decode(stderr));
+    if ((await Deno.stat(outputPath)).size >= MAX_OUTPUT_BYTES) {
+      throw new Error("Optimized video exceeds output size limit");
     }
-    throw new Error(`ffmpeg exited with non-zero status`);
+    return outputPath;
+  } catch (err) {
+    await Deno.remove(outputPath).catch(() => {});
+    throw err;
   }
-
-  return outputPath;
 }

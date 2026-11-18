@@ -263,6 +263,7 @@ list:
 # ---------------------------------------------------------------------------
 
 media:
+  # Fixed processing safety budgets also apply; see docs/media-security.md.
   # Enable the PUT /media endpoint.
   # Clients upload an image or video; the server optimises/transcodes it,
   # stores the result, and returns the optimised blob descriptor.
