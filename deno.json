@@ -47,20 +47,20 @@
     "exclude": [".planning", ".gsd"]
   },
   "imports": {
-    "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
-    "@hono/hono": "jsr:@hono/hono@^4.12.7",
-    "@libsql/client": "npm:@libsql/client@^0.17.0",
-    "@std/assert": "jsr:@std/assert@1",
+    "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.6",
+    "@hono/hono": "jsr:@hono/hono@^4.13.19",
+    "@libsql/client": "npm:@libsql/client@^0.17.4",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/media-types": "jsr:@std/media-types@^1.1.0",
-    "@std/crypto": "jsr:@std/crypto@^1.0.5",
-    "@std/encoding": "jsr:@std/encoding@^1.0.10",
-    "@std/path": "jsr:@std/path@^1.1.4",
+    "@std/crypto": "jsr:@std/crypto@^1.1.0",
+    "@std/encoding": "jsr:@std/encoding@^1.0.11",
+    "@std/path": "jsr:@std/path@^1.1.6",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
-    "@std/yaml": "jsr:@std/yaml@^1.0.12",
-    "nostr-tools": "npm:nostr-tools@^2.23.3",
-    "sharp": "npm:sharp@^0.35.3",
+    "@std/yaml": "jsr:@std/yaml@^1.3.0",
+    "nostr-tools": "npm:nostr-tools@^2.26.1",
+    "sharp": "npm:sharp@^0.35.5",
     "file-type": "npm:file-type@^19.6.0",
-    "zod": "npm:zod@^4.3.6"
+    "zod": "npm:zod@^4.6.7"
   },
   "exclude": ["src/landing/client", "src/admin/client"]
 }
