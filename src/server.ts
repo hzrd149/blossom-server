@@ -74,7 +74,7 @@ export async function buildApp(
   // BUD-02/05: reject encoded upload envelopes before auth or body processing
   app.use("*", envelopeAdmissionMiddleware());
 
-  // BUD-11: parse auth header — populate ctx.var.auth (never blocks)
+  // BUD-11: validate supplied auth headers; missing credentials pass through.
   app.use("*", authMiddleware(config.publicDomain));
 
   // Serve any file from the public directory at its root-relative URL.

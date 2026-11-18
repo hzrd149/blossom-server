@@ -171,6 +171,39 @@ Deno.test({
 });
 
 Deno.test({
+  name: "public blob GET and HEAD reject malformed auth with 400, not 500",
+  async fn() {
+    const valid = makeUploadAuth(blobHash);
+    const malformedValues: unknown[] = [
+      { kind: 24242, created_at: 1700000000, tags: null },
+      { ...valid, tags: null },
+      { ...valid, tags: [null] },
+      { ...valid, tags: ["t"] },
+      { ...valid, tags: [["server", 42]] },
+      { ...valid, created_at: "not-a-number" },
+      { ...valid, created_at: 1.5 },
+      { ...valid, created_at: Number.MIN_SAFE_INTEGER - 1 },
+    ];
+    for (const method of ["GET", "HEAD"]) {
+      for (const value of malformedValues) {
+        const response = await app.request(blobUrl, {
+          method,
+          headers: {
+            Authorization: `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(value)))}`,
+          },
+        });
+        assertEquals(response.status, 400, `${method}: ${JSON.stringify(value)}`);
+        await response.body?.cancel();
+      }
+      const response = await app.request(blobUrl, { method });
+      assertEquals(response.status, 200, `${method} without credentials remains public`);
+      await response.body?.cancel();
+    }
+  },
+  ...testOpts,
+});
+
+Deno.test({
   name: "S3 publicURL redirects full and range GETs while preserving HEAD, validators, and missing checks",
   async fn() {
     for (const publicURL of ["https://cdn.example.com/blobs", "https://cdn.example.com/blobs/"]) {

@@ -101,6 +101,11 @@ export function parseAuthEvent(
   if (auth.kind !== 24242) {
     throw new HTTPException(400, { message: "Auth event must be kind 24242" });
   }
+  if (!Number.isSafeInteger(auth.created_at)) {
+    throw new HTTPException(400, {
+      message: "Auth event created_at must be a safe unix-seconds integer",
+    });
+  }
   const drift = auth.created_at - now;
   if (drift > 60) {
     throw new HTTPException(400, {
@@ -157,9 +162,10 @@ export function parseAuthEvent(
 }
 
 /**
- * Global auth middleware — parse-only, never blocks.
+ * Global auth middleware — validates supplied Nostr credentials.
  * Populates ctx variables: auth, authType, authExpiration.
- * Call requireAuth() or optionalAuth() in route handlers for enforcement.
+ * Invalid supplied credentials reject the request, including on public routes.
+ * Missing credentials pass through; route handlers enforce requirements with requireAuth().
  */
 export function authMiddleware(
   publicDomain: string,
@@ -189,8 +195,7 @@ export function authMiddleware(
       } catch (err) {
         debug("[auth]", "Auth parse error", err);
 
-        // Parse failure: leave auth undefined, let route handlers decide
-        // if auth is required they will reject; if optional they won't care
+        // Reject invalid supplied credentials; only missing credentials pass through.
         if (!(err instanceof HTTPException)) {
           console.warn("Auth parse error:", err);
           throw new HTTPException(500, { message: "Internal server error" });
@@ -228,7 +233,7 @@ export function requireAuth(
 
 /**
  * Get auth if present, without enforcing it.
- * Returns undefined if no auth header or if parsing failed.
+ * Returns undefined if no Nostr credentials were supplied.
  */
 export function optionalAuth(
   ctx: Context<{ Variables: BlossomVariables }>,

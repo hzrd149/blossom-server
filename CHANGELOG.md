@@ -4,6 +4,7 @@
 
 ### Patch Changes
 
+- Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400, while continuing to reject malformed supplied credentials on public routes (#73).
 - Remove page titles from the admin console and let admin pages use the full browser width.
 
 - Preserve prune metadata until blob and thumbnail storage deletion succeeds, and report local deletion failures so cleanup can retry safely (#33).
