@@ -31,6 +31,9 @@
 
 ### Minor Changes
 
+- Add optional MIME-type prefix filtering with `?type=` on `GET /list/:pubkey`, including untyped uploads as `application/octet-stream`, combined with
+  pagination and date filters.
+
 - Add `nip05Domains` to storage rules: every pubkey published in a domain's `/.well-known/nostr.json` joins the rule's `pubkeys` allowlist, fetched at startup
   and refreshed on `storage.nip05.refreshIntervalMs`, so closed servers (`upload.requirePubkeyInRule`) admit new NIP-05 members without a restart. A failed
   refresh keeps the previously fetched pubkeys, and a rule with domains stays pubkey-scoped while it has no members. Database-managed rules edit domains in the

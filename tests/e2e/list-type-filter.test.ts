@@ -14,7 +14,6 @@ import { assertEquals } from "@std/assert";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { encodeHex } from "@std/encoding/hex";
 import { join } from "@std/path";
-import type { NostrEvent } from "nostr-tools";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import { initDb } from "../../src/db/client.ts";
@@ -26,7 +25,6 @@ import { initPool } from "../../src/workers/pool.ts";
 const skA = generateSecretKey();
 const pkA = getPublicKey(skA);
 const skB = generateSecretKey();
-const pkB = getPublicKey(skB);
 
 function authHeader(sk: Uint8Array, tTag: string, hash: string): string {
   const now = Math.floor(Date.now() / 1000);
@@ -45,6 +43,7 @@ function authHeader(sk: Uint8Array, tTag: string, hash: string): string {
 let app: Hono<{ Variables: BlossomVariables }>;
 let cleanup: () => Promise<void>;
 const imageHashes: string[] = [];
+const binaryHashes: string[] = [];
 const otherHashes: string[] = [];
 
 const testOpts = { sanitizeOps: false, sanitizeResources: false } as const;
@@ -69,7 +68,7 @@ Deno.test({
     async function upload(
       sk: Uint8Array,
       content: string,
-      contentType: string,
+      contentType?: string,
       into?: string[],
     ): Promise<string> {
       const body = new TextEncoder().encode(content);
@@ -79,7 +78,7 @@ Deno.test({
           method: "PUT",
           headers: {
             "Content-Length": String(body.byteLength),
-            "Content-Type": contentType,
+            ...(contentType ? { "Content-Type": contentType } : {}),
             Authorization: authHeader(sk, "upload", hash),
           },
           body,
@@ -102,6 +101,10 @@ Deno.test({
     }
     await upload(skB, "b png", "image/png");
     await upload(skB, "b text", "text/plain");
+    await upload(skA, "explicit binary", "application/octet-stream", binaryHashes);
+    await upload(skA, "untyped binary", undefined, binaryHashes);
+    await upload(skA, "document", "application/pdf", otherHashes);
+    await upload(skB, "b binary", "application/octet-stream");
 
     cleanup = async () => {
       pool.shutdown();
@@ -195,6 +198,46 @@ Deno.test({
       assertEquals(res.status, 400, `type=${bad} must 400`);
       await res.body?.cancel();
     }
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "type-filter: application filters include blobs stored without a MIME type",
+  async fn() {
+    const unfiltered = await app.fetch(new Request(`http://localhost/list/${pkA}`));
+    assertEquals(unfiltered.status, 200);
+    const all: { sha256: string; type: string }[] = await unfiltered.json();
+    assertEquals(
+      all.filter((d) => binaryHashes.includes(d.sha256)).map((d) => d.type),
+      ["application/octet-stream", "application/octet-stream"],
+    );
+
+    for (const type of ["application/octet-stream", "application/octet", "application"]) {
+      const res = await app.fetch(new Request(`http://localhost/list/${pkA}?type=${type}`));
+      assertEquals(res.status, 200);
+      const descriptors: { sha256: string; type: string }[] = await res.json();
+      assertEquals(descriptors.length, type === "application" ? 3 : 2);
+      assertEquals(
+        descriptors.filter((d) => d.type === "application/octet-stream").map((d) => d.sha256).sort(),
+        [...binaryHashes].sort(),
+      );
+    }
+
+    const collected: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const url = new URL(`http://localhost/list/${pkA}`);
+      url.searchParams.set("type", "application/octet-stream");
+      url.searchParams.set("limit", "1");
+      if (cursor) url.searchParams.set("cursor", cursor);
+      const res = await app.fetch(new Request(url));
+      assertEquals(res.status, 200);
+      const page: { sha256: string }[] = await res.json();
+      collected.push(...page.map((d) => d.sha256));
+      cursor = page.at(-1)?.sha256;
+    } while (cursor);
+    assertEquals(collected.sort(), [...binaryHashes].sort());
   },
   ...testOpts,
 });

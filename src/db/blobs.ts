@@ -190,7 +190,7 @@ export async function listBlobsByPubkey(
   if (opts.type) {
     // MIME-type prefix filter (e.g. "image" -> image/*, "video/mp4" -> exact).
     // The route validates the charset; "_" is a LIKE wildcard — escape it.
-    conditions.push("b.type LIKE ? ESCAPE '\\'");
+    conditions.push("COALESCE(b.type, 'application/octet-stream') LIKE ? ESCAPE '\\'");
     args.push(opts.type.replace(/_/g, "\\_") + "%");
   }
 
