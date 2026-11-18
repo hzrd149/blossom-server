@@ -29,6 +29,11 @@
 
 ### Minor Changes
 
+- Add `nip05Domains` to storage rules: every pubkey published in a domain's `/.well-known/nostr.json` joins the rule's `pubkeys` allowlist, fetched at startup
+  and refreshed on `storage.nip05.refreshIntervalMs`, so closed servers (`upload.requirePubkeyInRule`) admit new NIP-05 members without a restart. A failed
+  refresh keeps the previously fetched pubkeys, and a rule with domains stays pubkey-scoped while it has no members. Database-managed rules edit domains in the
+  admin console (fetched immediately on save); fetched members are kept in memory only.
+
 - Add a Reports console view with searchable, filtered, paginated moderation, reporter and blob links, matching totals, and dismissal or shared-blob deletion
   actions.
 

@@ -5,12 +5,17 @@
  * request/cycle. In "config" mode rules come from config.yml and are read-only.
  * In "database" mode they are seeded once from config, then edited through the
  * admin console; each edit writes the database first and then swaps the snapshot.
+ *
+ * Rules with nip05Domains are served with the fetched domain members merged
+ * into their pubkeys (see src/allowlist/nip05.ts). Members live only in memory:
+ * entries() and the database keep the rules exactly as edited.
  */
 
 import type { Client } from "@libsql/client";
 import type { Config } from "../config/schema.ts";
 import { listStorageRules, replaceStorageRules, seedStorageRulesOnce } from "../db/storage-rules.ts";
 import { type ManagedStorageRule, ManagedStorageRulesSchema, type StorageRule, toActiveRules } from "./rule-schema.ts";
+import { applyNip05Members, nip05DomainsOf, type Nip05Members } from "../allowlist/nip05.ts";
 
 export type RulesManagementMode = Config["storage"]["rulesManagement"];
 
@@ -24,11 +29,14 @@ export class RulesNotEditableError extends Error {
 interface Snapshot {
   version: number;
   entries: ManagedStorageRule[];
+  /** Enabled rules as edited, before NIP-05 members are merged in. */
+  base: StorageRule[];
   active: StorageRule[];
 }
 
 export class RuleStore {
   private snapshot: Snapshot;
+  private nip05Members: Nip05Members = new Map();
   private listeners = new Set<(version: number) => void>();
 
   private constructor(
@@ -42,7 +50,9 @@ export class RuleStore {
 
   /** Read-only store backed by configuration rules (no database access). */
   static fromConfig(rules: StorageRule[]): RuleStore {
-    return new RuleStore("config", null, rules, { version: 0, entries: rules.map((rule) => ({ ...rule })), active: rules });
+    const store = new RuleStore("config", null, rules, { version: 0, entries: [], base: [], active: [] });
+    store.swap(0, rules.map((rule) => ({ ...rule })));
+    return store;
   }
 
   static async create(db: Client, config: Config): Promise<RuleStore> {
@@ -52,9 +62,9 @@ export class RuleStore {
     if (await seedStorageRulesOnce(db, configRules)) {
       console.log(`[rules] Seeded ${configRules.length} storage rule(s) from config into the database`);
     }
-    const store = new RuleStore("database", db, configRules, { version: 0, entries: [], active: [] });
+    const store = new RuleStore("database", db, configRules, { version: 0, entries: [], base: [], active: [] });
     await store.reload();
-    const configDiffers = JSON.stringify(toActiveRules(configRules)) !== JSON.stringify(store.current());
+    const configDiffers = JSON.stringify(toActiveRules(configRules)) !== JSON.stringify(store.snapshot.base);
     if (configDiffers) {
       console.warn(
         "[rules] storage.rules in config differs from the database-managed rules; the database rules are in effect " +
@@ -75,6 +85,22 @@ export class RuleStore {
   /** Active (enabled) rules in evaluation order. */
   current(): StorageRule[] {
     return this.snapshot.active;
+  }
+
+  /** Evaluate a (possibly unsaved) rule list the way current() would serve it: enabled only, NIP-05 members merged. */
+  resolve(entries: readonly ManagedStorageRule[]): StorageRule[] {
+    return applyNip05Members(toActiveRules(entries), this.nip05Members);
+  }
+
+  /** Distinct NIP-05 domains referenced by the active rules. */
+  nip05Domains(): string[] {
+    return nip05DomainsOf(this.snapshot.base);
+  }
+
+  /** Replace the fetched NIP-05 members. Re-merges the active rules without bumping the version. */
+  setNip05Members(members: Nip05Members): void {
+    this.nip05Members = members;
+    this.snapshot = { ...this.snapshot, active: applyNip05Members(this.snapshot.base, members) };
   }
 
   /** All rules including disabled ones and editor metadata. */
@@ -123,7 +149,8 @@ export class RuleStore {
 
   private swap(version: number, entries: ManagedStorageRule[]): void {
     const changed = version !== this.snapshot.version;
-    this.snapshot = { version, entries, active: toActiveRules(entries) };
+    const base = toActiveRules(entries);
+    this.snapshot = { version, entries, base, active: applyNip05Members(base, this.nip05Members) };
     if (!changed) return;
     for (const listener of this.listeners) {
       try {

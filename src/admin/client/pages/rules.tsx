@@ -19,6 +19,7 @@ import {
   PageHeader,
 } from "../components/ui.tsx";
 import { safeNpub } from "../components/user.tsx";
+import { normalizeNip05Domain } from "../../../allowlist/nip05-domain.ts";
 import { formatBytes, formatDate, formatRelative } from "../lib/format.ts";
 
 interface DraftRule {
@@ -27,6 +28,7 @@ interface DraftRule {
   expiration: string;
   basis: "accessed" | "uploaded";
   pubkeys: string;
+  nip05Domains: string;
   enabled: boolean;
   note: string;
 }
@@ -40,6 +42,7 @@ function toDraft(rule: ManagedStorageRule): DraftRule {
     expiration: rule.expiration,
     basis: rule.basis ?? "accessed",
     pubkeys: (rule.pubkeys ?? []).map((pk) => safeNpub(pk) ?? pk).join("\n"),
+    nip05Domains: (rule.nip05Domains ?? []).join("\n"),
     enabled: rule.enabled !== false,
     note: rule.note ?? "",
   };
@@ -60,13 +63,29 @@ function parsePubkeys(text: string): { pubkeys: string[]; invalid: string[] } {
   return { pubkeys: [...new Set(pubkeys)], invalid };
 }
 
+/** Parse the NIP-05 domain textarea (newline/comma separated bare domains). */
+function parseDomains(text: string): { domains: string[]; invalid: string[] } {
+  const domains: string[] = [];
+  const invalid: string[] = [];
+  for (const token of text.split(/[\s,]+/).filter(Boolean)) {
+    try {
+      domains.push(normalizeNip05Domain(token));
+    } catch {
+      invalid.push(token);
+    }
+  }
+  return { domains: [...new Set(domains)], invalid };
+}
+
 function fromDraft(draft: DraftRule): ManagedStorageRule {
   const { pubkeys } = parsePubkeys(draft.pubkeys);
+  const { domains } = parseDomains(draft.nip05Domains);
   return {
     type: draft.type.trim(),
     expiration: draft.expiration.trim(),
     ...(draft.basis === "uploaded" ? { basis: "uploaded" as const } : {}),
     ...(pubkeys.length ? { pubkeys } : {}),
+    ...(domains.length ? { nip05Domains: domains } : {}),
     enabled: draft.enabled,
     ...(draft.note.trim() ? { note: draft.note.trim() } : {}),
   };
@@ -94,10 +113,13 @@ function RuleRow(
   },
 ) {
   const { invalid } = parsePubkeys(rule.pubkeys);
+  const invalidDomains = parseDomains(rule.nip05Domains).invalid;
   return (
     <li
       className={`rounded-box border bg-base-100 p-4 ${
-        issues.length || invalid.length ? "border-error" : "border-base-300"
+        issues.length || invalid.length || invalidDomains.length
+          ? "border-error"
+          : "border-base-300"
       } ${rule.enabled ? "" : "opacity-60"}`}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -177,7 +199,7 @@ function RuleRow(
         </label>
         <label className="flex flex-col gap-1 text-sm md:col-span-2">
           <span className="text-base-content/70">
-            Only for pubkeys (npub or hex, one per line; empty = everyone)
+            Only for pubkeys (npub or hex, one per line; empty and no domains = everyone)
           </span>
           <textarea
             className="textarea textarea-bordered font-mono"
@@ -195,11 +217,27 @@ function RuleRow(
             onChange={(e) => update({ note: e.target.value })}
           />
         </label>
+        <label className="flex flex-col gap-1 text-sm md:col-span-2">
+          <span className="text-base-content/70">
+            Also for members of NIP-05 domains (one per line; every pubkey in
+            the domain's /.well-known/nostr.json)
+          </span>
+          <textarea
+            className="textarea textarea-bordered font-mono"
+            rows={1}
+            value={rule.nip05Domains}
+            placeholder="example.org"
+            onChange={(e) => update({ nip05Domains: e.target.value })}
+          />
+        </label>
       </fieldset>
-      {(issues.length > 0 || invalid.length > 0) && (
+      {(issues.length > 0 || invalid.length > 0 || invalidDomains.length > 0) && (
         <ul className="mt-2 text-sm text-error">
           {invalid.length > 0 && (
             <li>Not a valid pubkey: {invalid.join(", ")}</li>
+          )}
+          {invalidDomains.length > 0 && (
+            <li>Not a bare domain: {invalidDomains.join(", ")}</li>
           )}
           {issues.map((issue) => <li key={issue}>{issue}</li>)}
         </ul>
@@ -424,7 +462,8 @@ function RulesEditor({ view }: { view: RulesView }) {
   const draftRules = useMemo(() => draft.map(fromDraft), [draft]);
   const dirty = normalizeForCompare(draftRules) !== saved;
   const hasInvalidPubkeys = draft.some((rule) =>
-    parsePubkeys(rule.pubkeys).invalid.length > 0
+    parsePubkeys(rule.pubkeys).invalid.length > 0 ||
+    parseDomains(rule.nip05Domains).invalid.length > 0
   );
 
   const discard = () => {
@@ -552,7 +591,7 @@ function RulesEditor({ view }: { view: RulesView }) {
           <code>requirePubkeyInRule</code>{" "}
           is on{view.requirePubkeyInRule.upload ? " for uploads" : ""}
           {view.requirePubkeyInRule.media ? " for media" : ""}: only rules with
-          a pubkey list can admit uploads.
+          a pubkey list or NIP-05 domains can admit uploads.
         </div>
       )}
       <div
