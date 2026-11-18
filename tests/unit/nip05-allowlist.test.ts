@@ -324,6 +324,67 @@ Deno.test("createNip05Allowlist: refreshMissing fetches only domains never attem
   assertEquals(fetchImpl.calls.filter((url) => url.startsWith("https://b.example/")).length, 3);
 });
 
+for (const completion of ["before re-add", "after replacement fetch"] as const) {
+  Deno.test(`createNip05Allowlist: removed domain's pending fetch is discarded ${completion}`, async () => {
+    let domains = ["example.org"];
+    let members: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+    const source = { nip05Domains: () => domains, setNip05Members: (m: typeof members) => (members = m) };
+    const pending: Array<ReturnType<typeof Promise.withResolvers<Response>>> = [];
+    const fetchImpl = (() => {
+      const request = Promise.withResolvers<Response>();
+      pending.push(request);
+      return request.promise;
+    }) as FetchImpl;
+    const allowlist = createNip05Allowlist(source, { fetchImpl, timeoutMs: 1000 });
+
+    const original = allowlist.refreshMissing();
+    domains = [];
+    await allowlist.refreshMissing();
+    assertEquals(members.size, 0);
+
+    if (completion === "before re-add") {
+      pending[0].resolve(new Response(JSON.stringify({ names: { alice: ALICE } })));
+      await original;
+      assertEquals(members.size, 0, "a removed domain must not return to the cache");
+    }
+
+    domains = ["example.org"];
+    const replacement = allowlist.refreshMissing();
+    assertEquals(pending.length, 2, "re-adding the domain must start a fresh fetch");
+    pending[1].resolve(new Response(JSON.stringify({ names: {} })));
+    await replacement;
+    assertEquals([...members.get("example.org") ?? []], []);
+
+    if (completion === "after replacement fetch") {
+      pending[0].resolve(new Response(JSON.stringify({ names: { alice: ALICE } })));
+      const result = await original;
+      assertEquals(result.domains[0].changed, false, "obsolete results must not report a membership change");
+    }
+    assertEquals([...members.get("example.org") ?? []], [], "obsolete membership must never replace the fresh result");
+  });
+}
+
+Deno.test("createNip05Allowlist: overlapping refreshes keep the newer request's result", async () => {
+  const store = storeFor([{ type: "*", expiration: "1 year", nip05Domains: ["example.org"] }]);
+  const pending: Array<ReturnType<typeof Promise.withResolvers<Response>>> = [];
+  const fetchImpl = (() => {
+    const request = Promise.withResolvers<Response>();
+    pending.push(request);
+    return request.promise;
+  }) as FetchImpl;
+  const allowlist = createNip05Allowlist(store, { fetchImpl, timeoutMs: 1000 });
+
+  const original = allowlist.refreshMissing();
+  const newer = allowlist.refresh();
+  pending[1].resolve(new Response(JSON.stringify({ names: { bob: BOB } })));
+  await newer;
+  assertEquals(served(store), [BOB]);
+
+  pending[0].resolve(new Response(JSON.stringify({ names: { alice: ALICE } })));
+  await original;
+  assertEquals(served(store), [BOB]);
+});
+
 // ---------------------------------------------------------------------------
 // startNip05Refresh
 // ---------------------------------------------------------------------------

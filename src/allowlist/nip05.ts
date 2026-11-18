@@ -136,20 +136,28 @@ export function nip05DomainsOf(rules: readonly StorageRule[]): string[] {
 /** Create an allowlist that fetches the domains `source` references and delivers members back to it. */
 export function createNip05Allowlist(source: Nip05Source, options: Nip05FetchOptions): Nip05Allowlist {
   const cache = new Map<string, Set<string>>();
-  // Domains attempted at least once (success or failure), so refreshMissing does not hammer a failing domain.
-  const attempted = new Set<string>();
+  // Keep the latest attempt's identity even on failure, so refreshMissing does not hammer a failing domain.
+  // Removing a domain invalidates its pending attempt; a newer fetch supersedes any older one.
+  const attempted = new Map<string, symbol>();
 
   const fetchDomains = async (domains: string[]) => {
     const results = await Promise.all(
       domains.map(async (domain): Promise<Nip05DomainResult> => {
-        attempted.add(domain);
+        const attempt = Symbol(domain);
+        attempted.set(domain, attempt);
         try {
           const fetched = await fetchNip05Pubkeys(domain, options);
+          if (attempted.get(domain) !== attempt) {
+            return { domain, count: cache.get(domain)?.size ?? 0, changed: false };
+          }
           const previous = cache.get(domain);
           const changed = previous === undefined || !setsEqual(previous, fetched);
           cache.set(domain, fetched);
           return { domain, count: fetched.size, changed };
         } catch (err) {
+          if (attempted.get(domain) !== attempt) {
+            return { domain, count: cache.get(domain)?.size ?? 0, changed: false };
+          }
           const error = err instanceof Error ? err.message || err.name : String(err);
           return { domain, count: cache.get(domain)?.size ?? 0, error, changed: false };
         }
@@ -162,7 +170,7 @@ export function createNip05Allowlist(source: Nip05Source, options: Nip05FetchOpt
   /** Current domains, after forgetting those no rule references any more (so a re-added domain is fetched afresh). */
   const referencedDomains = () => {
     const domains = source.nip05Domains();
-    for (const domain of [...attempted]) {
+    for (const domain of attempted.keys()) {
       if (!domains.includes(domain)) {
         attempted.delete(domain);
         cache.delete(domain);
