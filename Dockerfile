@@ -15,8 +15,13 @@ FROM denoland/deno:debian
 
 WORKDIR /app
 
-# Install ffmpeg for video optimization / transcoding
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# Debian's ffmpeg package provides both ffmpeg and ffprobe for video optimization.
+# Verify both executables are available before continuing the image build.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && ffmpeg -version \
+    && ffprobe -version \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Deno server source + static assets.
 COPY deno.json deno.lock ./
