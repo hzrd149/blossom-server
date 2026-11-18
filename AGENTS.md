@@ -62,9 +62,16 @@ nix build path:.#styles --rebuild --print-build-logs
 > **Before every commit:** run `deno fmt` to auto-format all changed files. Unformatted code will fail CI. Run `deno fmt --check` to verify without modifying
 > files.
 
-> **Changelog:** Add every unreleased user-facing change to the `Unreleased` section of `CHANGELOG.md` as part of the same change. Categorize entries under
-> `Major Changes`, `Minor Changes`, or `Patch Changes`, and do not create a new version heading until cutting a release. When releasing, move the accumulated
-> entries into the new version section.
+> **Changelog:** Record customer-facing changes in the `Unreleased` section of `CHANGELOG.md` as part of the same change, under `Major Changes`,
+> `Minor Changes`, or `Patch Changes`. Do not create a version heading until cutting a release; when releasing, move the accumulated entries into the new
+> version section.
+>
+> - One short sentence per entry (two at most): what changed for operators or users, not how it was implemented. Name config keys and endpoints; skip internal
+>   module, library, or test details.
+> - Skip internal changes: refactors, dependency or tooling setup, tests, CI, metrics plumbing details, and code-style or UI-polish tweaks.
+> - Do not add entries for fixes or polish to features that are still unreleased; update the existing entry for that feature instead, if anything changes for
+>   users.
+> - Read the `Unreleased` section first and extend an existing entry rather than adding a near-duplicate.
 
 > **Read before writing tests:** `TESTING.md` contains the full planned test matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or `tests/e2e/`
 > (full Hono app via `app.fetch()` — no real HTTP port needed).

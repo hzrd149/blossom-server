@@ -2,85 +2,31 @@
 
 ## Unreleased
 
-### Patch Changes
-
-- Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400, while continuing to reject malformed supplied credentials on public routes (#73).
-- Remove page titles from the admin console and let admin pages use the full browser width.
-
-- Preserve prune metadata until blob and thumbnail storage deletion succeeds, and report local deletion failures so cleanup can retry safely (#33).
-
-- Use standard-size admin buttons, search fields, forms, and pagination; reserve compact controls for dense table rows and inline copy actions.
-
-- Show admin success notifications as dismissible, auto-clearing bottom-right toasts instead of page-shifting inline banners.
-
-- Separate user profile details, uploads, and reports into tabs in the admin console.
-
-- Compact admin page headers and search-bar spacing, removing redundant page subtitles to leave more room for content.
-
-- Record when each pubkey gained ownership of a blob (including repeat uploads of existing blobs), backfilling existing owners from the blob upload time.
-
-- Track applied database migrations so one-time migration steps never re-run on startup.
-
-- Keep the prune loop scheduled even when no rules are configured, so rules added at runtime take effect.
-
-- Restore S3 publicURL redirects for blob downloads, including Range requests, instead of returning 404 (#68).
-
-- Count prune query and invalid-rule failures, surface S3 deletion failures, and settle pending jobs when workers crash, stream transfer fails, or the pool
-  shuts down.
-
-- Require cache revalidation for the landing page and public assets so browsers pick up UI and configuration changes after deployment.
-
 ### Minor Changes
 
 - Add optional MIME-type prefix filtering with `?type=` on `GET /list/:pubkey`, including untyped uploads as `application/octet-stream`, combined with
   pagination and date filters.
 
-- Add `nip05Domains` to storage rules: every pubkey published in a domain's `/.well-known/nostr.json` joins the rule's `pubkeys` allowlist, fetched at startup
-  and refreshed on `storage.nip05.refreshIntervalMs`, so closed servers (`upload.requirePubkeyInRule`) admit new NIP-05 members without a restart. A failed
-  refresh keeps the previously fetched pubkeys, and a rule with domains stays pubkey-scoped while it has no members. Domains are edited in the admin console
-  rule builder and fetched immediately on save; fetched members are kept in memory only.
+- Replace the legacy admin dashboard with a new admin console at `/admin`: dashboard overview, content browser with bulk delete, blob details, a users directory
+  with Nostr profiles, a reports moderation queue, and global search by hash, URL, npub, or MIME type.
+- Add a storage rule builder to the admin console. Rules stay in `config.yml`: when the file is writable, saving rewrites `storage.rules` (keeping comments and
+  other settings) and applies the rules without a restart; otherwise the console generates the updated file to copy or download. The console also tests whether
+  an upload would be accepted, previews or runs pruning on demand, and applies hand edits to `storage.rules` without a restart. Rules accept optional `enabled`
+  and `note` fields.
+- Add `nip05Domains` to storage rules to allow every pubkey listed in a domain's `/.well-known/nostr.json`, refreshed every `storage.nip05.refreshIntervalMs`.
+- Add storage rule `basis: uploaded` to expire blobs a fixed time after upload instead of after last access.
+- Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IPs behind reverse proxies.
+- Add an opt-in Prometheus metrics listener (`metrics`) covering HTTP requests, downloads, storage, upload workers, pruning, and blob inventory, plus an
+  optional Docker Compose `monitoring` profile with a local Prometheus.
 
-- Add a Reports console view with searchable, filtered, paginated moderation, reporter and blob links, matching totals, and dismissal or shared-blob deletion
-  actions.
+### Patch Changes
 
-- Add a searchable, sortable Users directory for blob owners and reporters, with browser-loaded Nostr profiles, paginated owned blobs and reports, storage and
-  ownership summaries, report moderation, and explicit shared-content deletion controls. Link users from blob details and the content browser.
-
-- Add an admin console with a dashboard (inventory, users, reports, and prune status), a sortable content browser with owner filtering and bulk delete, blob
-  detail pages (blurred preview of reported media, owners with upload times, reports, retention rule and expiry), a settings view, and global search by hash,
-  blob URL, npub, or MIME type.
-
-- Add a storage rule builder to the admin console that saves `storage.rules` to `config.yml` and applies it without a restart, or generates the updated file to
-  copy when the config is read-only. Rules accept optional `enabled` and `note` fields.
-
-- Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IP addresses behind reverse proxies without trusting spoofed forwarding headers.
-
-- Add browser-side Applesauce instances and native React providers to the admin console: profile loading through `applesauce-common` casts and `use$`, shared
-  event storage and relays, account/signing support, and action publishing. User metadata is fetched directly from Nostr without involving the admin backend.
-
-- Set up Tailwind CSS 4 and daisyUI 5 for the admin console, with compiled local styles and system-aware light/dark themes.
-
-- Add TanStack Query and React Query Devtools to the admin client, with shared API query definitions, cancellation, caching, and status-aware retries.
-
-- Replace the legacy SSR admin dashboard with a minimal React shell at `/admin` (`/admin/console` redirects there). Remove the old dashboard pages,
-  profile-lookup runtime and relay configuration, and temporary demo UI. Keep the isolated management API, services, authentication, and asset build as the
-  foundation for the new console; configuration remains deployment-managed.
-
-- Reject cross-site browser admin mutations and validate management API identifiers and pagination parameters.
-
-- Add optional storage rule `basis: uploaded` to expire blobs from first upload regardless of later access; omitted or `accessed` preserves existing retention.
-
-- Add worker capacity, active jobs, saturation, duration and crash metrics; add scheduled prune health and cached inventory by MIME group, with collection
-  freshness and failures.
-
-- Observe download and storage-read stream bytes, concurrency, duration, and terminal outcomes; add storage API timings and S3 caught-error counters. Preserve
-  backpressure and cancellation in fallback Range reads.
-
-- Add an optional Docker Compose monitoring profile with a local Prometheus UI and persistent, bounded test history.
-
-- Publish the optional Docker Compose metrics endpoint on host loopback port 3001 and document local testing.
-
-- Add an opt-in private Prometheus listener with bounded HTTP request counts, handler latency, active handlers, and build/start identity.
+- Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400, while continuing to reject malformed supplied credentials on public routes (#73).
+- Remove page titles from the admin console and let admin pages use the full browser width.
+- Restore S3 `publicURL` redirects for blob downloads, including Range requests, instead of returning 404 (#68).
+- Keep blob records until storage deletion succeeds so failed prune deletions are retried (#33).
+- Reject cross-site browser requests that modify admin data.
+- Make browsers revalidate the landing page and public assets so updates show up after deploying.
 
 ## 6.4.1 - 2026-10-06
 
