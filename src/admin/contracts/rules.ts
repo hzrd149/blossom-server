@@ -4,26 +4,48 @@ import { HEX_PUBKEY_RE, type ManagedStorageRule, ManagedStorageRulesSchema, type
 export { ManagedStorageRuleSchema, ManagedStorageRulesSchema, RULE_TYPE_RE } from "../../policy/rule-schema.ts";
 export type { ManagedStorageRule, StorageRule };
 
+export interface ConfigFileView {
+  /** Config path the server was started with; null when unknown (the console can only generate a file). */
+  path: string | null;
+  exists: boolean;
+  /** The server can write the file; saving applies the new rules immediately. */
+  writable: boolean;
+  /** Optimistic-concurrency token for the file contents; send it back with PUT /rules. */
+  hash: string | null;
+  /** Set when the file on disk cannot be parsed or validated. */
+  error: string | null;
+  /** storage.rules in the file on disk match the rules in effect. False after a hand edit; POST /rules/reload applies it. */
+  inSync: boolean;
+}
+
 export interface RulesView {
-  mode: "config" | "database";
-  editable: boolean;
-  /** Optimistic concurrency token; send it back with PUT /rules. */
-  version: number;
-  /** Full ordered list, including disabled rules. */
+  /** Rules in effect, in evaluation order, including disabled rules. */
   rules: ManagedStorageRule[];
-  /** Rules currently in config.yml (shown for comparison and reset). */
-  configRules: StorageRule[];
+  /** In-memory rule set version; changes whenever rules are applied. */
+  version: number;
+  configFile: ConfigFileView;
   requirePubkeyInRule: { upload: boolean; media: boolean };
   removeWhenNoOwners: boolean;
 }
 
-export const ReplaceRulesBodySchema = z.object({
-  version: z.number().int().min(0),
+export const SaveRulesBodySchema = z.object({
+  /** ConfigFileView.hash the edit was based on. */
+  hash: z.string().regex(/^[0-9a-f]{64}$/),
   rules: ManagedStorageRulesSchema,
 });
-export type ReplaceRulesBody = z.input<typeof ReplaceRulesBodySchema>;
+export type SaveRulesBody = z.input<typeof SaveRulesBodySchema>;
 
-export const ResetRulesBodySchema = z.object({ version: z.number().int().min(0) });
+export const RenderRulesBodySchema = z.object({ rules: ManagedStorageRulesSchema });
+export type RenderRulesBody = z.input<typeof RenderRulesBodySchema>;
+
+export interface RenderedConfig {
+  /** Full config.yml with storage.rules replaced; the rest of the file is kept as-is (uninterpolated). */
+  text: string;
+  /** Just the storage.rules section. */
+  snippet: string;
+  /** Hash of the file the text was rendered from (null when there is no file). */
+  hash: string | null;
+}
 
 export const RuleProbeSchema = z.object({
   endpoint: z.enum(["upload", "media", "mirror"]).default("upload"),

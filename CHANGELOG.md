@@ -16,8 +16,6 @@
 
 - Compact admin page headers and search-bar spacing, removing redundant page subtitles to leave more room for content.
 
-- Separate storage rule editing, prune previews and runs, and upload debugging into Rules, Prune, and Debug tabs in the admin console.
-
 - Record when each pubkey gained ownership of a blob (including repeat uploads of existing blobs), backfilling existing owners from the blob upload time.
 
 - Track applied database migrations so one-time migration steps never re-run on startup.
@@ -38,8 +36,8 @@
 
 - Add `nip05Domains` to storage rules: every pubkey published in a domain's `/.well-known/nostr.json` joins the rule's `pubkeys` allowlist, fetched at startup
   and refreshed on `storage.nip05.refreshIntervalMs`, so closed servers (`upload.requirePubkeyInRule`) admit new NIP-05 members without a restart. A failed
-  refresh keeps the previously fetched pubkeys, and a rule with domains stays pubkey-scoped while it has no members. Database-managed rules edit domains in the
-  admin console (fetched immediately on save); fetched members are kept in memory only.
+  refresh keeps the previously fetched pubkeys, and a rule with domains stays pubkey-scoped while it has no members. Domains are edited in the admin console
+  rule builder and fetched immediately on save; fetched members are kept in memory only.
 
 - Add a Reports console view with searchable, filtered, paginated moderation, reporter and blob links, matching totals, and dismissal or shared-blob deletion
   actions.
@@ -51,10 +49,8 @@
   detail pages (blurred preview of reported media, owners with upload times, reports, retention rule and expiry), a settings view, and global search by hash,
   blob URL, npub, or MIME type.
 
-- Add `storage.rulesManagement: database` to manage storage rules from the admin console. Rules are seeded once from `storage.rules`, then edited with ordering,
-  enable/disable, and notes, and apply immediately to uploads, mirrors, media, the landing page, and pruning without a restart. The console can test whether an
-  upload would be accepted, preview what the next prune would delete, and start a prune cycle on demand. The default `config` mode keeps rules in `config.yml`,
-  read-only in the console.
+- Add a storage rule builder to the admin console that saves `storage.rules` to `config.yml` and applies it without a restart, or generates the updated file to
+  copy when the config is read-only. Rules accept optional `enabled` and `note` fields.
 
 - Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IP addresses behind reverse proxies without trusting spoofed forwarding headers.
 

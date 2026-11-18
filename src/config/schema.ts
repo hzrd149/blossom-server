@@ -90,13 +90,6 @@ const StorageSchema = z.object({
       "Ordered list of retention rules. Rules are evaluated in order; the first matching rule governs a blob's expiry. " +
         "Rules also act as an upload allowlist: blobs whose MIME type matches no rule are rejected with 415.",
     ),
-  rulesManagement: z
-    .enum(["config", "database"])
-    .default("config")
-    .describe(
-      'Where storage rules are managed. "config" uses storage.rules from this file (read-only in the admin console). ' +
-        '"database" copies storage.rules into the database on first start, then the admin console edits them and changes apply immediately; later edits to storage.rules in this file are ignored.',
-    ),
   removeWhenNoOwners: z
     .boolean()
     .default(false)

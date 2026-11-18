@@ -89,15 +89,6 @@ storage:
   # regardless of expiry rules.
   removeWhenNoOwners: false
 
-  # Where storage rules are managed:
-  #   config    (default) Use the rules below. The admin console shows them read-only.
-  #   database  Copy the rules below into the database on first start. From then on
-  #             they are edited in the admin console (/admin/rules) and changes apply
-  #             immediately, without a restart. Later edits to the rules below are
-  #             ignored (a startup warning is logged); use "Reset to config" in the
-  #             console to re-import them.
-  # rulesManagement: config
-
   # Retention rules — evaluated in order; first match governs the blob's expiry.
   #
   # Rules also serve as the upload allowlist: when this list is non-empty, blobs
@@ -122,8 +113,15 @@ storage:
   #               pubkeys list — fetched at startup and refreshed on the schedule
   #               in storage.nip05 below. The domain must return its full "names"
   #               map when queried without ?name=.
-  #               With rulesManagement: database, domains are edited in the admin
-  #               console too; a newly added domain is fetched immediately.
+  #               A domain added from the admin console is fetched immediately.
+  #   enabled     Optional, default true. Set to false to keep a rule in this file
+  #               but skip it during evaluation.
+  #   note        Optional free-form note shown in the admin console.
+  #
+  # The admin console (/admin/rules) edits these rules. When this file is writable
+  # by the server, saving rewrites storage.rules here (comments and other settings
+  # are kept) and applies the rules immediately. Otherwise the console generates
+  # the updated file for you to copy into place.
   rules:
     - type: "image/*"
       expiration: 1 month

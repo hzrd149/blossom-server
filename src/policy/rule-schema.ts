@@ -83,9 +83,21 @@ export const StorageRuleSchema = z.object({
         "Fetched at startup and refreshed every storage.nip05.refreshIntervalMs. A rule with domains stays pubkey-scoped even while no members have been fetched. " +
         "The domain must return its full names map when queried without ?name=.",
     ),
+  enabled: z
+    .boolean()
+    .optional()
+    .describe("Set to false to keep the rule in the file but skip it during evaluation. Defaults to true."),
+  note: z
+    .string()
+    .optional()
+    .describe("Optional free-form note shown in the admin console. Has no effect on evaluation."),
 });
 
-export type StorageRule = z.infer<typeof StorageRuleSchema>;
+/** A rule as written in config.yml: possibly disabled, possibly carrying a note. */
+export type ConfiguredStorageRule = z.infer<typeof StorageRuleSchema>;
+
+/** An evaluated rule, as produced by toActiveRules(): enabled only, no editor metadata. */
+export type StorageRule = Omit<ConfiguredStorageRule, "enabled" | "note">;
 
 /** MIME pattern accepted by the console rule editor: "*", "type/*", or "type/subtype". */
 export const RULE_TYPE_RE = /^(\*|[a-z0-9][a-z0-9.+-]*\/(\*|[a-z0-9][a-z0-9.+_-]*))$/;
@@ -93,8 +105,8 @@ export const HEX_PUBKEY_RE = /^[0-9a-f]{64}$/;
 export const MAX_STORAGE_RULES = 100;
 
 /**
- * A storage rule as managed by the admin console. Stricter than StorageRuleSchema
- * (which stays lenient for backward-compatible config files) and adds editor metadata.
+ * A storage rule as submitted by the admin console rule builder. Stricter than
+ * StorageRuleSchema, which stays lenient for backward-compatible config files.
  */
 export const ManagedStorageRuleSchema = z.object({
   type: z.string().trim().toLowerCase().regex(RULE_TYPE_RE, 'Expected "*", "type/*", or "type/subtype"'),
@@ -118,7 +130,7 @@ export type ManagedStorageRule = z.input<typeof ManagedStorageRuleSchema>;
 export const ManagedStorageRulesSchema = z.array(ManagedStorageRuleSchema).max(MAX_STORAGE_RULES);
 
 /** Strip editor metadata and drop disabled rules, producing the evaluated rule list. */
-export function toActiveRules(rules: readonly ManagedStorageRule[]): StorageRule[] {
+export function toActiveRules(rules: readonly (StorageRule & { enabled?: boolean })[]): StorageRule[] {
   return rules.filter((rule) => rule.enabled !== false).map(({ type, expiration, basis, pubkeys, nip05Domains }) => ({
     type,
     expiration,

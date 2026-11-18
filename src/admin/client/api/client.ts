@@ -18,10 +18,10 @@ import type { ConfigurationSummary } from "../../contracts/configuration.ts";
 import type { AdminApiError as AdminApiErrorBody } from "../../contracts/errors.ts";
 import type {
   PruneStatusDto,
-  ReplaceRulesBody,
-  RulePreviewBody,
-  RulePreviewResult,
+  RenderedConfig,
+  RenderRulesBody,
   RulesView,
+  SaveRulesBody,
 } from "../../contracts/rules.ts";
 
 export class AdminApiError extends Error {
@@ -29,7 +29,6 @@ export class AdminApiError extends Error {
     public readonly status: number,
     message: string,
     public readonly issues: NonNullable<AdminApiErrorBody["issues"]> = [],
-    public readonly version?: number,
   ) {
     super(message);
     this.name = "AdminApiError";
@@ -63,7 +62,6 @@ async function request<T>(
         ? error.error
         : `Request failed (${response.status})`,
       error?.issues ?? [],
-      error?.version,
     );
   }
   return response.json();
@@ -113,13 +111,10 @@ export const adminApi = {
     request<{ success: true }>("POST", `reports/${id}/${action}`),
 
   rules: (signal: AbortSignal) => get<RulesView>("rules", signal),
-  saveRules: (body: ReplaceRulesBody) =>
-    request<RulesView>("PUT", "rules", body),
-  resetRules: (version: number) =>
-    request<RulesView>("POST", "rules/reset-to-config", { version }),
-  previewRules: (body: RulePreviewBody) =>
-    request<RulePreviewResult>("POST", "rules/preview", body),
+  saveRules: (body: SaveRulesBody) => request<RulesView>("PUT", "rules", body),
+  renderRules: (body: RenderRulesBody) =>
+    request<RenderedConfig>("POST", "rules/render", body),
+  reloadRules: () => request<RulesView>("POST", "rules/reload"),
   pruneStatus: (signal: AbortSignal) =>
     get<PruneStatusDto>("prune/status", signal),
-  runPrune: () => request<{ started: true }>("POST", "prune/run"),
 };

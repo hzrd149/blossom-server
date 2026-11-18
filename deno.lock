@@ -17,6 +17,7 @@
     "npm:file-type@^19.6.0": "19.6.0",
     "npm:nostr-tools@^2.26.1": "2.26.1",
     "npm:sharp@~0.35.5": "0.35.5",
+    "npm:yaml@^2.9.1": "2.9.1",
     "npm:zod@^4.6.7": "4.6.7"
   },
   "jsr": {
@@ -1938,6 +1939,7 @@
       "npm:file-type@^19.6.0",
       "npm:nostr-tools@^2.26.1",
       "npm:sharp@~0.35.5",
+      "npm:yaml@^2.9.1",
       "npm:zod@^4.6.7"
     ]
   }

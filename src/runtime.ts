@@ -32,20 +32,20 @@ export interface ServerRuntimeOptions {
   nip05Timers?: Nip05RefreshTimers;
 }
 
-export async function createServerRuntime(
+export function createServerRuntime(
   db: Client,
   storage: IBlobStorage,
   config: Config,
   options: ServerRuntimeOptions = {},
 ): Promise<ServerRuntime> {
-  const rules = await RuleStore.create(db, config);
+  const rules = new RuleStore(config.storage.rules);
   const nip05 = createNip05Allowlist(rules, { fetchImpl: options.nip05Fetch, timeoutMs: config.storage.nip05.timeoutMs });
-  // A domain added through the admin console is fetched right away instead of after the next interval.
+  // A domain added through the admin console (or a config reload) is fetched right away instead of after the next interval.
   const unsubscribe = rules.onChange(() => {
     nip05.refreshMissing().then((result) => logNip05Results(result.domains)).catch((err) => console.warn("[nip05] refresh failed:", err));
   });
   let stopRefresh: (() => void) | undefined;
-  return {
+  return Promise.resolve({
     rules,
     prune: new PruneScheduler(db, storage, config, rules, options.prune),
     nip05,
@@ -57,7 +57,7 @@ export async function createServerRuntime(
       unsubscribe();
       stopRefresh?.();
     },
-  };
+  });
 }
 
 /** Stop background work owned by the runtime. */

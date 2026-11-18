@@ -129,12 +129,12 @@ Deno.test("fetchNip05Pubkeys: asks fetch to fail on redirects and treats a redir
 });
 
 // ---------------------------------------------------------------------------
-// createNip05Allowlist (with a config-mode RuleStore as its source)
+// createNip05Allowlist (with a RuleStore over config rules as its source)
 // ---------------------------------------------------------------------------
 
-/** A read-only RuleStore over config rules, parsed (and domain-normalized) like config.yml. */
+/** A RuleStore over config rules, parsed (and domain-normalized) like config.yml. */
 function storeFor(rules: unknown[]): RuleStore {
-  return RuleStore.fromConfig(ConfigSchema.parse({ storage: { rules } }).storage.rules);
+  return new RuleStore(ConfigSchema.parse({ storage: { rules } }).storage.rules);
 }
 
 /** Sorted pubkeys the store currently serves for the rule at `index`. */
@@ -175,9 +175,8 @@ Deno.test("createNip05Allowlist: merges static and fetched pubkeys, deduped, wit
 
   assertEquals(domains, [{ domain: "example.org", count: 2, changed: true }]);
   assertEquals(served(store), [ALICE, BOB, STATIC]);
-  // Members are served, never written back to the rules as edited (or to config).
+  // Members are served, never written back to the rules as written in config.
   assertEquals(store.entries()[0].pubkeys, [STATIC, ALICE]);
-  assertEquals(store.configured()[0].pubkeys, [STATIC, ALICE]);
 });
 
 Deno.test("createNip05Allowlist: rules without nip05Domains are untouched", async () => {

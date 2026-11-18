@@ -269,8 +269,8 @@ storage:
 
 A failed refresh keeps the previously fetched pubkeys; a domain that has never been fetched successfully grants nothing. A rule with `nip05Domains` is always
 pubkey-scoped, even while its fetched list is still empty, so it never matches everyone. Removing a name from `nostr.json` revokes that user's upload access on
-the next refresh and moves their existing blobs to the next matching rule for retention. With `storage.rulesManagement: database`, domains can also be edited
-per rule in the admin console; a newly added domain is fetched immediately. Fetched members are kept in memory only and never written to the rules.
+the next refresh and moves their existing blobs to the next matching rule for retention. Domains can also be edited per rule in the admin console; a newly added
+domain is fetched immediately. Fetched members are kept in memory only and never written to the rules.
 
 ## Authentication (BUD-11)
 

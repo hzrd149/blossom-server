@@ -29,6 +29,8 @@ export interface BuildAppOptions {
   metrics?: HttpMetrics;
   /** Live server state. When omitted, a runtime is created from config with a stopped prune scheduler. */
   runtime?: ServerRuntime;
+  /** Path of the loaded config file. The admin console reads and (when writable) rewrites its storage.rules. When omitted, the console can only generate a config for copying. */
+  configPath?: string;
 }
 
 export async function buildApp(
@@ -60,7 +62,7 @@ export async function buildApp(
       import("./admin/server/app.ts"),
       import("./admin/services/index.ts"),
     ]);
-    app.route("/admin", buildAdminApp({ config, services: createManagementServices(db, storage, config, runtime) }));
+    app.route("/admin", buildAdminApp({ config, services: createManagementServices(db, storage, config, runtime, options.configPath) }));
   } else {
     app.all("/admin", (c) => c.notFound());
     app.all("/admin/*", (c) => c.notFound());

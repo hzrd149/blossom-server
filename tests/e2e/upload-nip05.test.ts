@@ -12,7 +12,7 @@
  */
 
 import type { Hono } from "@hono/hono";
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { crypto as stdCrypto } from "@std/crypto";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { encodeHex } from "@std/encoding/hex";
@@ -288,8 +288,11 @@ Deno.test({
       publicDomain: "localhost",
       dashboard: { enabled: true, password },
       upload: { requireAuth: true, enabled: true, requirePubkeyInRule: true },
-      storage: { rulesManagement: "database", rules: [{ type: "*", expiration: "1 year" }] },
+      storage: { rules: [{ type: "*", expiration: "1 year" }] },
     });
+    // Rules live in config.yml; the console writes the file and applies it.
+    const configPath = join(tmpDir, "config.yml");
+    await Deno.writeTextFile(configPath, 'storage:\n  rules:\n    - type: "*"\n      expiration: 1 year\n');
     const nostrJsonHits: string[] = [];
     const fetchImpl = ((input: string | URL | Request) => {
       nostrJsonHits.push(String(input));
@@ -298,7 +301,7 @@ Deno.test({
     const runtime = await createServerRuntime(db, storage, config, { nip05Fetch: fetchImpl });
     await runtime.nip05.refresh();
     assertEquals(nostrJsonHits, [], "no rule has domains yet");
-    const app = await buildApp(db, storage, config, { runtime });
+    const app = await buildApp(db, storage, config, { runtime, configPath });
 
     const preflight = (sk: Uint8Array) =>
       app.fetch(
@@ -325,10 +328,11 @@ Deno.test({
       const before = await (await api("rules/preview", "POST", { rules, probes: [{ mimeType: "text/plain", pubkey: memberPk }] })).json();
       assertEquals(before.probes[0].status, 401);
 
-      const saved = await api("rules", "PUT", { version: view.version, rules });
+      const saved = await api("rules", "PUT", { hash: view.configFile.hash, rules });
       assertEquals(saved.status, 200);
       const savedView = await saved.json();
-      assertEquals(savedView.rules, [{ type: "*", expiration: "1 year", nip05Domains: ["example.org"], enabled: true }]);
+      assertEquals(savedView.rules, [{ type: "*", expiration: "1 year", nip05Domains: ["example.org"] }]);
+      assertStringIncludes(await Deno.readTextFile(configPath), "example.org");
 
       // The rule-change listener fetches the new domain in the background.
       for (let i = 0; i < 50 && runtime.rules.current()[0].pubkeys?.length !== 1; i++) {

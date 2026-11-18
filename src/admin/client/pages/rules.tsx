@@ -1,26 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { normalizeToPubkey } from "applesauce-core/helpers";
-import { useEffect, useMemo, useState } from "react";
+import { type RefObject, useMemo, useRef, useState } from "react";
 import type {
+  ConfigFileView,
   ManagedStorageRule,
-  PruneCandidateDto,
-  RuleProbe,
-  RuleProbeResult,
+  RenderedConfig,
   RulesView,
 } from "../../contracts/rules.ts";
 import { adminApi, AdminApiError } from "../api/client.ts";
 import { adminQueries, adminQueryKeys } from "../api/queries.ts";
 import {
   ConfirmButton,
+  CopyButton,
   EmptyState,
   ErrorAlert,
-  HashLink,
   Loading,
   PageToolbar,
 } from "../components/ui.tsx";
+import { useToast } from "../components/toasts.tsx";
 import { safeNpub } from "../components/user.tsx";
 import { normalizeNip05Domain } from "../../../allowlist/nip05-domain.ts";
-import { formatBytes, formatDate, formatRelative } from "../lib/format.ts";
 
 interface DraftRule {
   key: number;
@@ -101,11 +100,10 @@ const normalizeForCompare = (rules: ManagedStorageRule[]) =>
   );
 
 function RuleRow(
-  { rule, index, count, editable, issues, update, move, remove }: {
+  { rule, index, count, issues, update, move, remove }: {
     rule: DraftRule;
     index: number;
     count: number;
-    editable: boolean;
     issues: string[];
     update: (patch: Partial<DraftRule>) => void;
     move: (delta: number) => void;
@@ -129,7 +127,6 @@ function RuleRow(
             type="checkbox"
             className="toggle toggle-success"
             checked={rule.enabled}
-            disabled={!editable}
             onChange={(e) => update({ enabled: e.target.checked })}
           />
           {rule.enabled ? "Enabled" : "Disabled"}
@@ -138,7 +135,7 @@ function RuleRow(
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={!editable || index === 0}
+            disabled={index === 0}
             onClick={() => move(-1)}
             aria-label="Move up"
           >
@@ -147,7 +144,7 @@ function RuleRow(
           <button
             type="button"
             className="btn btn-ghost"
-            disabled={!editable || index === count - 1}
+            disabled={index === count - 1}
             onClick={() => move(1)}
             aria-label="Move down"
           >
@@ -156,17 +153,13 @@ function RuleRow(
           <button
             type="button"
             className="btn btn-ghost text-error"
-            disabled={!editable}
             onClick={remove}
           >
             Remove
           </button>
         </div>
       </div>
-      <fieldset
-        disabled={!editable}
-        className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_1fr]"
-      >
+      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_1fr]">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-base-content/70">MIME pattern</span>
           <input
@@ -199,7 +192,8 @@ function RuleRow(
         </label>
         <label className="flex flex-col gap-1 text-sm md:col-span-2">
           <span className="text-base-content/70">
-            Only for pubkeys (npub or hex, one per line; empty and no domains = everyone)
+            Only for pubkeys (npub or hex, one per line; empty and no domains =
+            everyone)
           </span>
           <textarea
             className="textarea textarea-bordered font-mono"
@@ -230,234 +224,167 @@ function RuleRow(
             onChange={(e) => update({ nip05Domains: e.target.value })}
           />
         </label>
-      </fieldset>
-      {(issues.length > 0 || invalid.length > 0 || invalidDomains.length > 0) && (
-        <ul className="mt-2 text-sm text-error">
-          {invalid.length > 0 && (
-            <li>Not a valid pubkey: {invalid.join(", ")}</li>
-          )}
-          {invalidDomains.length > 0 && (
-            <li>Not a bare domain: {invalidDomains.join(", ")}</li>
-          )}
-          {issues.map((issue) => <li key={issue}>{issue}</li>)}
-        </ul>
-      )}
+      </div>
+      {(issues.length > 0 || invalid.length > 0 || invalidDomains.length > 0) &&
+        (
+          <ul className="mt-2 text-sm text-error">
+            {invalid.length > 0 && (
+              <li>Not a valid pubkey: {invalid.join(", ")}</li>
+            )}
+            {invalidDomains.length > 0 && (
+              <li>Not a bare domain: {invalidDomains.join(", ")}</li>
+            )}
+            {issues.map((issue) => <li key={issue}>{issue}</li>)}
+          </ul>
+        )}
     </li>
   );
 }
 
-function ProbePanel({ rules }: { rules: ManagedStorageRule[] }) {
-  const [probe, setProbe] = useState<
-    {
-      endpoint: NonNullable<RuleProbe["endpoint"]>;
-      mimeType: string;
-      pubkey: string;
-    }
-  >({
-    endpoint: "upload",
-    mimeType: "image/png",
-    pubkey: "",
-  });
-  const preview = useMutation({
-    mutationFn: () => {
-      const pubkey = probe.pubkey.trim()
-        ? parsePubkeys(probe.pubkey).pubkeys[0] ?? probe.pubkey.trim()
-        : undefined;
-      return adminApi.previewRules({
-        rules,
-        probes: [{
-          endpoint: probe.endpoint,
-          mimeType: probe.mimeType.trim() || null,
-          pubkey,
-        }],
-      });
-    },
-  });
-  const result: RuleProbeResult | undefined = preview.data?.probes[0];
-  return (
-    <section className="card border border-base-300 bg-base-100 shadow-sm">
-      <div className="card-body gap-3">
-        <h2 className="card-title text-base">Test an upload</h2>
-        <p className="text-sm text-base-content/60">
-          Checks the rules in the Rules tab, including unsaved changes.
-        </p>
-        <form
-          className="grid gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            preview.mutate();
-          }}
-        >
-          <select
-            className="select select-bordered"
-            value={probe.endpoint}
-            onChange={(e) =>
-              setProbe({
-                ...probe,
-                endpoint: e.target.value as typeof probe.endpoint,
-              })}
-          >
-            <option value="upload">PUT /upload</option>
-            <option value="media">PUT /media</option>
-            <option value="mirror">PUT /mirror</option>
-          </select>
-          <input
-            className="input input-bordered font-mono"
-            placeholder="MIME type"
-            value={probe.mimeType}
-            onChange={(e) => setProbe({ ...probe, mimeType: e.target.value })}
-          />
-          <input
-            className="input input-bordered font-mono"
-            placeholder="Uploader npub or hex (optional)"
-            value={probe.pubkey}
-            onChange={(e) => setProbe({ ...probe, pubkey: e.target.value })}
-          />
-          <button
-            type="submit"
-            className="btn"
-            disabled={preview.isPending}
-          >
-            Test
-          </button>
-        </form>
-        <ErrorAlert error={preview.error} />
-        {result && (
-          <div
-            role="status"
-            className={`alert alert-soft ${
-              result.accepted ? "alert-success" : "alert-warning"
-            }`}
-          >
-            {result.accepted
-              ? `Accepted — governed by rule #${(result.ruleIndex ?? 0) + 1}`
-              : `Rejected with ${result.status}: ${result.reason}`}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
+type ConfigTab = "full" | "rules";
 
-function describeReason(candidate: PruneCandidateDto): string {
-  const reason = candidate.reason;
-  if (reason.kind === "ownerless") return "no owners";
-  if (reason.kind === "thumbnail") return "thumbnail of pruned blob";
-  return `rule #${reason.ruleIndex + 1}, ${
-    reason.basis === "accessed" ? "last accessed" : "uploaded"
-  } ${formatRelative(reason.basisTimestamp)}`;
-}
-
-function PrunePanel({ rules }: { rules: ManagedStorageRule[] }) {
-  const queryClient = useQueryClient();
-  const status = useQuery(adminQueries.pruneStatus());
-  const sample = useMutation({
-    mutationFn: () => adminApi.previewRules({ rules, prune: true }),
-  });
-  const run = useMutation({
-    mutationFn: adminApi.runPrune,
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.prune }),
-  });
-  // Refresh inventory views once a manual run finishes.
-  const running = status.data?.running;
-  useEffect(() => {
-    if (running === false) {
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.content });
-    }
-  }, [running, queryClient]);
-  const candidates = sample.data?.pruneSample ?? null;
-  const totalBytes = candidates?.reduce((sum, c) => sum + c.size, 0) ?? 0;
+/**
+ * Review the rendered config.yml. Writable configs are written and applied from
+ * here; read-only configs are copied or downloaded for the operator to install.
+ */
+function ConfigDialog(
+  { dialog, file, rendered, renderError, save }: {
+    dialog: RefObject<HTMLDialogElement | null>;
+    file: ConfigFileView;
+    rendered: RenderedConfig | undefined;
+    renderError: unknown;
+    save: {
+      mutate: () => void;
+      isPending: boolean;
+      error: unknown;
+      reset: () => void;
+    };
+  },
+) {
+  const [tab, setTab] = useState<ConfigTab>("full");
+  const text = rendered
+    ? (tab === "full" ? rendered.text : rendered.snippet)
+    : "";
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/yaml" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = tab === "full" ? "config.yml" : "storage-rules.yml";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+  const close = () => dialog.current?.close();
+  const fileName = file.path ?? "config.yml";
   return (
-    <section className="card border border-base-300 bg-base-100 shadow-sm">
-      <div className="card-body gap-3">
-        <h2 className="card-title text-base">Prune</h2>
-        <ErrorAlert error={status.error ?? run.error ?? sample.error} />
-        {status.data && (
-          <p className="text-sm">
-            {status.data.running
-              ? <span className="badge badge-info badge-sm">running</span>
-              : "Idle"} · last run {status.data.lastRun
-              ? (
-                <span title={formatDate(status.data.lastRun.finished / 1000)}>
-                  {formatRelative(status.data.lastRun.finished / 1000)}{" "}
-                  ({status.data.lastRun.deleted} deleted,{" "}
-                  {status.data.lastRun.errors} errors)
-                </span>
-              )
-              : "never"}
-            {status.data.nextRun && (
-              <>· next {formatRelative(status.data.nextRun / 1000)}</>
-            )}
-          </p>
-        )}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn"
-            disabled={sample.isPending}
-            onClick={() => sample.mutate()}
-          >
-            {sample.isPending && (
-              <span className="loading loading-spinner loading-xs" />
-            )}
-            Preview with draft rules
-          </button>
-          <ConfirmButton
-            className="btn btn-warning"
-            disabled={status.data?.running}
-            title="Run prune now?"
-            description="Deletes expired blobs according to the saved rules (not unsaved changes)."
-            confirmLabel="Run prune"
-            onConfirm={() => run.mutateAsync()}
-          >
-            Run prune now
-          </ConfirmButton>
-        </div>
-        {candidates && (
-          candidates.length === 0
+    <dialog ref={dialog} className="modal" onClose={save.reset}>
+      <div className="modal-box flex max-w-4xl flex-col gap-3">
+        <h3 className="text-lg font-semibold">
+          {file.writable ? `Write rules to ${fileName}` : `Updated ${fileName}`}
+        </h3>
+        <p className="text-sm text-base-content/80">
+          {file.writable
             ? (
-              <p className="text-sm text-base-content/60">
-                Nothing would be deleted in the next cycle.
-              </p>
+              <>
+                Saving replaces <code>storage.rules</code> in{" "}
+                <code className="break-all">{fileName}</code>{" "}
+                and applies the rules immediately. Comments and all other
+                settings in the file are kept.
+              </>
+            )
+            : !file.path
+            ? (
+              <>
+                The server was not started with a config file path. Save this
+                file as the server's config and restart it.
+              </>
             )
             : (
               <>
-                <p className="text-sm">
-                  Next cycle would delete at least{" "}
-                  <strong>{candidates.length}</strong> blob(s),{" "}
-                  {formatBytes(totalBytes)}. Sample of up to{" "}
-                  {status.data?.batchSize ?? "batch size"} per rule:
-                </p>
-                <ul className="max-h-72 overflow-y-auto text-sm">
-                  {candidates.slice(0, 200).map((c) => (
-                    <li
-                      key={c.sha256}
-                      className="flex justify-between gap-2 py-0.5"
-                    >
-                      <HashLink hash={c.sha256} />
-                      <span className="text-base-content/60 text-right">
-                        {describeReason(c)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                The server cannot write{" "}
+                <code className="break-all">{fileName}</code>{" "}
+                (for example a Nix store path or a read-only Docker mount).
+                Replace the file with this version, then restart the server. If
+                the server reads the edited file directly, use{" "}
+                <em>Apply rules from config.yml</em> instead of restarting.
               </>
-            )
+            )}
+        </p>
+        <div role="tablist" className="tabs tabs-border">
+          {([["full", "Full config.yml"], ["rules", "Rules only"]] as const)
+            .map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                className={`tab ${tab === key ? "tab-active" : ""}`}
+                onClick={() => setTab(key)}
+              >
+                {label}
+              </button>
+            ))}
+        </div>
+        <ErrorAlert error={renderError} title="Could not render config.yml" />
+        {!rendered && !renderError ? <Loading label="Rendering…" /> : (
+          <textarea
+            className="textarea textarea-bordered h-96 w-full font-mono text-xs"
+            readOnly
+            spellCheck={false}
+            value={text}
+            aria-label={tab === "full"
+              ? "Rendered config.yml"
+              : "Rendered storage rules"}
+          />
         )}
+        <p className="text-xs text-base-content/60">
+          This is the file as stored on disk. <code>${"{VAR}"}</code>{" "}
+          placeholders are not expanded, but secrets written in plain text are
+          included.
+        </p>
+        <ErrorAlert error={save.error} title="Rules were not saved" />
+        <div className="modal-action mt-0 flex-wrap">
+          <button type="button" className="btn btn-ghost" onClick={close}>
+            {file.writable ? "Cancel" : "Close"}
+          </button>
+          <CopyButton value={text} label="Copy" />
+          <button
+            type="button"
+            className="btn"
+            disabled={!rendered}
+            onClick={download}
+          >
+            Download
+          </button>
+          {file.writable && tab === "full" && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!rendered || save.isPending}
+              onClick={() => save.mutate()}
+            >
+              {save.isPending && (
+                <span className="loading loading-spinner loading-xs" />
+              )}
+              Write &amp; apply
+            </button>
+          )}
+        </div>
       </div>
-    </section>
+      <form method="dialog" className="modal-backdrop">
+        <button type="submit" aria-label="Close">close</button>
+      </form>
+    </dialog>
   );
 }
 
 function RulesEditor({ view }: { view: RulesView }) {
   const queryClient = useQueryClient();
-  const tabs = ["Rules", "Prune", "Debug"] as const;
-  const [tab, setTab] = useState<typeof tabs[number]>("Rules");
+  const notify = useToast();
   const [draft, setDraft] = useState<DraftRule[]>(() =>
     view.rules.map(toDraft)
   );
-  const [baseVersion, setBaseVersion] = useState(view.version);
+  // The config.yml contents this edit is based on; a mismatch on save is a 409.
+  const [baseHash, setBaseHash] = useState(view.configFile.hash);
   const saved = useMemo(() => normalizeForCompare(view.rules), [view.rules]);
   const draftRules = useMemo(() => draft.map(fromDraft), [draft]);
   const dirty = normalizeForCompare(draftRules) !== saved;
@@ -465,34 +392,60 @@ function RulesEditor({ view }: { view: RulesView }) {
     parsePubkeys(rule.pubkeys).invalid.length > 0 ||
     parseDomains(rule.nip05Domains).invalid.length > 0
   );
+  const file = view.configFile;
+  const dialog = useRef<HTMLDialogElement>(null);
 
-  const discard = () => {
-    setDraft(view.rules.map(toDraft));
-    setBaseVersion(view.version);
-  };
+  const discard = () => setDraft(view.rules.map(toDraft));
 
-  const onSaved = (next: RulesView) => {
+  const onApplied = (next: RulesView) => {
     queryClient.setQueryData(adminQueryKeys.rules, next);
     queryClient.invalidateQueries({ queryKey: adminQueryKeys.prune });
     queryClient.invalidateQueries({ queryKey: adminQueryKeys.blobs });
-    setDraft(next.rules.map(toDraft));
-    setBaseVersion(next.version);
+    queryClient.invalidateQueries({ queryKey: adminQueryKeys.configuration });
   };
-  const save = useMutation({
-    mutationFn: () =>
-      adminApi.saveRules({ version: baseVersion, rules: draftRules }),
-    onSuccess: onSaved,
+  const render = useMutation({
+    mutationFn: () => adminApi.renderRules({ rules: draftRules }),
   });
-  const reset = useMutation({
-    mutationFn: () => adminApi.resetRules(baseVersion),
-    onSuccess: onSaved,
+  const save = useMutation({
+    mutationFn: () => {
+      if (!baseHash) throw new Error("config.yml is not available");
+      return adminApi.saveRules({ hash: baseHash, rules: draftRules });
+    },
+    onSuccess: (next) => {
+      dialog.current?.close();
+      onApplied(next);
+      notify(
+        `Storage rules written to ${
+          next.configFile.path ?? "config.yml"
+        } and applied`,
+      );
+    },
+  });
+  const reload = useMutation({
+    mutationFn: adminApi.reloadRules,
+    onSuccess: (next) => {
+      onApplied(next);
+      notify(
+        `Applied ${next.rules.length} storage rule(s) from ${
+          next.configFile.path ?? "config.yml"
+        }`,
+      );
+    },
   });
   const conflict = save.error instanceof AdminApiError &&
-    save.error.status === 409;
+      save.error.status === 409
+    ? save.error.message
+    : null;
+  const openDialog = () => {
+    save.reset();
+    render.mutate();
+    dialog.current?.showModal();
+  };
 
+  const validationError = render.error ?? save.error;
   const issuesFor = (index: number) =>
-    save.error instanceof AdminApiError
-      ? save.error.issues.filter((issue) =>
+    validationError instanceof AdminApiError
+      ? validationError.issues.filter((issue) =>
         issue.path.startsWith(`rules.${index}.`)
       ).map((issue) => `${issue.path.split(".")[2]}: ${issue.message}`)
       : [];
@@ -508,21 +461,13 @@ function RulesEditor({ view }: { view: RulesView }) {
       return next;
     });
   const activeCount = draft.filter((rule) => rule.enabled).length;
+  const fileName = file.path ?? "config.yml";
 
   return (
     <>
       <PageToolbar
-        actions={view.editable && (
+        actions={
           <>
-            <ConfirmButton
-              className="btn btn-ghost"
-              title="Reset rules to config.yml?"
-              description="Replaces every database-managed rule with storage.rules from config.yml. Changes apply immediately."
-              confirmLabel="Reset"
-              onConfirm={() => reset.mutateAsync()}
-            >
-              Reset to config
-            </ConfirmButton>
             <button
               type="button"
               className="btn btn-ghost"
@@ -534,51 +479,90 @@ function RulesEditor({ view }: { view: RulesView }) {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!dirty || hasInvalidPubkeys || save.isPending}
-              onClick={() => save.mutate()}
+              disabled={hasInvalidPubkeys || (file.writable && !dirty)}
+              onClick={openDialog}
             >
-              {save.isPending && (
-                <span className="loading loading-spinner loading-xs" />
-              )}
-              Save &amp; apply
+              {file.writable ? "Save to config.yml…" : "Export config.yml…"}
             </button>
           </>
-        )}
+        }
       >
         Rules are evaluated top to bottom; the first match admits an upload and
         decides how long it is kept.
       </PageToolbar>
-      {!view.editable && (
-        <div role="note" className="alert alert-info alert-soft mb-4 text-sm">
-          These rules come from <code>storage.rules</code>{" "}
-          in config.yml and are read-only. Set{" "}
-          <code className="break-all">storage.rulesManagement: database</code>
-          {" "}
-          to edit them here and apply changes without a restart.
+      <div role="note" className="alert alert-soft mb-4 text-sm">
+        {file.writable
+          ? (
+            <span>
+              Rules are stored in{" "}
+              <code className="break-all">{fileName}</code>. Saving writes the
+              file and applies the rules immediately.
+            </span>
+          )
+          : (
+            <span>
+              {file.path
+                ? (
+                  <>
+                    <code className="break-all">{fileName}</code>{" "}
+                    is read-only for the server.
+                  </>
+                )
+                : "The server has no config file to write."}{" "}
+              Edit the rules here, then export the updated config.yml and
+              install it yourself.
+            </span>
+          )}
+      </div>
+      {file.error && (
+        <ErrorAlert
+          error={file.error}
+          title={`${fileName} on disk is invalid`}
+        />
+      )}
+      {!file.error && !file.inSync && (
+        <div role="alert" className="alert alert-warning mb-4">
+          <span>
+            <code className="break-all">{fileName}</code>{" "}
+            has different storage rules than the server is using (edited outside
+            the console?).
+          </span>
+          <ConfirmButton
+            className="btn"
+            title={`Apply rules from ${fileName}?`}
+            description="Replaces the rules in effect with storage.rules from the file. Unsaved edits on this page are discarded. Other settings in the file still need a restart."
+            confirmLabel="Apply"
+            onConfirm={() =>
+              reload.mutateAsync()}
+          >
+            Apply rules from config.yml
+          </ConfirmButton>
         </div>
       )}
       {conflict && (
         <div role="alert" className="alert alert-warning mb-4">
           <span>
-            Someone else changed the rules. Your edits were not saved.
+            {conflict}. Your edits were not saved.
           </span>
           <button
             type="button"
             className="btn"
-            onClick={() =>
-              queryClient.invalidateQueries({ queryKey: adminQueryKeys.rules })
-                .then(discard)}
+            onClick={async () => {
+              await queryClient.invalidateQueries({
+                queryKey: adminQueryKeys.rules,
+              });
+              const latest = queryClient.getQueryData<RulesView>(
+                adminQueryKeys.rules,
+              );
+              setBaseHash(latest?.configFile.hash ?? null);
+              save.reset();
+            }}
           >
-            Load latest (discard mine)
+            Keep my edits and retry
           </button>
         </div>
       )}
-      {!conflict && (
-        <ErrorAlert
-          error={save.error ?? reset.error}
-          title="Rules were not saved"
-        />
-      )}
+      <ErrorAlert error={reload.error} title="Rules were not reloaded" />
       {activeCount === 0 && (
         <div
           role="alert"
@@ -595,97 +579,42 @@ function RulesEditor({ view }: { view: RulesView }) {
           a pubkey list or NIP-05 domains can admit uploads.
         </div>
       )}
-      <div
-        role="tablist"
-        aria-label="Storage rules tools"
-        className="tabs tabs-border mb-4"
-      >
-        {tabs.map((name, index) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            id={`rules-tab-${name}`}
-            aria-controls={`rules-panel-${name}`}
-            aria-selected={tab === name}
-            tabIndex={tab === name ? 0 : -1}
-            className={`tab ${tab === name ? "tab-active" : ""}`}
-            onClick={() => setTab(name)}
-            onKeyDown={(event) => {
-              const next = event.key === "ArrowRight"
-                ? (index + 1) % tabs.length
-                : event.key === "ArrowLeft"
-                ? (index + tabs.length - 1) % tabs.length
-                : event.key === "Home"
-                ? 0
-                : event.key === "End"
-                ? tabs.length - 1
-                : null;
-              if (next === null) return;
-              event.preventDefault();
-              setTab(tabs[next]);
-              document.getElementById(`rules-tab-${tabs[next]}`)?.focus();
-            }}
-          >
-            {name}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id="rules-panel-Rules"
-        aria-labelledby="rules-tab-Rules"
-        hidden={tab !== "Rules"}
-      >
-        {draft.length === 0
-          ? <EmptyState>No rules.</EmptyState>
-          : (
-            <ol className="flex flex-col gap-3">
-              {draft.map((rule, index) => (
-                <RuleRow
-                  key={rule.key}
-                  rule={rule}
-                  index={index}
-                  count={draft.length}
-                  editable={view.editable}
-                  issues={issuesFor(index)}
-                  update={(patch) => update(index, patch)}
-                  move={(delta) => move(index, delta)}
-                  remove={() =>
-                    setDraft((rules) => rules.filter((_, i) => i !== index))}
-                />
-              ))}
-            </ol>
-          )}
-        {view.editable && (
-          <button
-            type="button"
-            className="btn btn-outline mt-3"
-            onClick={() =>
-              setDraft((
-                rules,
-              ) => [...rules, toDraft({ type: "*", expiration: "1 week" })])}
-          >
-            Add rule
-          </button>
+      <ConfigDialog
+        dialog={dialog}
+        file={file}
+        rendered={render.data}
+        renderError={render.error}
+        save={save}
+      />
+      {draft.length === 0
+        ? <EmptyState>No rules.</EmptyState>
+        : (
+          <ol className="flex flex-col gap-3">
+            {draft.map((rule, index) => (
+              <RuleRow
+                key={rule.key}
+                rule={rule}
+                index={index}
+                count={draft.length}
+                issues={issuesFor(index)}
+                update={(patch) => update(index, patch)}
+                move={(delta) => move(index, delta)}
+                remove={() =>
+                  setDraft((rules) => rules.filter((_, i) => i !== index))}
+              />
+            ))}
+          </ol>
         )}
-      </div>
-      <div
-        role="tabpanel"
-        id="rules-panel-Prune"
-        aria-labelledby="rules-tab-Prune"
-        hidden={tab !== "Prune"}
+      <button
+        type="button"
+        className="btn btn-outline mt-3"
+        onClick={() =>
+          setDraft((
+            rules,
+          ) => [...rules, toDraft({ type: "*", expiration: "1 week" })])}
       >
-        <PrunePanel rules={draftRules} />
-      </div>
-      <div
-        role="tabpanel"
-        id="rules-panel-Debug"
-        aria-labelledby="rules-tab-Debug"
-        hidden={tab !== "Debug"}
-      >
-        <ProbePanel rules={draftRules} />
-      </div>
+        Add rule
+      </button>
     </>
   );
 }
@@ -694,6 +623,6 @@ export function RulesPage() {
   const { data, error, isPending } = useQuery(adminQueries.rules());
   if (isPending) return <Loading />;
   if (!data) return <ErrorAlert error={error} />;
-  // Re-mount the editor when the saved version changes outside this session (e.g. reset).
+  // Re-mount the editor when the rules in effect change (save, reload, another session).
   return <RulesEditor key={data.version} view={data} />;
 }

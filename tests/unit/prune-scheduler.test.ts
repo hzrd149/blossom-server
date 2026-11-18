@@ -25,8 +25,8 @@ Deno.test("scheduler dry-runs without deleting, hot-applies rule edits, and repo
     await insertBlob(db, { sha256: "a".repeat(64), size: 10, type: "image/png", uploaded: old, nip94: null }, "p");
     await insertBlob(db, { sha256: "b".repeat(64), size: 20, type: "video/mp4", uploaded: old, nip94: null }, "p");
 
-    const config = ConfigSchema.parse({ storage: { rulesManagement: "database", rules: [{ type: "*", expiration: "1 year" }] } });
-    const rules = await RuleStore.create(db, config);
+    const config = ConfigSchema.parse({ storage: { rules: [{ type: "*", expiration: "1 year" }] } });
+    const rules = new RuleStore(config.storage.rules);
     const storage = recordingStorage();
     const deleted: PruneCandidate[] = [];
     let housekeeping = 0;
@@ -45,7 +45,7 @@ Deno.test("scheduler dry-runs without deleting, hot-applies rule edits, and repo
     assertEquals(storage.removed, []);
 
     // A rule edit applies to the very next cycle — no restart.
-    await rules.replace([{ type: "image/*", expiration: "1 day" }, { type: "*", expiration: "1 year" }], rules.version);
+    rules.apply([{ type: "image/*", expiration: "1 day" }, { type: "*", expiration: "1 year" }]);
     const run = scheduler.trigger()!;
     assertEquals(scheduler.trigger(), null, "manual runs are single-flight");
     assertEquals((await run).deleted, 1);

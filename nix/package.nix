@@ -6,7 +6,7 @@
 let
   inherit (pkgs) lib;
 
-  adminBundleHash = "sha256-Yhs2M1XNozhivFMczHqsVFa4IillAe4nSwwyvvJT5X8=";
+  adminBundleHash = "sha256-VhNjPktS+qy6uFZi6stM6lRhJ3zRF0kgQczhiBaFmgo=";
   adminBundle = (pkgs.buildDenoBundle {
     pname = "blossom-server-admin";
     inherit version src;
@@ -60,7 +60,7 @@ let
     inherit version src;
 
     entrypoint = "main.ts";
-    denoDepsHash = "sha256-XyISjyyPPBTeaPWzYesgh8itGXnema97XmZWxwPoFoU=";
+    denoDepsHash = "sha256-Xk0zXtxDzE+omA6gqj+1+QVM5jN1G6+DFMEzDMwpQdI=";
     runtimeInputs = [ pkgs.ffmpeg ];
     runFlags = [
       "-P"

@@ -1,83 +1,38 @@
 /**
  * RuleStore — the live, hot-swappable storage rule snapshot.
  *
- * Protocol routes and the prune scheduler call current() synchronously on every
- * request/cycle. In "config" mode rules come from config.yml and are read-only.
- * In "database" mode they are seeded once from config, then edited through the
- * admin console; each edit writes the database first and then swaps the snapshot.
+ * Rules always come from config.yml. Protocol routes and the prune scheduler call
+ * current() synchronously on every request/cycle. When the admin console writes
+ * new rules to config.yml (or reloads a hand-edited file), the re-parsed rules are
+ * applied here and take effect immediately, without a restart.
  *
  * Rules with nip05Domains are served with the fetched domain members merged
  * into their pubkeys (see src/allowlist/nip05.ts). Members live only in memory:
- * entries() and the database keep the rules exactly as edited.
+ * entries() keeps the rules exactly as written in config.yml.
  */
 
-import type { Client } from "@libsql/client";
-import type { Config } from "../config/schema.ts";
-import { listStorageRules, replaceStorageRules, seedStorageRulesOnce } from "../db/storage-rules.ts";
-import { type ManagedStorageRule, ManagedStorageRulesSchema, type StorageRule, toActiveRules } from "./rule-schema.ts";
+import { type ConfiguredStorageRule, type StorageRule, toActiveRules } from "./rule-schema.ts";
 import { applyNip05Members, nip05DomainsOf, type Nip05Members } from "../allowlist/nip05.ts";
-
-export type RulesManagementMode = Config["storage"]["rulesManagement"];
-
-export class RulesNotEditableError extends Error {
-  constructor() {
-    super('Storage rules are managed in config.yml (storage.rulesManagement is "config")');
-    this.name = "RulesNotEditableError";
-  }
-}
 
 interface Snapshot {
   version: number;
-  entries: ManagedStorageRule[];
-  /** Enabled rules as edited, before NIP-05 members are merged in. */
+  entries: ConfiguredStorageRule[];
+  /** Enabled rules as written, before NIP-05 members are merged in. */
   base: StorageRule[];
   active: StorageRule[];
 }
 
 export class RuleStore {
-  private snapshot: Snapshot;
+  private snapshot: Snapshot = { version: 0, entries: [], base: [], active: [] };
   private nip05Members: Nip05Members = new Map();
   private listeners = new Set<(version: number) => void>();
 
-  private constructor(
-    readonly mode: RulesManagementMode,
-    private readonly db: Client | null,
-    private readonly configRules: StorageRule[],
-    snapshot: Snapshot,
-  ) {
-    this.snapshot = snapshot;
+  /** @param rules storage.rules from the validated configuration. */
+  constructor(rules: readonly ConfiguredStorageRule[] = []) {
+    this.snapshot = this.build(0, rules);
   }
 
-  /** Read-only store backed by configuration rules (no database access). */
-  static fromConfig(rules: StorageRule[]): RuleStore {
-    const store = new RuleStore("config", null, rules, { version: 0, entries: [], base: [], active: [] });
-    store.swap(0, rules.map((rule) => ({ ...rule })));
-    return store;
-  }
-
-  static async create(db: Client, config: Config): Promise<RuleStore> {
-    const configRules = config.storage.rules;
-    if (config.storage.rulesManagement === "config") return RuleStore.fromConfig(configRules);
-
-    if (await seedStorageRulesOnce(db, configRules)) {
-      console.log(`[rules] Seeded ${configRules.length} storage rule(s) from config into the database`);
-    }
-    const store = new RuleStore("database", db, configRules, { version: 0, entries: [], base: [], active: [] });
-    await store.reload();
-    const configDiffers = JSON.stringify(toActiveRules(configRules)) !== JSON.stringify(store.snapshot.base);
-    if (configDiffers) {
-      console.warn(
-        "[rules] storage.rules in config differs from the database-managed rules; the database rules are in effect " +
-          '(storage.rulesManagement is "database"). Use "Reset to config" in the admin console to re-import.',
-      );
-    }
-    return store;
-  }
-
-  get editable(): boolean {
-    return this.mode === "database";
-  }
-
+  /** Incremented on every apply(); lets the console detect a changed rule set. */
   get version(): number {
     return this.snapshot.version;
   }
@@ -88,7 +43,7 @@ export class RuleStore {
   }
 
   /** Evaluate a (possibly unsaved) rule list the way current() would serve it: enabled only, NIP-05 members merged. */
-  resolve(entries: readonly ManagedStorageRule[]): StorageRule[] {
+  resolve(entries: readonly ConfiguredStorageRule[]): StorageRule[] {
     return applyNip05Members(toActiveRules(entries), this.nip05Members);
   }
 
@@ -103,14 +58,9 @@ export class RuleStore {
     this.snapshot = { ...this.snapshot, active: applyNip05Members(this.snapshot.base, members) };
   }
 
-  /** All rules including disabled ones and editor metadata. */
-  entries(): ManagedStorageRule[] {
+  /** All rules including disabled ones and editor metadata, as written in config.yml. */
+  entries(): ConfiguredStorageRule[] {
     return this.snapshot.entries;
-  }
-
-  /** Rules from config.yml, for comparison and reset. */
-  configured(): StorageRule[] {
-    return this.configRules;
   }
 
   /** Subscribe to snapshot changes; returns an unsubscribe function. */
@@ -119,45 +69,25 @@ export class RuleStore {
     return () => this.listeners.delete(listener);
   }
 
-  async reload(): Promise<void> {
-    if (!this.db) return;
-    const stored = await listStorageRules(this.db);
-    this.swap(stored.version, stored.rules);
-  }
-
   /**
-   * Validate and atomically replace the full ordered list. Throws a ZodError on
-   * invalid input, RulesVersionConflict on a stale `expectedVersion`, or
-   * RulesNotEditableError in config mode.
+   * Swap in a new rule list (already validated as configuration, e.g. re-read from
+   * config.yml) and notify listeners. Returns the new version.
    */
-  async replace(rules: unknown, expectedVersion?: number): Promise<number> {
-    if (!this.db) throw new RulesNotEditableError();
-    return await this.write(ManagedStorageRulesSchema.parse(rules), expectedVersion);
-  }
-
-  /** Re-import config.yml rules (already validated by the config loader) into the database. */
-  async resetToConfig(expectedVersion?: number): Promise<number> {
-    if (!this.db) throw new RulesNotEditableError();
-    return await this.write(this.configRules.map((rule) => ({ ...rule })), expectedVersion);
-  }
-
-  private async write(entries: ManagedStorageRule[], expectedVersion?: number): Promise<number> {
-    const version = await replaceStorageRules(this.db!, entries, expectedVersion);
-    this.swap(version, entries);
-    return version;
-  }
-
-  private swap(version: number, entries: ManagedStorageRule[]): void {
-    const changed = version !== this.snapshot.version;
-    const base = toActiveRules(entries);
-    this.snapshot = { version, entries, base, active: applyNip05Members(base, this.nip05Members) };
-    if (!changed) return;
+  apply(rules: readonly ConfiguredStorageRule[]): number {
+    this.snapshot = this.build(this.snapshot.version + 1, rules);
     for (const listener of this.listeners) {
       try {
-        listener(version);
+        listener(this.snapshot.version);
       } catch (err) {
         console.error("[rules] change listener failed:", err);
       }
     }
+    return this.snapshot.version;
+  }
+
+  private build(version: number, rules: readonly ConfiguredStorageRule[]): Snapshot {
+    const entries = rules.map((rule) => ({ ...rule }));
+    const base = toActiveRules(entries);
+    return { version, entries, base, active: applyNip05Members(base, this.nip05Members) };
   }
 }

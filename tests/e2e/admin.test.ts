@@ -74,6 +74,7 @@ Deno.test("admin namespace isolates auth, API contracts, the React shell, and di
     const summary = await configResponse.json();
     assertEquals(summary.managementMode, "deployment-managed");
     assertEquals(summary.editable, false);
+    assertEquals(summary.configFile, { path: null, exists: false, writable: false });
     assertEquals(Object.keys(summary.settings).sort(), ["storageBackend", "storageRuleCount", "uploadEnabled", "uploadMaxSize", "uploadRequireAuth"]);
     assert(!JSON.stringify(summary).includes(password));
 

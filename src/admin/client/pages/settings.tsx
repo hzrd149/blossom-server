@@ -10,6 +10,13 @@ export function SettingsPage() {
   const { settings } = data;
   const rows: [string, string][] = [
     ["Storage backend", settings.storageBackend],
+    ["Config file", data.configFile.path ?? "none"],
+    [
+      "Storage rules editing",
+      data.configFile.writable
+        ? "saved to the config file and applied immediately"
+        : "export only (config file is not writable by the server)",
+    ],
     ["Active storage rules", String(settings.storageRuleCount)],
     ["Uploads", settings.uploadEnabled ? "enabled" : "disabled"],
     ["Maximum upload size", formatBytes(settings.uploadMaxSize)],
@@ -22,6 +29,7 @@ export function SettingsPage() {
     <>
       <PageToolbar>
         Server configuration is managed in config.yml and applied on restart.
+        Storage rules are edited on the Rules page and apply immediately.
       </PageToolbar>
       {!settings.uploadRequireAuth && (
         <div

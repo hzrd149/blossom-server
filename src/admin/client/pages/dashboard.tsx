@@ -23,7 +23,7 @@ function PruneCard() {
             <dd>
               {rules.data.rules.filter((r) => r.enabled !== false).length}{" "}
               active
-              {rules.data.editable ? " (database-managed)" : " (config.yml)"}
+              {rules.data.configFile.inSync ? "" : " (config.yml differs)"}
             </dd>
             <dt className="text-base-content/60">Prune</dt>
             <dd>

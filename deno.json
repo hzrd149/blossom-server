@@ -60,6 +60,7 @@
     "nostr-tools": "npm:nostr-tools@^2.26.1",
     "sharp": "npm:sharp@^0.35.5",
     "file-type": "npm:file-type@^19.6.0",
+    "yaml": "npm:yaml@^2.9.1",
     "zod": "npm:zod@^4.6.7"
   },
   "exclude": ["src/landing/client", "src/admin/client"]

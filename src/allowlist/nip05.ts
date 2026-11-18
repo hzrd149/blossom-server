@@ -12,7 +12,7 @@
  *     active rules it serves (see applyNip05Members). Static `pubkeys` are kept
  *     as configured and fetched pubkeys are never persisted.
  *   - The domains to fetch are read from the source on every refresh, so rules
- *     edited at runtime (database-managed rules) are picked up.
+ *     edited at runtime (console saves or config reloads) are picked up.
  *   - Each distinct domain is fetched once per refresh, even when several
  *     rules share it.
  *   - The per-domain cache is only replaced after a successful fetch. A failed

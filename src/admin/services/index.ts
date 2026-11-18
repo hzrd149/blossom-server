@@ -9,15 +9,21 @@ import { createReportService } from "./reports.ts";
 import { createConfigurationService } from "./configuration.ts";
 import { createPruneService, createRuleService } from "./rules.ts";
 
-export function createManagementServices(db: Client, storage: IBlobStorage, config: Config, runtime: ServerRuntime) {
+export function createManagementServices(
+  db: Client,
+  storage: IBlobStorage,
+  config: Config,
+  runtime: ServerRuntime,
+  configPath?: string,
+) {
   const database = createManagementDatabase(db);
   const content = createContentService(database, storage, runtime);
   return {
     content,
     users: createUserService(database, content),
     reports: createReportService(database, content),
-    configuration: createConfigurationService(config, runtime),
-    rules: createRuleService(config, runtime),
+    configuration: createConfigurationService(config, runtime, configPath),
+    rules: createRuleService(config, runtime, configPath),
     prune: createPruneService(config, runtime),
   };
 }

@@ -300,9 +300,11 @@ import { S3Client } from "@bradenmacdonald/s3-lite-client";
 - `src/admin/client/` uses native React with its own Deno configuration and lockfile. Run `deno task check:admin` and `deno task build:admin` for frontend
   changes. Do not use Hono JSX in this directory or React JSX in SSR pages.
 - Admin assets are built into `public/admin/` and served at `/admin/assets/`. Include `adminBundle` in Nix deterministic checks and hash refreshes.
-- Configuration is deployment-managed and read-only, except storage rules when `storage.rulesManagement` is `database`. Live, mutable state lives in
-  `ServerRuntime` (`src/runtime.ts`): routes, landing, prune, and admin services read rules through `runtime.rules.current()`, never `config.storage.rules`.
-  `RuleStore` writes the database first, then swaps its snapshot; the `PruneScheduler` resets its cursors on rule changes.
+- Configuration is deployment-managed and read-only, except storage rules, which the console edits in the config file itself. Rules are never stored in the
+  database. `src/config/editor.ts` replaces `storage.rules` in the raw YAML document (comments and `${VAR}` placeholders kept) and writes atomically with
+  hash-based conflict detection; when the file is not writable, the console only renders it for copying. Live, mutable state lives in `ServerRuntime`
+  (`src/runtime.ts`): routes, landing, prune, and admin services read rules through `runtime.rules.current()`, never `config.storage.rules` (which includes
+  disabled rules). After a write or reload, `RuleStore.apply()` swaps the snapshot; the `PruneScheduler` resets its cursors on rule changes.
 - Console pages are listed in `src/admin/contracts/pages.ts`; the server serves the HTML shell only for those paths and the client router renders them. Add new
   pages there. Client API calls resolve against `location.origin` so consoles opened with credentials in the URL still work.
 - Browser-safe rule validation (`ManagedStorageRuleSchema`, `parseDuration`) lives in `src/policy/rule-schema.ts`; contracts import it from there.

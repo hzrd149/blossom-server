@@ -1,12 +1,12 @@
 import { type Context, Hono } from "@hono/hono";
 import { HTTPException } from "@hono/hono/http-exception";
 import { z } from "zod";
-import { RulesVersionConflict } from "../../../db/storage-rules.ts";
-import { RulesNotEditableError } from "../../../policy/rule-store.ts";
+import { InvalidConfigError } from "../../../config/loader.ts";
+import { ConfigChangedError, ConfigNotWritableError } from "../../../config/editor.ts";
 import { ContentQuerySchema } from "../../contracts/content.ts";
 import { ReportsQuerySchema } from "../../contracts/reports.ts";
 import type { AdminApiError } from "../../contracts/errors.ts";
-import { ReplaceRulesBodySchema, ResetRulesBodySchema, RulePreviewBodySchema } from "../../contracts/rules.ts";
+import { RenderRulesBodySchema, RulePreviewBodySchema, SaveRulesBodySchema } from "../../contracts/rules.ts";
 import type { ManagementServices } from "../../services/index.ts";
 import { UserKeySchema, UserPageQuerySchema, UserReportsQuerySchema, UsersQuerySchema } from "../../contracts/users.ts";
 
@@ -35,10 +35,10 @@ export function buildAdminApi(services: ManagementServices): Hono {
   app.onError((err, c) => {
     if (err instanceof InvalidRequest) return c.json<AdminApiError>({ error: err.message, issues: err.issues }, 400);
     if (err instanceof z.ZodError) return c.json<AdminApiError>({ error: "Invalid request", issues: zodIssues(err) }, 400);
-    if (err instanceof RulesVersionConflict) {
-      return c.json<AdminApiError>({ error: "Rules were changed by someone else; reload and retry", version: err.current }, 409);
+    if (err instanceof InvalidConfigError) return c.json<AdminApiError>({ error: "Invalid configuration", issues: err.issues }, 400);
+    if (err instanceof ConfigChangedError || err instanceof ConfigNotWritableError) {
+      return c.json<AdminApiError>({ error: err.message }, 409);
     }
-    if (err instanceof RulesNotEditableError) return c.json<AdminApiError>({ error: err.message }, 409);
     if (err instanceof HTTPException) return err.getResponse();
     console.error("[admin] API request failed:", err);
     return c.json<AdminApiError>({ error: "Internal server error" }, 500);
@@ -50,7 +50,7 @@ export function buildAdminApi(services: ManagementServices): Hono {
   });
   app.get("/summary", async (c) => c.json(await services.content.summary()));
   app.get("/reports", async (c) => c.json(await services.reports.list(ReportsQuerySchema.parse(c.req.query()))));
-  app.get("/configuration", (c) => c.json(services.configuration.summary()));
+  app.get("/configuration", async (c) => c.json(await services.configuration.summary()));
 
   app.get("/blobs/:sha256", async (c) => {
     const hash = c.req.param("sha256").toLowerCase();
@@ -94,15 +94,15 @@ export function buildAdminApi(services: ManagementServices): Hono {
   });
 
   // Storage rules and prune.
-  app.get("/rules", (c) => c.json(services.rules.view()));
+  // Rules live in config.yml: PUT writes the file (when writable) and applies it,
+  // render returns the updated file for copying, reload applies a hand-edited file.
+  app.get("/rules", async (c) => c.json(await services.rules.view()));
   app.put("/rules", async (c) => {
-    const body = await parseBody(c, ReplaceRulesBodySchema);
-    return c.json(await services.rules.replace(body.rules, body.version));
+    const body = await parseBody(c, SaveRulesBodySchema);
+    return c.json(await services.rules.save(body.rules, body.hash));
   });
-  app.post("/rules/reset-to-config", async (c) => {
-    const body = await parseBody(c, ResetRulesBodySchema);
-    return c.json(await services.rules.reset(body.version));
-  });
+  app.post("/rules/render", async (c) => c.json(await services.rules.render((await parseBody(c, RenderRulesBodySchema)).rules)));
+  app.post("/rules/reload", async (c) => c.json(await services.rules.reload()));
   app.post("/rules/preview", async (c) => c.json(await services.rules.preview(await parseBody(c, RulePreviewBodySchema))));
   app.get("/prune/status", (c) => c.json(services.prune.status()));
   app.post("/prune/run", (c) => {

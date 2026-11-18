@@ -157,7 +157,7 @@ if (nip05Failed.length > 0 && nip05IntervalMs === 0) {
 runtime.startNip05({ initialDelayMs: nip05Failed.length > 0 ? nip05RetryMs : undefined });
 
 // Build Hono app (async — landing router loads the prebuilt client JS at startup).
-const app = await buildApp(db, storage, config, { metrics, runtime });
+const app = await buildApp(db, storage, config, { metrics, runtime, configPath });
 const metricsServer = metrics ? Deno.serve({ hostname: config.metrics.host, port: config.metrics.port }, metrics.fetch) : undefined;
 const inventory = metrics ? new InventoryCollector(db, metrics.operations) : undefined;
 inventory?.start(config.metrics.inventoryIntervalMs);
@@ -203,8 +203,7 @@ const server = Deno.serve(
         "  Prune:   storage rules          " +
           (runtime.prune.enabled
             ? `active (${runtime.rules.current().length} rules, first run in ${config.prune.initialDelayMs / 1000}s)`
-            : "idle (no rules configured)") +
-          (runtime.rules.editable ? " — rules managed in database" : ""),
+            : "idle (no rules configured)"),
       );
       console.log(
         "  NIP-05:  domain allowlists      " +
