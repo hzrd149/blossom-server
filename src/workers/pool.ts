@@ -36,6 +36,7 @@
 import type { Client } from "@libsql/client";
 import { installDbBridge } from "../db/bridge.ts";
 import type { DbConfig } from "../db/client.ts";
+import type { OperationMetrics } from "../metrics/operations.ts";
 
 const encoder = new TextEncoder();
 
@@ -55,11 +56,14 @@ export interface UploadJobResult {
 }
 
 interface PendingJob {
+  state: WorkerState;
+  started: number;
   resolve: (result: UploadJobResult) => void;
   reject: (err: Error) => void;
 }
 
 interface WorkerState {
+  dbPort?: MessagePort;
   worker: Worker;
   /** Number of jobs currently in-flight on this worker. */
   jobCount: number;
@@ -102,6 +106,7 @@ export class UploadWorkerPool {
     throughputWindowMs: number,
     db: Client,
     dbConfig: DbConfig,
+    private readonly metrics?: OperationMetrics,
   ) {
     this.maxJobsPerWorker = maxJobsPerWorker;
     const remote = dbConfig.url !== undefined;
@@ -128,6 +133,7 @@ export class UploadWorkerPool {
         // Local SQLite mode: worker gets a MessageChannel port.
         // Main thread executes all DB ops via the bridge.
         const { port1, port2 } = new MessageChannel();
+        state.dbPort = port1;
         installDbBridge(db, port1);
         worker.postMessage(
           { type: "init", dbMode: "local", dbPort: port2, throughputWindowMs },
@@ -150,8 +156,7 @@ export class UploadWorkerPool {
         const pending = this.pending.get(id);
         if (!pending) return; // stale — ignore
 
-        this.pending.delete(id);
-        state.jobCount--;
+        this.finish(id, error !== undefined ? "error" : "success");
 
         if (error !== undefined) {
           pending.reject(new WorkerJobError(error, msg.errorType ?? "UNKNOWN"));
@@ -161,14 +166,47 @@ export class UploadWorkerPool {
       };
 
       worker.onerror = (event) => {
+        event.preventDefault();
         console.error(`Upload worker ${i} error:`, event.message);
-        // Decrement jobCount on uncaught worker error so the slot isn't leaked.
-        // We don't know which job failed, so we clamp to 0 as a safe fallback.
-        if (state.jobCount > 0) state.jobCount--;
+        if (!this.workers.includes(state)) return;
+        this.metrics?.add("blossom_worker_crashes_total", "", 1, "Uncaught worker errors causing worker removal.");
+        this.workers = this.workers.filter((entry) => entry !== state);
+        worker.terminate();
+        state.dbPort?.close();
+        for (const [id, job] of this.pending) {
+          if (job.state !== state) continue;
+          this.finish(id, "crash");
+          job.reject(new WorkerJobError("Upload worker crashed", "UNKNOWN"));
+        }
+        this.updateMetrics();
       };
 
       this.workers.push(state);
     }
+    metrics?.set("blossom_worker_jobs_configured_capacity", "", size * maxJobsPerWorker, "Configured upload job slots.");
+    metrics?.add("blossom_worker_capacity_rejections_total", "", 0, "Dispatches rejected because no live worker has capacity.");
+    metrics?.add("blossom_worker_crashes_total", "", 0, "Uncaught worker errors causing worker removal.");
+    this.updateMetrics();
+  }
+
+  private updateMetrics(): void {
+    this.metrics?.set("blossom_worker_jobs_active", "", this.pending.size, "Outstanding upload worker jobs.");
+    this.metrics?.set("blossom_worker_jobs_capacity", "", this.workers.length * this.maxJobsPerWorker, "Job slots on live workers.");
+  }
+
+  private finish(id: string, outcome: "success" | "error" | "crash" | "dispatch_error" | "shutdown"): void {
+    const job = this.pending.get(id);
+    if (!job) return;
+    this.pending.delete(id);
+    job.state.jobCount--;
+    this.metrics?.add(
+      "blossom_worker_jobs_total",
+      `outcome="${outcome}"`,
+      1,
+      "Settled worker jobs; success means hashing and temporary write completed, not blob commit.",
+    );
+    this.metrics?.duration("blossom_worker_job_duration_seconds", `outcome="${outcome}"`, (performance.now() - job.started) / 1000);
+    this.updateMetrics();
   }
 
   /** Total number of workers in the pool. */
@@ -214,31 +252,46 @@ export class UploadWorkerPool {
       .filter((w) => w.jobCount < this.maxJobsPerWorker)
       .sort((a, b) => a.throughputBps - b.throughputBps)[0];
 
-    if (!candidate) return null; // All workers at capacity — caller returns 503
+    if (!candidate) {
+      this.metrics?.add("blossom_worker_capacity_rejections_total", "", 1, "Dispatches rejected because no live worker has capacity.");
+      return null;
+    }
 
     candidate.jobCount++;
     const id = String(++this.jobCounter);
 
     const promise = new Promise<UploadJobResult>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, { resolve, reject, state: candidate, started: performance.now() });
     });
+    this.updateMetrics();
 
     // Transfer the stream to the worker — zero-copy, no tee on the main thread.
-    candidate.worker.postMessage(
-      { type: "job", id, stream, tmpPath, sizeHint, xSha256 },
-      transferStream(stream),
-    );
+    try {
+      candidate.worker.postMessage(
+        { type: "job", id, stream, tmpPath, sizeHint, xSha256 },
+        transferStream(stream),
+      );
+    } catch (error) {
+      const job = this.pending.get(id)!;
+      this.finish(id, "dispatch_error");
+      job.reject(error instanceof Error ? error : new Error(String(error)));
+    }
 
     return promise;
   }
 
   /** Gracefully terminate all workers. */
   shutdown(): void {
-    for (const { worker } of this.workers) {
+    for (const { worker, dbPort } of this.workers) {
       worker.terminate();
+      dbPort?.close();
     }
     this.workers = [];
-    this.pending.clear();
+    for (const [id, job] of this.pending) {
+      this.finish(id, "shutdown");
+      job.reject(new WorkerJobError("Upload worker pool shut down", "UNKNOWN"));
+    }
+    this.updateMetrics();
   }
 }
 
@@ -250,6 +303,7 @@ export function initPool(
   throughputWindowMs: number,
   db: Client,
   dbConfig: DbConfig,
+  metrics?: OperationMetrics,
 ): UploadWorkerPool {
   const size = workers > 0 ? workers : navigator.hardwareConcurrency;
   _pool = new UploadWorkerPool(
@@ -258,6 +312,7 @@ export function initPool(
     throughputWindowMs,
     db,
     dbConfig,
+    metrics,
   );
   Deno.stdout.writeSync(
     encoder.encode(

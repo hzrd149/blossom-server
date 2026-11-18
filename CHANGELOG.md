@@ -1,5 +1,125 @@
 # blossom-server
 
+## Unreleased
+
+### Patch Changes
+
+- Use standard-size admin buttons, search fields, forms, and pagination; reserve compact controls for dense table rows and inline copy actions.
+
+- Show admin success notifications as dismissible, auto-clearing bottom-right toasts instead of page-shifting inline banners.
+
+- Separate user profile details, uploads, and reports into tabs in the admin console.
+
+- Compact admin page headers and search-bar spacing, removing redundant page subtitles to leave more room for content.
+
+- Separate storage rule editing, prune previews and runs, and upload debugging into Rules, Prune, and Debug tabs in the admin console.
+
+- Record when each pubkey gained ownership of a blob (including repeat uploads of existing blobs), backfilling existing owners from the blob upload time.
+
+- Track applied database migrations so one-time migration steps never re-run on startup.
+
+- Keep the prune loop scheduled even when no rules are configured, so rules added at runtime take effect.
+
+- Restore S3 publicURL redirects for blob downloads, including Range requests, instead of returning 404 (#68).
+
+- Count prune query and invalid-rule failures, surface S3 deletion failures, and settle pending jobs when workers crash, stream transfer fails, or the pool
+  shuts down.
+
+- Require cache revalidation for the landing page and public assets so browsers pick up UI and configuration changes after deployment.
+
+### Minor Changes
+
+- Add `nip05Domains` to storage rules: every pubkey published in a domain's `/.well-known/nostr.json` joins the rule's `pubkeys` allowlist, fetched at startup
+  and refreshed on `storage.nip05.refreshIntervalMs`, so closed servers (`upload.requirePubkeyInRule`) admit new NIP-05 members without a restart. A failed
+  refresh keeps the previously fetched pubkeys, and a rule with domains stays pubkey-scoped while it has no members. Database-managed rules edit domains in the
+  admin console (fetched immediately on save); fetched members are kept in memory only.
+
+- Add a Reports console view with searchable, filtered, paginated moderation, reporter and blob links, matching totals, and dismissal or shared-blob deletion
+  actions.
+
+- Add a searchable, sortable Users directory for blob owners and reporters, with browser-loaded Nostr profiles, paginated owned blobs and reports, storage and
+  ownership summaries, report moderation, and explicit shared-content deletion controls. Link users from blob details and the content browser.
+
+- Add an admin console with a dashboard (inventory, users, reports, and prune status), a sortable content browser with owner filtering and bulk delete, blob
+  detail pages (blurred preview of reported media, owners with upload times, reports, retention rule and expiry), a settings view, and global search by hash,
+  blob URL, npub, or MIME type.
+
+- Add `storage.rulesManagement: database` to manage storage rules from the admin console. Rules are seeded once from `storage.rules`, then edited with ordering,
+  enable/disable, and notes, and apply immediately to uploads, mirrors, media, the landing page, and pruning without a restart. The console can test whether an
+  upload would be accepted, preview what the next prune would delete, and start a prune cycle on demand. The default `config` mode keeps rules in `config.yml`,
+  read-only in the console.
+
+- Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IP addresses behind reverse proxies without trusting spoofed forwarding headers.
+
+- Add browser-side Applesauce instances and native React providers to the admin console: profile loading through `applesauce-common` casts and `use$`, shared
+  event storage and relays, account/signing support, and action publishing. User metadata is fetched directly from Nostr without involving the admin backend.
+
+- Set up Tailwind CSS 4 and daisyUI 5 for the admin console, with compiled local styles and system-aware light/dark themes.
+
+- Add TanStack Query and React Query Devtools to the admin client, with shared API query definitions, cancellation, caching, and status-aware retries.
+
+- Replace the legacy SSR admin dashboard with a minimal React shell at `/admin` (`/admin/console` redirects there). Remove the old dashboard pages,
+  profile-lookup runtime and relay configuration, and temporary demo UI. Keep the isolated management API, services, authentication, and asset build as the
+  foundation for the new console; configuration remains deployment-managed.
+
+- Reject cross-site browser admin mutations and validate management API identifiers and pagination parameters.
+
+- Add optional storage rule `basis: uploaded` to expire blobs from first upload regardless of later access; omitted or `accessed` preserves existing retention.
+
+- Add worker capacity, active jobs, saturation, duration and crash metrics; add scheduled prune health and cached inventory by MIME group, with collection
+  freshness and failures.
+
+- Observe download and storage-read stream bytes, concurrency, duration, and terminal outcomes; add storage API timings and S3 caught-error counters. Preserve
+  backpressure and cancellation in fallback Range reads.
+
+- Add an optional Docker Compose monitoring profile with a local Prometheus UI and persistent, bounded test history.
+
+- Publish the optional Docker Compose metrics endpoint on host loopback port 3001 and document local testing.
+
+- Add an opt-in private Prometheus listener with bounded HTTP request counts, handler latency, active handlers, and build/start identity.
+
+## 6.4.1 - 2026-10-06
+
+### Patch Changes
+
+- Omit query strings from paired access logs while preserving encoded paths, request methods, response status, timing, and error context; contributed by
+  [@mptfire](https://github.com/mptfire) in [#64](https://github.com/hzrd149/blossom-server/pull/64).
+- Honor weak `If-None-Match` validators and validator lists while preserving strong emitted ETags and conditional security/cache headers.
+- Serve stored HTML, XML-derived, and `multipart/x-mixed-replace` blobs as attachments and add `nosniff` to successful blob responses while keeping ordinary
+  media inline; contributed by [@mptfire](https://github.com/mptfire) in [#63](https://github.com/hzrd149/blossom-server/pull/63).
+- Strictly validate BUD-11 expiration integers and require matching blob-hash scope for protected upload and delete operations; contributed by
+  [@mptfire](https://github.com/mptfire) in [#62](https://github.com/hzrd149/blossom-server/pull/62).
+- Reject malformed blob and static-asset paths before unnecessary filesystem access, including conservative filesystem byte bounds, while retaining bounded
+  cosmetic blob extensions; contributed by [@mptfire](https://github.com/mptfire) in [#54](https://github.com/hzrd149/blossom-server/pull/54).
+- Reject multipart and URL-encoded envelopes before authentication or upload processing so only raw blob bytes reach `/upload` and `/media`; contributed by
+  [@mptfire](https://github.com/mptfire) in [#53](https://github.com/hzrd149/blossom-server/pull/53).
+
+## 6.4.0
+
+### Minor Changes
+
+- Add an independent `media.requirePubkeyInRule` setting, enabled by default, with a warned compatibility fallback for existing media configurations.
+- Add opt-in strict config loading through `BLOSSOM_REQUIRE_CONFIG`, enabled by default in the Docker Compose example and NixOS module.
+- Allow landing-page uploads and mirrors without signing in first by generating a persistent browser-local Nostr identity. Add controls to back up the local
+  secret key, sign in with a NIP-07 or NIP-46 signer, and safely switch or sign out of identities.
+
+### Patch Changes
+
+- Recover stale media derivative mappings by re-optimizing the uploaded file and replacing the dangling mapping.
+- Avoid a mirror deduplication race by confirming the existing blob record before discarding staged data.
+- Allow the blob API to start with a warning when compiled UI styles are missing instead of refusing startup.
+- Compile, package, and serve the landing and admin Tailwind stylesheet locally instead of loading Tailwind's development CDN at runtime.
+- Upgrade Applesauce dependencies to 6.2 and adapt admin Nostr profile loading to the updated profile model.
+- Add deterministic Nix rebuild validation for dependencies, the landing-page bundle, and the final server package.
+- Add a `deno task update:nix-hashes` command that refreshes stale fixed-output hashes and verifies the resulting Nix builds.
+- Run Deno tests on pushes and pull requests, verify multi-architecture Docker builds on non-`master` branches, and limit image publishing to `master` and
+  release tags.
+- Bound expiry and ownerless pruning with cursor-based batches while preserving ordered first-match retention rules and allowing later blobs to progress past
+  deletion failures.
+- Reject mirror requests from pubkeys absent from every storage-rule allowlist before fetching the remote origin.
+- Enforce configured upload and media size limits against streamed bytes, even when clients or mirror origins underreport `Content-Length`.
+- Harden mirror fetching against SSRF through DNS-resolved local addresses, IPv6 address variants, and redirect destinations.
+
 ## 6.3.1
 
 ### Patch Changes
@@ -11,67 +131,52 @@
 
 ### Minor Changes
 
-- Add reproducible Nix flake packaging with a development shell, package build,
-  app wrapper, and CI flake checks.
-- Add a configurable media temporary directory and make local storage commits
-  work across filesystems.
-- Clean up scanner-reported AI slop and lint findings without changing runtime
-  behavior.
+- Add reproducible Nix flake packaging with a development shell, package build, app wrapper, and CI flake checks.
+- Add a configurable media temporary directory and make local storage commits work across filesystems.
+- Clean up scanner-reported AI slop and lint findings without changing runtime behavior.
 
 ## 6.2.1
 
 ### Patch Changes
 
-- Drain request bodies on `/upload` dedup hits instead of cancelling them so
-  large re-uploads can receive the successful 200 response reliably.
+- Drain request bodies on `/upload` dedup hits instead of cancelling them so large re-uploads can receive the successful 200 response reliably.
 
 ## 6.2.0
 
 ### Minor Changes
 
-- Add NIP-94 file metadata tags to blob descriptors returned by `/upload`,
-  `/mirror`, `/media`, and `/list/:pubkey`, including `url`, `m`, `x`, `size`,
-  optional `dim`, and transformed-media `ox` tags.
-- Persist NIP-94 metadata with blob records so descriptors can preserve derived
-  metadata across deduped uploads and list responses.
-- Add best-effort media thumbnail generation for `/media` uploads. Thumbnails
-  are generated for images and videos when possible, returned as NIP-94 `thumb`
-  tags, stored as ownerless blobs, and kept tied to their parent media blob for
-  prune/delete cleanup.
+- Add NIP-94 file metadata tags to blob descriptors returned by `/upload`, `/mirror`, `/media`, and `/list/:pubkey`, including `url`, `m`, `x`, `size`, optional
+  `dim`, and transformed-media `ox` tags.
+- Persist NIP-94 metadata with blob records so descriptors can preserve derived metadata across deduped uploads and list responses.
+- Add best-effort media thumbnail generation for `/media` uploads. Thumbnails are generated for images and videos when possible, returned as NIP-94 `thumb`
+  tags, stored as ownerless blobs, and kept tied to their parent media blob for prune/delete cleanup.
 
 ## 6.1.5
 
 ### Patch Changes
 
-- `HEAD /upload` now returns **200** when the upload would be accepted (was
-  204). The 204 status code is no longer used on the HEAD endpoint.
+- `HEAD /upload` now returns **200** when the upload would be accepted (was 204). The 204 status code is no longer used on the HEAD endpoint.
 
 ## 6.1.4
 
 ### Patch Changes
 
-- Honor `X-Forwarded-Proto` (and RFC 7239 `Forwarded`) when building blob
-  descriptor URLs so `url` fields use `https://` when the original client
-  request was HTTPS through a TLS-terminating reverse proxy
+- Honor `X-Forwarded-Proto` (and RFC 7239 `Forwarded`) when building blob descriptor URLs so `url` fields use `https://` when the original client request was
+  HTTPS through a TLS-terminating reverse proxy
 
 ## 6.1.3
 
 ### Patch Changes
 
-- Replace landing-page WebCrypto hashing with `@noble/hashes` and remove
-  `crypto.randomUUID()` usage so the client works better on insecure origins
-- Add `window.nostr.js` to the landing bundle to provide a NIP-46 fallback when
-  no NIP-07 browser extension is installed
-- Stop runtime client bundling, document the prebuilt `public/client.js`
-  requirement, and serve the entire `public/` directory through Hono static
-  middleware
+- Replace landing-page WebCrypto hashing with `@noble/hashes` and remove `crypto.randomUUID()` usage so the client works better on insecure origins
+- Add `window.nostr.js` to the landing bundle to provide a NIP-46 fallback when no NIP-07 browser extension is installed
+- Stop runtime client bundling, document the prebuilt `public/client.js` requirement, and serve the entire `public/` directory through Hono static middleware
 
 ## 6.1.1
 
 ### Patch Changes
 
-- Fix bug with auth event validation errors not being passed through to the
-  client
+- Fix bug with auth event validation errors not being passed through to the client
 
 ## 6.1.0
 
@@ -79,24 +184,19 @@
 
 - More specific HTTP status codes across endpoints:
   - `PUT /upload` returns **201** for newly created blobs
-  - `HEAD /upload` return **204** when the upload would be accepted **200** when
-    the blob already exists
+  - `HEAD /upload` return **204** when the upload would be accepted **200** when the blob already exists
   - `DELETE /:sha256` returns **204** on success
   - Upload and media endpoints return **409** on SHA-256 hash mismatch (was 400)
   - `/media` optimization failures return **422** (was 500)
-- `HEAD /media` now checks `X-Content-Length` (413) and `X-Content-Type` (415)
-  before accepting the upload stream
-- Landing page upload and mirror UI now preflights, retries on 429/503, and
-  shows user-friendly status messages
+- `HEAD /media` now checks `X-Content-Length` (413) and `X-Content-Type` (415) before accepting the upload stream
+- Landing page upload and mirror UI now preflights, retries on 429/503, and shows user-friendly status messages
 
 ## 6.0.3
 
 ### Patch Changes
 
-- Return full blob URLs using the incoming request protocol when `publicDomain`
-  is configured
-- Add end-to-end coverage that validates returned blob descriptor URLs are
-  absolute valid URLs
+- Return full blob URLs using the incoming request protocol when `publicDomain` is configured
+- Add end-to-end coverage that validates returned blob descriptor URLs are absolute valid URLs
 
 ## 6.0.2
 

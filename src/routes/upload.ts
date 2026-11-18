@@ -36,9 +36,10 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
-import { drainBody } from "../utils/streams.ts";
+import { byteCapGuard, drainBody } from "../utils/streams.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
@@ -58,6 +59,7 @@ export function buildUploadRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -69,9 +71,10 @@ export function buildUploadRouter(
       return errorResponse(ctx, 403, "Uploads are disabled on this server");
     }
 
+    let auth: ReturnType<typeof requireAuth> | undefined;
     if (config.upload.requireAuth) {
       try {
-        requireAuth(ctx, "upload");
+        auth = requireAuth(ctx, "upload");
       } catch (err) {
         if (err instanceof HTTPException) {
           return errorResponse(ctx, err.status as 401 | 403, err.message);
@@ -80,7 +83,20 @@ export function buildUploadRouter(
       }
     }
 
-    const xSha256 = ctx.req.header("x-sha-256");
+    const xSha256 = ctx.req.header("x-sha-256")?.toLowerCase() ?? null;
+    if (xSha256 && !/^[0-9a-f]{64}$/.test(xSha256)) {
+      return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
+    }
+    if (auth && xSha256) {
+      try {
+        requireXTag(auth, xSha256);
+      } catch (err) {
+        if (err instanceof HTTPException) {
+          return errorResponse(ctx, err.status as 403, err.message);
+        }
+        throw err;
+      }
+    }
     const xContentType = ctx.req.header("x-content-type") ??
       "application/octet-stream";
     const xContentLength = ctx.req.header("x-content-length");
@@ -89,8 +105,11 @@ export function buildUploadRouter(
       return errorResponse(ctx, 411, "Missing X-Content-Length header");
     }
 
-    const size = parseInt(xContentLength, 10);
-    if (isNaN(size) || size < 0) {
+    if (!/^\d+$/.test(xContentLength)) {
+      return errorResponse(ctx, 400, "Invalid X-Content-Length header");
+    }
+    const size = Number(xContentLength);
+    if (!Number.isSafeInteger(size)) {
       return errorResponse(ctx, 400, "Invalid X-Content-Length header");
     }
 
@@ -105,7 +124,7 @@ export function buildUploadRouter(
     const preflightPubkey = ctx.get("auth")?.pubkey;
     const rule = getFileRule(
       { mimeType: xContentType, pubkey: preflightPubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!rule) {
@@ -199,7 +218,7 @@ export function buildUploadRouter(
 
     const mimeRule = getFileRule(
       { mimeType, pubkey: auth?.pubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!mimeRule) {
@@ -229,9 +248,9 @@ export function buildUploadRouter(
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
     }
 
-    // BUD-11: if the client provided X-SHA-256 and auth has x tags, we can
-    // validate upfront. If X-SHA-256 is absent, defer the x-tag check until
-    // after the worker resolves the actual hash (step 9).
+    // BUD-11: if the client provided X-SHA-256, validate its required x scope
+    // upfront. If X-SHA-256 is absent, defer the x-tag check until after the
+    // worker resolves the actual hash (step 9).
     if (auth && xSha256) {
       try {
         requireXTag(auth, xSha256);
@@ -252,10 +271,20 @@ export function buildUploadRouter(
     if (xSha256 && (await hasBlob(db, xSha256))) {
       const existing = await getBlob(db, xSha256);
       if (existing) {
-        // Drain, don't cancel — this returns 200 and the client may still be
-        // sending. See drainBody(). Only reached when the client skipped the
-        // BUD-06 preflight that exists to avoid this transfer.
-        await drainBody(ctx.req.raw.body);
+        // Drain rather than cancel while the body remains within maxSize so a
+        // successful 200 response does not reset a client that is still sending.
+        // Only reached when the client skipped the BUD-06 dedup preflight.
+        const withinLimit = await drainBody(
+          ctx.req.raw.body,
+          config.upload.maxSize,
+        );
+        if (!withinLimit) {
+          return errorResponse(
+            ctx,
+            413,
+            `File too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+          );
+        }
         debug(
           debugPrefix,
           `dedup hit — returning existing blob ${xSha256.slice(0, 8)}`,
@@ -307,13 +336,17 @@ export function buildUploadRouter(
 
     debug(
       debugPrefix,
-      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${
-        xSha256?.slice(0, 8) ?? "unknown"
-      }`,
+      `dispatching to worker — size=${contentLength} mime=${mimeType} sha256=${xSha256?.slice(0, 8) ?? "unknown"}`,
     );
 
+    // Stream-side size cap: the Content-Length check above only validates
+    // the DECLARED size — a client can lie and stream more. The guard errors
+    // the stream the moment the cap is exceeded; the worker classifies it as
+    // BYTE_LIMIT and we map it to 413 below.
+    const cappedBody = body.pipeThrough(byteCapGuard(config.upload.maxSize));
+
     const jobPromise = pool.dispatch(
-      body,
+      cappedBody,
       session.tmpPath,
       contentLength,
       xSha256,
@@ -321,7 +354,7 @@ export function buildUploadRouter(
     if (!jobPromise) {
       // Race condition: another request claimed the last worker between
       // pool.available check and dispatch(). Rare but safe to handle.
-      await body.cancel().catch(() => {});
+      await cappedBody.cancel().catch(() => {});
       await storage.abortWrite(session).catch(() => {});
       debug(
         debugPrefix,
@@ -354,6 +387,13 @@ export function buildUploadRouter(
       if (err instanceof WorkerJobError && err.errorType === "HASH_MISMATCH") {
         return errorResponse(ctx, 409, msg);
       }
+      if (err instanceof WorkerJobError && err.errorType === "BYTE_LIMIT") {
+        return errorResponse(
+          ctx,
+          413,
+          `File too large. Maximum allowed size is ${config.upload.maxSize} bytes`,
+        );
+      }
       return errorResponse(ctx, 400, msg);
     }
 
@@ -361,9 +401,15 @@ export function buildUploadRouter(
       try {
         requireXTag(auth, hash);
       } catch (err) {
-        await storage.abortWrite(session).catch(() => {});
         const msg = err instanceof HTTPException ? err.message : String(err);
         debug(debugPrefix, `rejected: deferred x-tag check failed — ${msg}`);
+        try {
+          await storage.abortWrite(session);
+        } catch (cleanupErr) {
+          const cleanupMsg = cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+          console.error(`${debugPrefix} failed to remove unauthorized staged upload ${session.tmpPath}: ${cleanupMsg}`);
+          throw cleanupErr;
+        }
         if (err instanceof HTTPException) {
           return errorResponse(ctx, err.status as 403, err.message);
         }
@@ -402,9 +448,7 @@ export function buildUploadRouter(
 
     debug(
       debugPrefix,
-      `upload complete — ${hash} (${size} bytes, ${
-        blobRecord.type ?? "application/octet-stream"
-      })`,
+      `upload complete — ${hash} (${size} bytes, ${blobRecord.type ?? "application/octet-stream"})`,
     );
     const baseUrl = getBaseUrl(ctx.req.raw, config.publicDomain);
     const url = getBlobUrl(hash, blobRecord.type, baseUrl);

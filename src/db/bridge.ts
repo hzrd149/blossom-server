@@ -26,13 +26,7 @@ import {
   listAllUsers,
   listBlobsByPubkeyAdmin,
 } from "./blobs.ts";
-import {
-  countReports,
-  deleteReport,
-  deleteReportsByBlob,
-  getReport,
-  listAllReports,
-} from "./reports.ts";
+import { countReports, deleteReport, deleteReportsByBlob, getReport, listAllReports } from "./reports.ts";
 
 export type DbRequest =
   | { reqId: number; op: "hasBlob"; args: [sha256: string] }

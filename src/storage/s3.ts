@@ -30,6 +30,7 @@ export class S3Storage implements IBlobStorage {
 
   private readonly client: S3Client;
   private readonly publicURL: string | null;
+  private readonly onReadError?: (operation: "has" | "read" | "readRange" | "size" | "remove", missing: boolean) => void;
 
   constructor(opts: {
     endpoint: string;
@@ -39,9 +40,11 @@ export class S3Storage implements IBlobStorage {
     region?: string;
     publicURL?: string;
     tmpDir: string;
+    onReadError?: S3Storage["onReadError"];
   }) {
     this.publicURL = opts.publicURL?.replace(/\/$/, "") ?? null;
     this.tmpDir = opts.tmpDir;
+    this.onReadError = opts.onReadError;
 
     this.client = new S3Client({
       endPoint: opts.endpoint,
@@ -90,7 +93,8 @@ export class S3Storage implements IBlobStorage {
     try {
       await this.client.statObject(this.objectKey(hash, ext));
       return true;
-    } catch {
+    } catch (error) {
+      this.recordError("has", error);
       return false;
     }
   }
@@ -99,11 +103,7 @@ export class S3Storage implements IBlobStorage {
     hash: string,
     ext: string,
   ): Promise<ReadableStream<Uint8Array> | null> {
-    // If a public CDN URL is configured, the route layer should redirect
-    // rather than proxy. Return null so the route falls through to its redirect
-    // logic. (The blobs route checks storage.read() and, on null with a
-    // publicURL config, should issue a 302. That routing logic lives in the
-    // route, not here — returning null is the correct signal.)
+    // The blobs route redirects before reading when publicURL is configured.
     if (this.publicURL) {
       return null;
     }
@@ -112,7 +112,8 @@ export class S3Storage implements IBlobStorage {
       const response = await this.client.getObject(this.objectKey(hash, ext));
       if (!response.body) return null;
       return response.body as ReadableStream<Uint8Array>;
-    } catch {
+    } catch (error) {
+      this.recordError("read", error);
       return null;
     }
   }
@@ -144,7 +145,8 @@ export class S3Storage implements IBlobStorage {
       );
       if (!response.body) return null;
       return response.body as ReadableStream<Uint8Array>;
-    } catch {
+    } catch (error) {
+      this.recordError("readRange", error);
       return null;
     }
   }
@@ -153,7 +155,8 @@ export class S3Storage implements IBlobStorage {
     try {
       const stat = await this.client.statObject(this.objectKey(hash, ext));
       return stat.size ?? null;
-    } catch {
+    } catch (error) {
+      this.recordError("size", error);
       return null;
     }
   }
@@ -179,22 +182,21 @@ export class S3Storage implements IBlobStorage {
     const writable = file.writable;
 
     // done resolves when the writable stream is closed (file fully written).
-    const done: Promise<void> =
-      (writable as WritableStream & { closed?: Promise<void> }).closed ??
-        new Promise<void>((resolve) => {
-          const interval = setInterval(async () => {
-            try {
-              const stat = await Deno.stat(path);
-              if (sizeHint !== null && stat.size >= sizeHint) {
-                clearInterval(interval);
-                resolve();
-              }
-            } catch {
+    const done: Promise<void> = (writable as WritableStream & { closed?: Promise<void> }).closed ??
+      new Promise<void>((resolve) => {
+        const interval = setInterval(async () => {
+          try {
+            const stat = await Deno.stat(path);
+            if (sizeHint !== null && stat.size >= sizeHint) {
               clearInterval(interval);
               resolve();
             }
-          }, 100);
-        });
+          } catch {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
 
     return { tmpPath: path, writable, done };
   }
@@ -219,7 +221,12 @@ export class S3Storage implements IBlobStorage {
    * Nothing is sent to or removed from S3.
    */
   async abortWrite(session: WriteSession): Promise<void> {
-    await Deno.remove(session.tmpPath).catch(() => {});
+    try {
+      await Deno.remove(session.tmpPath);
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return;
+      throw err;
+    }
   }
 
   async commitFile(srcPath: string, hash: string, ext: string): Promise<void> {
@@ -230,9 +237,20 @@ export class S3Storage implements IBlobStorage {
     try {
       await this.client.deleteObject(this.objectKey(hash, ext));
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      this.recordError("remove", error);
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+      if (code === "NoSuchKey" || code === "NotFound") return false;
+      throw error;
     }
+  }
+
+  private recordError(operation: "has" | "read" | "readRange" | "size" | "remove", error: unknown): void {
+    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+    // Only explicit object-not-found codes count as missing; permissions and transport failures remain errors.
+    try {
+      this.onReadError?.(operation, code === "NoSuchKey" || code === "NotFound");
+    } catch { /* Telemetry must not affect storage. */ }
   }
 
   private async _uploadToS3AndCleanup(
@@ -252,9 +270,7 @@ export class S3Storage implements IBlobStorage {
     const t2 = Date.now();
     if (alreadyExists) {
       debug(
-        `[s3:commit] dedup hit — skipping putObject hash=${hash} elapsed=${
-          t2 - t1
-        }ms`,
+        `[s3:commit] dedup hit — skipping putObject hash=${hash} elapsed=${t2 - t1}ms`,
       );
       await Deno.remove(srcPath).catch(() => {});
       return;
@@ -273,9 +289,7 @@ export class S3Storage implements IBlobStorage {
       });
       const t4 = Date.now();
       debug(
-        `[s3:commit] putObject complete key=${key} elapsed=${t4 - t3}ms total=${
-          t4 - t0
-        }ms`,
+        `[s3:commit] putObject complete key=${key} elapsed=${t4 - t3}ms total=${t4 - t0}ms`,
       );
     } finally {
       // Some stream consumers may already close the file descriptor.
@@ -293,9 +307,7 @@ export class S3Storage implements IBlobStorage {
       await Deno.remove(srcPath).catch(() => {});
       const t6 = Date.now();
       debug(
-        `[s3:commit] removed local tmp file elapsed=${t6 - t5}ms total=${
-          t6 - t0
-        }ms`,
+        `[s3:commit] removed local tmp file elapsed=${t6 - t5}ms total=${t6 - t0}ms`,
       );
     }
   }

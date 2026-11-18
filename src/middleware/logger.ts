@@ -11,8 +11,7 @@ import type { MiddlewareHandler } from "@hono/hono";
  */
 export const requestLogger: MiddlewareHandler = async (ctx, next) => {
   const { method } = ctx.req;
-  const url = ctx.req.url;
-  const path = url.slice(url.indexOf("/", 8));
+  const path = new URL(ctx.req.url).pathname;
 
   console.log(`--> ${method} ${path}`);
 
@@ -21,14 +20,10 @@ export const requestLogger: MiddlewareHandler = async (ctx, next) => {
 
   const status = ctx.res.status;
   const elapsed = Date.now() - start;
-  const elapsedStr = elapsed < 1000
-    ? `${elapsed}ms`
-    : `${Math.round(elapsed / 1000)}s`;
+  const elapsedStr = elapsed < 1000 ? `${elapsed}ms` : `${Math.round(elapsed / 1000)}s`;
   const reason = ctx.res.headers.get("x-reason");
 
   console.log(
-    `<-- ${method} ${path} ${status} ${elapsedStr}${
-      reason ? `  ${reason}` : ""
-    }`,
+    `<-- ${method} ${path} ${status} ${elapsedStr}${reason ? `  ${reason}` : ""}`,
   );
 };

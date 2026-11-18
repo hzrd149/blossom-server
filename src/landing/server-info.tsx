@@ -1,5 +1,5 @@
 import type { FC } from "@hono/hono/jsx";
-import type { Config } from "../config/schema.ts";
+import type { Config, StorageRule } from "../config/schema.ts";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -9,11 +9,9 @@ function formatBytes(bytes: number): string {
   return `${val % 1 === 0 ? val : val.toFixed(2)} ${units[i]}`;
 }
 
-export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
-  const { upload, storage, media } = config;
-  const allowedTypes = storage.rules.length > 0
-    ? [...new Set(storage.rules.map((r) => r.type))]
-    : ["All types accepted"];
+export const ServerInfo: FC<{ config: Config; rules: StorageRule[] }> = ({ config, rules }) => {
+  const { upload, media } = config;
+  const allowedTypes = rules.length > 0 ? [...new Set(rules.map((r) => r.type))] : ["All types accepted"];
 
   return (
     <section id="server-info">
@@ -94,9 +92,7 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
             <div class="flex items-center justify-between">
               <span class="text-gray-400 text-sm">Image output</span>
               <span class="font-mono text-gray-300 text-xs">
-                {media.image.outputFormat} ·{" "}
-                {media.image.maxWidth}×{media.image.maxHeight}{" "}
-                · q{media.image.quality}
+                {media.image.outputFormat} · {media.image.maxWidth}×{media.image.maxHeight} · q{media.image.quality}
                 {media.image.progressive ? " · progressive" : ""}
                 {` · ${media.image.fps}fps`}
               </span>
@@ -104,8 +100,7 @@ export const ServerInfo: FC<{ config: Config }> = ({ config }) => {
             <div class="flex items-center justify-between">
               <span class="text-gray-400 text-sm">Video output</span>
               <span class="font-mono text-gray-300 text-xs">
-                {media.video.format} · {media.video.videoCodec} ·{" "}
-                {media.video.audioCodec} · {media.video.maxHeight}p ·{" "}
+                {media.video.format} · {media.video.videoCodec} · {media.video.audioCodec} · {media.video.maxHeight}p ·{" "}
                 {media.video.maxFps}fps · q{media.video.quality}
               </span>
             </div>

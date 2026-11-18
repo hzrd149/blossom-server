@@ -7,8 +7,9 @@ config.yml
 dist
 .netrc
 public/client.js
+public/styles.css
+public/admin/
 result
-.planning
 .claude
 vendor
 blossom-vm.qcow2

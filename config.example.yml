@@ -21,6 +21,15 @@ port: 3000
 # Use 127.0.0.1 to accept only loopback connections (behind a local reverse proxy).
 host: 0.0.0.0
 
+# Optional Prometheus endpoint on a separate, unauthenticated private listener.
+# Scrape http://127.0.0.1:3001/metrics locally or through private transport.
+metrics:
+  enabled: false
+  host: 127.0.0.1
+  port: 3001
+  # Cached DB inventory refresh; runs after each prior collection completes.
+  inventoryIntervalMs: 60000
+
 # Override the domain used in blob descriptor "url" fields.
 # Defaults to the Host header of each incoming request.
 # Set this when running behind a reverse proxy that rewrites the Host header.
@@ -80,6 +89,15 @@ storage:
   # regardless of expiry rules.
   removeWhenNoOwners: false
 
+  # Where storage rules are managed:
+  #   config    (default) Use the rules below. The admin console shows them read-only.
+  #   database  Copy the rules below into the database on first start. From then on
+  #             they are edited in the admin console (/admin/rules) and changes apply
+  #             immediately, without a restart. Later edits to the rules below are
+  #             ignored (a startup warning is logged); use "Reset to config" in the
+  #             console to re-import them.
+  # rulesManagement: config
+
   # Retention rules — evaluated in order; first match governs the blob's expiry.
   #
   # Rules also serve as the upload allowlist: when this list is non-empty, blobs
@@ -89,10 +107,23 @@ storage:
   # Fields:
   #   type        MIME type pattern. Supports glob wildcards:
   #               "image/*" matches all image types, "*" matches everything.
-  #   expiration  How long a blob may go unaccessed before being pruned.
+  #   expiration  Retention duration measured from the rule basis.
   #               Human-readable duration: "7 days", "1 month", "24 hours".
+  #   basis       Optional: "accessed" (default) or "uploaded".
+  #               accessed: last access, falling back to upload time.
+  #               uploaded: first upload to this server, shared across owners;
+  #               downloads and repeat uploads do not extend retention.
+  #               Uploading after deletion starts a new lifetime.
   #   pubkeys     Optional list of uploader Nostr pubkeys (hex) this rule applies to.
   #               When set, only blobs from these pubkeys are matched by this rule.
+  #   nip05Domains
+  #               Optional list of NIP-05 domains. Every pubkey published in
+  #               https://<domain>/.well-known/nostr.json is added to this rule's
+  #               pubkeys list — fetched at startup and refreshed on the schedule
+  #               in storage.nip05 below. The domain must return its full "names"
+  #               map when queried without ?name=.
+  #               With rulesManagement: database, domains are edited in the admin
+  #               console too; a newly added domain is fetched immediately.
   rules:
     - type: "image/*"
       expiration: 1 month
@@ -100,6 +131,14 @@ storage:
       expiration: 1 week
     - type: "*"
       expiration: 1 week
+
+  # Example: expire videos one week after first upload, even if still accessed
+  # rules:
+  #   - type: "video/*"
+  #     expiration: 1 week
+  #     basis: uploaded
+  #   - type: "*"
+  #     expiration: 1 month
 
   # Example: pubkey-scoped rule — give specific users longer image retention
   # rules:
@@ -111,6 +150,29 @@ storage:
   #     expiration: 1 month
   #   - type: "*"
   #     expiration: 1 week
+
+  # Example: NIP-05 domain allowlist — everyone with a handle on example.org may
+  # upload (combine with upload.requirePubkeyInRule: true for a closed server).
+  # Static pubkeys and domains can be mixed in one rule. A rule with nip05Domains
+  # is always pubkey-scoped, even while its fetched list is still empty.
+  # rules:
+  #   - type: "*"
+  #     expiration: 1 year
+  #     pubkeys:
+  #       - "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d"
+  #     nip05Domains:
+  #       - example.org
+
+  # NIP-05 domain allowlist refresh. Only used by rules that set nip05Domains.
+  nip05:
+    # Minimum gap (ms) between the end of one refresh and the start of the next.
+    # Uses recursive setTimeout — the next refresh begins only after the current one completes.
+    # 0 = fetch once at startup and never refresh. Otherwise at least 60000 (1 minute).
+    refreshIntervalMs: 600000 # 10 minutes
+
+    # Timeout (ms) for a single nostr.json fetch. A failed or timed-out fetch keeps
+    # the previously fetched pubkeys; a domain that never succeeded grants nothing.
+    timeoutMs: 5000
 
 # ---------------------------------------------------------------------------
 # Upload  (BUD-02 / BUD-06)
@@ -211,6 +273,11 @@ media:
 
   # Require a valid BUD-11 Nostr auth event for media uploads.
   requireAuth: true
+
+  # Require the uploader's Nostr pubkey to appear in the matching storage rule's
+  # "pubkeys" list. Enabled by default to prevent unrestricted media processing.
+  # Add authorized pubkeys to image/video rules before enabling the endpoint.
+  requirePubkeyInRule: true
 
   # Maximum input file size in bytes before reading the body. Default: 1 GB.
   maxSize: 1073741824 # 1 GB
@@ -314,6 +381,10 @@ prune:
   # Uses recursive setTimeout — the next run begins only after the current one completes.
   intervalMs: 30000 # 30 seconds
 
+  # Maximum blobs examined per rule and during ownerless cleanup in one cycle.
+  # Cursors continue from the previous cycle, so larger stores are scanned incrementally.
+  batchSize: 1000
+
 # ---------------------------------------------------------------------------
 # Landing page
 # ---------------------------------------------------------------------------
@@ -337,11 +408,28 @@ report:
   enabled: true
 
 # ---------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------
+
+# network:
+#   # Reverse proxies (IP addresses or CIDR ranges) allowed to report the client
+#   # address. The client IP header is read only when the connecting peer is in
+#   # this list; otherwise the socket address is used, so clients cannot spoof it.
+#   trustedProxies:
+#     - 127.0.0.1
+#     - ::1
+#
+#   # Header carrying the client address from a trusted proxy:
+#   # x-forwarded-for (default), x-real-ip, cf-connecting-ip, or forwarded.
+#   # For multi-hop headers the right-most untrusted hop is used.
+#   clientIpHeader: x-forwarded-for
+
+# ---------------------------------------------------------------------------
 # Admin dashboard  (disabled by default)
 # ---------------------------------------------------------------------------
 
 # dashboard:
-#   # Enable the admin dashboard at /admin and the admin API endpoints.
+#   # Enable the new admin console shell at /admin and management API at /admin/api.
 #   # Protected by HTTP Basic Auth. Disabled by default — opt in explicitly.
 #   enabled: true
 #
@@ -351,16 +439,3 @@ report:
 #   # If blank, a random password is generated at startup and printed to stdout.
 #   # Set an explicit password for stable deployments.
 #   password: ""
-#
-#   # Nostr relay URLs used to look up kind:0 profile metadata for pubkeys
-#   # shown on user detail pages in the admin dashboard.
-#   #
-#   # purplepag.es   — NIP-65 outbox directory; finds most active Nostr users.
-#   # relay.nostr.band — broad aggregation relay; good fallback for older profiles.
-#   #
-#   # Profile fetch is attempted in parallel with a 4-second timeout per pubkey.
-#   # A slow or unreachable relay never stalls the page render.
-#   # Set to [] to disable profile metadata lookup entirely.
-#   lookupRelays:
-#     - wss://purplepag.es
-#     - wss://relay.nostr.band

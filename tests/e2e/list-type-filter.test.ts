@@ -14,11 +14,7 @@ import { assertEquals } from "@std/assert";
 import { encodeBase64Url } from "@std/encoding/base64url";
 import { join } from "@std/path";
 import type { NostrEvent } from "nostr-tools";
-import {
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-} from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import { initDb } from "../../src/db/client.ts";
 import type { BlossomVariables } from "../../src/middleware/auth.ts";
@@ -42,9 +38,7 @@ function authHeader(sk: Uint8Array, tTag: string): string {
     },
     sk,
   );
-  return `Nostr ${
-    encodeBase64Url(new TextEncoder().encode(JSON.stringify(ev)))
-  }`;
+  return `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(ev)))}`;
 }
 
 let app: Hono<{ Variables: BlossomVariables }>;

@@ -11,9 +11,7 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 
 function isStringTagArray(value: unknown): value is string[][] {
   return Array.isArray(value) &&
-    value.every((tag) =>
-      Array.isArray(tag) && tag.every((part) => typeof part === "string")
-    );
+    value.every((tag) => Array.isArray(tag) && tag.every((part) => typeof part === "string"));
 }
 
 function isReportEvent(value: Record<string, unknown>): value is NostrEvent {
@@ -63,9 +61,7 @@ export function buildReportRouter(
       return errorResponse(ctx, 400, "Report event signature is invalid");
     }
 
-    const xTags = event.tags.filter((t) =>
-      Array.isArray(t) && t[0] === "x" && typeof t[1] === "string"
-    ) as [
+    const xTags = event.tags.filter((t) => Array.isArray(t) && t[0] === "x" && typeof t[1] === "string") as [
       string,
       string,
       string?,
@@ -94,10 +90,7 @@ export function buildReportRouter(
     }
 
     for (const [, blobHash, reportType] of xTags) {
-      const type =
-        reportType && (REPORT_TYPES as readonly string[]).includes(reportType)
-          ? (reportType as ReportType)
-          : null;
+      const type = reportType && (REPORT_TYPES as readonly string[]).includes(reportType) ? (reportType as ReportType) : null;
 
       await insertReport(db, {
         event_id: eventId,

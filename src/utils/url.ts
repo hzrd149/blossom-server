@@ -1,5 +1,49 @@
 import { mimeToExt } from "./mime.ts";
 
+const ENCODED_SEPARATOR_RE = /%(?:25)*(?:2f|5c)/i;
+const MAX_STATIC_PATH_CODE_POINTS = 2_048;
+const MAX_STATIC_SEGMENT_CODE_POINTS = 255;
+const MAX_STATIC_PATH_BYTES = 2_048;
+const MAX_STATIC_SEGMENT_BYTES = 255;
+const UTF8_ENCODER = new TextEncoder();
+
+function utf8ByteLength(text: string): number {
+  return UTF8_ENCODER.encode(text).byteLength;
+}
+
+function hasUnsafeDecodedCharacter(text: string): boolean {
+  return [...text].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return character === "\\" || codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+  });
+}
+
+/** Return whether an encoded URL pathname is safe to pass to filesystem-backed static middleware. */
+export function isStaticCandidate(encodedPathname: string): boolean {
+  if (ENCODED_SEPARATOR_RE.test(encodedPathname)) return false;
+
+  let decodedPathname: string;
+  let filesystemPathname: string;
+  try {
+    decodedPathname = decodeURIComponent(encodedPathname);
+    filesystemPathname = decodeURI(encodedPathname);
+  } catch {
+    return false;
+  }
+
+  if (!decodedPathname.startsWith("/")) return false;
+  if ([...decodedPathname].length > MAX_STATIC_PATH_CODE_POINTS) return false;
+  if (utf8ByteLength(filesystemPathname) > MAX_STATIC_PATH_BYTES) return false;
+  if (hasUnsafeDecodedCharacter(decodedPathname)) return false;
+
+  const decodedSegments = decodedPathname.slice(1).split("/");
+  if (decodedSegments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
+  if (decodedSegments.some((segment) => [...segment].length > MAX_STATIC_SEGMENT_CODE_POINTS)) return false;
+
+  const filesystemSegments = filesystemPathname.slice(1).split("/");
+  return filesystemSegments.every((segment) => utf8ByteLength(segment) <= MAX_STATIC_SEGMENT_BYTES);
+}
+
 /**
  * Derive the request scheme, honouring reverse-proxy headers.
  * Behind a TLS-terminating proxy `request.url` is always `http://…`, so we

@@ -1,23 +1,8 @@
 import { z } from "zod";
+import { StorageRuleSchema } from "../policy/rule-schema.ts";
+import { parseCidr } from "../policy/cidr.ts";
 
-export const StorageRuleSchema = z.object({
-  type: z
-    .string()
-    .describe(
-      'MIME type pattern to match. Supports glob wildcards: "image/*" matches all image types, "*" matches everything.',
-    ),
-  expiration: z
-    .string()
-    .describe(
-      'How long a blob may go unaccessed before being pruned. Human-readable duration: "7 days", "1 month", "24 hours".',
-    ),
-  pubkeys: z
-    .array(z.string())
-    .optional()
-    .describe(
-      "Optional list of Nostr pubkeys (hex) this rule applies to. When set, only blobs uploaded by one of these pubkeys are matched.",
-    ),
-});
+export { type StorageRule, StorageRuleSchema } from "../policy/rule-schema.ts";
 
 const LocalStorageSchema = z.object({
   dir: z
@@ -58,6 +43,29 @@ const S3StorageSchema = z.object({
     ),
 });
 
+const Nip05Schema = z.object({
+  refreshIntervalMs: z
+    .number()
+    .int()
+    .max(2_147_483_647, "Must be at most 2147483647 ms (~24.8 days), the largest delay setTimeout supports")
+    .refine((v) => v === 0 || v >= 60_000, {
+      message: "Must be 0 (fetch once at startup) or at least 60000 (1 minute)",
+    })
+    .default(600_000)
+    .describe(
+      "Minimum gap in milliseconds between the end of one NIP-05 refresh and the start of the next. Uses recursive setTimeout, so the next refresh begins only after the current one completes. " +
+        "0 = fetch at startup (and when a domain is added through the admin console) and never refresh. Minimum otherwise: 60 000 ms. Default: 10 minutes.",
+    ),
+  timeoutMs: z
+    .number()
+    .int()
+    .min(1000)
+    .default(5000)
+    .describe(
+      "Timeout in milliseconds for a single https://<domain>/.well-known/nostr.json fetch. A timed-out or failed fetch keeps the previously fetched pubkeys. Default: 5 seconds.",
+    ),
+});
+
 const StorageSchema = z.object({
   backend: z
     .enum(["local", "s3"])
@@ -82,12 +90,22 @@ const StorageSchema = z.object({
       "Ordered list of retention rules. Rules are evaluated in order; the first matching rule governs a blob's expiry. " +
         "Rules also act as an upload allowlist: blobs whose MIME type matches no rule are rejected with 415.",
     ),
+  rulesManagement: z
+    .enum(["config", "database"])
+    .default("config")
+    .describe(
+      'Where storage rules are managed. "config" uses storage.rules from this file (read-only in the admin console). ' +
+        '"database" copies storage.rules into the database on first start, then the admin console edits them and changes apply immediately; later edits to storage.rules in this file are ignored.',
+    ),
   removeWhenNoOwners: z
     .boolean()
     .default(false)
     .describe(
       "When true, blobs with no owners are deleted during each prune cycle, regardless of expiry rules.",
     ),
+  nip05: Nip05Schema.optional()
+    .transform((v) => v ?? Nip05Schema.parse({}))
+    .describe("NIP-05 domain allowlist refresh settings. Only used by rules that set nip05Domains."),
 });
 
 const UploadSchema = z.object({
@@ -311,12 +329,11 @@ const VideoOptimizeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["videoCodec"],
-        message:
-          `videoCodec "${v.videoCodec}" is not compatible with format "${v.format}". Valid codecs: ${
-            validVideo.join(
-              ", ",
-            )
-          }.`,
+        message: `videoCodec "${v.videoCodec}" is not compatible with format "${v.format}". Valid codecs: ${
+          validVideo.join(
+            ", ",
+          )
+        }.`,
       });
     }
     const validAudio = AUDIO_CODEC_FOR_FORMAT[v.format] as readonly string[];
@@ -324,12 +341,11 @@ const VideoOptimizeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["audioCodec"],
-        message:
-          `audioCodec "${v.audioCodec}" is not compatible with format "${v.format}". Valid codecs: ${
-            validAudio.join(
-              ", ",
-            )
-          }.`,
+        message: `audioCodec "${v.audioCodec}" is not compatible with format "${v.format}". Valid codecs: ${
+          validAudio.join(
+            ", ",
+          )
+        }.`,
       });
     }
   });
@@ -344,6 +360,12 @@ const MediaSchema = z.object({
   requireAuth: z.boolean().default(true).describe(
     "Require a valid BUD-11 Nostr auth event for media uploads.",
   ),
+  requirePubkeyInRule: z
+    .boolean()
+    .default(true)
+    .describe(
+      "When true, media uploads are rejected unless the uploader's pubkey appears in a matching storage rule's pubkeys list.",
+    ),
   maxSize: z
     .number()
     .int()
@@ -465,12 +487,27 @@ const ReportSchema = z.object({
     ),
 });
 
+const NetworkSchema = z.object({
+  trustedProxies: z
+    .array(z.string().refine((v) => parseCidr(v) !== null, { message: "Expected an IP address or CIDR range" }))
+    .default([])
+    .describe(
+      "Reverse proxies (IPs or CIDR ranges) whose client IP header is trusted. When empty, the socket peer address is always used as the client IP.",
+    ),
+  clientIpHeader: z
+    .enum(["x-forwarded-for", "x-real-ip", "cf-connecting-ip", "forwarded"])
+    .default("x-forwarded-for")
+    .describe(
+      "Header carrying the client IP when the request arrives from a trusted proxy. For X-Forwarded-For and Forwarded, the right-most untrusted hop is used.",
+    ),
+});
+
 const DashboardSchema = z.object({
   enabled: z
     .boolean()
     .default(false)
     .describe(
-      "Enable the admin dashboard at /admin and the admin API at /api. Protected by HTTP Basic Auth.",
+      "Enable the admin console at /admin and the management API at /admin/api. Protected by HTTP Basic Auth.",
     ),
   username: z.string().default("admin").describe(
     "HTTP Basic Auth username for the admin dashboard.",
@@ -480,18 +517,6 @@ const DashboardSchema = z.object({
     .default("")
     .describe(
       "HTTP Basic Auth password. If blank, a random password is generated on startup and logged to stdout.",
-    ),
-  lookupRelays: z
-    .array(z.string().url())
-    .default([
-      "wss://purplepag.es",
-      "wss://index.hzrd149.com",
-      "wss://indexer.coracle.social",
-    ])
-    .describe(
-      "Nostr relay URLs used to look up kind:0 profile metadata for pubkeys displayed in the admin dashboard. " +
-        "purplepag.es is a NIP-65 outbox directory; index.hzrd149.com is a broad aggregation relay. " +
-        "Set to [] to disable profile metadata lookup entirely.",
     ),
 });
 
@@ -511,6 +536,14 @@ const PruneSchema = z.object({
     .default(30_000)
     .describe(
       "Minimum gap in milliseconds between the end of one prune run and the start of the next. Uses recursive setTimeout, so the next run begins only after the current one completes. Default: 30 seconds.",
+    ),
+  batchSize: z
+    .number()
+    .int()
+    .min(1)
+    .default(1000)
+    .describe(
+      "Maximum blobs examined per rule per prune cycle. Bounds the cost of a cycle by configuration rather than by the size of the store; any remainder is picked up on the next cycle. Default: 1000.",
     ),
 });
 
@@ -562,6 +595,12 @@ export const ConfigSchema = z
     port: z.number().int().min(1).max(65535).default(3000).describe(
       "TCP port to listen on.",
     ),
+    metrics: z.object({
+      inventoryIntervalMs: z.number().int().min(1000).default(60000),
+      enabled: z.boolean().default(false),
+      host: z.string().min(1).default("127.0.0.1"),
+      port: z.number().int().min(1).max(65535).default(3001),
+    }).prefault({}).describe("Private Prometheus listener. Has no authentication; bind to a trusted interface."),
     storage: StorageSchema.optional()
       .transform((v) => v ?? StorageSchema.parse({}))
       .describe("Blob storage configuration."),
@@ -588,6 +627,9 @@ export const ConfigSchema = z
       .describe(
         "Prune loop timing settings. The prune loop deletes expired blobs according to storage.rules.",
       ),
+    network: NetworkSchema.optional()
+      .transform((v) => v ?? NetworkSchema.parse({}))
+      .describe("Client network settings: trusted reverse proxies and client IP header."),
     dashboard: DashboardSchema.optional()
       .transform((v) => v ?? DashboardSchema.parse({}))
       .describe("Admin dashboard and API settings."),
@@ -600,16 +642,14 @@ export const ConfigSchema = z
     // Priority: database.path > databasePath > default "data/sqlite.db"
     const database = DatabaseSchema.parse({
       ...raw.database,
-      ...(raw.database?.path === undefined && raw.databasePath !== undefined
-        ? { path: raw.databasePath }
-        : {}),
+      ...(raw.database?.path === undefined && raw.databasePath !== undefined ? { path: raw.databasePath } : {}),
     });
     const { databasePath: _dropped, ...rest } = raw;
     return { ...rest, database };
   });
 
 export type Config = z.infer<typeof ConfigSchema>;
-export type StorageRule = z.infer<typeof StorageRuleSchema>;
+export type NetworkConfig = z.infer<typeof NetworkSchema>;
 export type ReportConfig = z.infer<typeof ReportSchema>;
 export type ImageOptimizeConfig = z.infer<typeof ImageOptimizeSchema>;
 export type VideoOptimizeConfig = z.infer<typeof VideoOptimizeSchema>;

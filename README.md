@@ -1,30 +1,21 @@
 # Blossom Server
 
-A content-addressed blob storage server implementing the
-[Blossom](https://github.com/hzrd149/blossom) protocol. Files are stored and
-retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
-[Hono](https://hono.dev), and [LibSQL](https://turso.tech/libsql).
+A content-addressed blob storage server implementing the [Blossom](https://github.com/hzrd149/blossom) protocol. Files are stored and retrieved by their SHA-256
+hash. Built with [Deno 2](https://deno.com), [Hono](https://hono.dev), and [LibSQL](https://turso.tech/libsql).
 
 ## Features
 
-- **BUD-01** — Blob retrieval (`GET`/`HEAD /:sha256`) with range requests,
-  ETag/304, and CORS
-- **BUD-02** — Upload (`PUT /upload`), delete (`DELETE /:sha256`), and list
-  (`GET /list/:pubkey`)
+- **BUD-01** — Blob retrieval (`GET`/`HEAD /:sha256`) with range requests, ETag/304, and CORS
+- **BUD-02** — Upload (`PUT /upload`), delete (`DELETE /:sha256`), and list (`GET /list/:pubkey`)
 - **BUD-04** — Server-side mirror (`PUT /mirror`) with SSRF protection
-- **BUD-05** — Media optimisation (`PUT /media`): image resize/convert via
-  sharp, video transcode via ffmpeg
-- **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool
-  availability before sending the body
+- **BUD-05** — Media optimisation (`PUT /media`): image resize/convert via sharp, video transcode via ffmpeg
+- **BUD-06** — Upload preflight (`HEAD /upload`) to check size, type, and pool availability before sending the body
 - **BUD-08** — `nip94` field in all blob descriptor responses
 - **BUD-09** — Blob reports (`PUT /report`) accepting NIP-56 kind:1984 events
 - **BUD-11** — Nostr-signed event authentication (kind 24242)
-- Zero-copy streaming uploads — no body buffering, SHA-256 computed in a
-  dedicated worker pool
-- Content-addressed deduplication — re-uploading an existing hash skips the
-  write
-- Configurable storage retention rules with MIME-type glob patterns and
-  per-pubkey scoping
+- Zero-copy streaming uploads — no body buffering, SHA-256 computed in a dedicated worker pool
+- Content-addressed deduplication — re-uploading an existing hash skips the write
+- Configurable storage retention rules with MIME-type glob patterns and per-pubkey scoping
 - Automatic prune loop — expired blobs are removed on a configurable timer
 - Local filesystem and S3-compatible storage backends
 - Optional server-side rendered admin dashboard at `/admin` (Hono JSX)
@@ -34,8 +25,7 @@ retrieved by their SHA-256 hash. Built with [Deno 2](https://deno.com),
 ## Requirements
 
 - **Docker + Docker Compose** (recommended)
-- **or** [Deno 2.x](https://docs.deno.com/runtime/getting_started/installation/)
-  for running from source
+- **or** [Deno 2.x](https://docs.deno.com/runtime/getting_started/installation/) for running from source
 
 ## Quick Start — Docker
 
@@ -50,8 +40,7 @@ cp config.example.yml config.yml
 docker compose up --build
 ```
 
-The server listens on port `3000` by default. Blob data and the SQLite database
-are stored in a named Docker volume (`data`). The config file is mounted
+The server listens on port `3000` by default. Blob data and the SQLite database are stored in a named Docker volume (`data`). The config file is mounted
 read-only from the host.
 
 ## Quick Start — From Source
@@ -64,7 +53,7 @@ cd blossom-server
 # 2. Copy and edit the config
 cp config.example.yml config.yml
 
-# 3. Build the landing page client bundle
+# 3. Build the landing page client and stylesheet
 deno task build
 
 # 4. Start in development mode (file-watching)
@@ -80,10 +69,8 @@ deno task start
 
 ## Quick Start — Nix
 
-This repository includes a flake that builds the server reproducibly with a
-pinned Nixpkgs input and a fixed-output Deno dependency cache. The build also
-pre-builds the landing page client bundle into the package output. The pinned
-cache is currently provided for `x86_64-linux`.
+This repository includes a flake that builds the server reproducibly with a pinned Nixpkgs input and a fixed-output Deno dependency cache. The build also
+pre-builds the landing page client bundle and Tailwind stylesheet into the package output. The pinned cache is currently provided for `x86_64-linux`.
 
 ```sh
 # Build the package
@@ -98,14 +85,12 @@ nix run .# -- ./config.yml
 nix develop
 ```
 
-The packaged wrapper includes `ffmpeg`/`ffprobe` on `PATH` for media handling.
-If your Nix install does not enable flakes globally, add
+The packaged wrapper includes `ffmpeg`/`ffprobe` on `PATH` for media handling. If your Nix install does not enable flakes globally, add
 `--extra-experimental-features 'nix-command flakes'` to the `nix` commands.
 
 ### NixOS service
 
-The flake exports `nixosModules.default`, which runs Blossom as a hardened
-systemd service with persistent state in `/var/lib/blossom-server`:
+The flake exports `nixosModules.default`, which runs Blossom as a hardened systemd service with persistent state in `/var/lib/blossom-server`:
 
 ```nix
 {
@@ -134,10 +119,8 @@ systemd service with persistent state in `/var/lib/blossom-server`:
 }
 ```
 
-For S3, Turso, or dashboard credentials, put environment variable placeholders
-in `settings` and provide a root-readable environment file. Secrets must not be
-written directly in `settings`, because the generated YAML is stored in the
-world-readable Nix store.
+For S3, Turso, or dashboard credentials, put environment variable placeholders in `settings` and provide a root-readable environment file. Secrets must not be
+written directly in `settings`, because the generated YAML is stored in the world-readable Nix store.
 
 ```nix
 services.blossom-server = {
@@ -162,12 +145,10 @@ S3_ACCESS_KEY=example
 S3_SECRET_KEY=secret
 ```
 
-This works with runtime paths produced by secret managers such as sops-nix or
-agenix. The module defaults to `127.0.0.1:3000` and keeps the firewall closed,
+This works with runtime paths produced by secret managers such as sops-nix or agenix. The module defaults to `127.0.0.1:3000` and keeps the firewall closed,
 which is suitable when running behind a reverse proxy.
 
-For a complete, runnable example, see the [NixOS VM guide](nix/VM-EXAMPLE.md).
-It builds a QEMU VM from this flake and also shows how to activate the same
+For a complete, runnable example, see the [NixOS VM guide](nix/VM-EXAMPLE.md). It builds a QEMU VM from this flake and also shows how to activate the same
 configuration on an existing NixOS host with `nixos-rebuild`.
 
 Pass a custom config path as the first argument:
@@ -178,42 +159,50 @@ deno task start /etc/blossom/config.yml
 
 ## Configuration
 
-Configuration is loaded from a YAML file (default: `config.yml` in the working
-directory). Environment variables can be substituted anywhere in the file using
+Configuration is loaded from a YAML file (default: `config.yml` in the working directory). Environment variables can be substituted anywhere in the file using
 `${VAR_NAME}` syntax.
+
+Set `BLOSSOM_REQUIRE_CONFIG=1` to make startup fail when the configured file is missing or is a directory instead of silently using schema defaults. The Docker
+Compose example and NixOS module enable this safeguard automatically; direct source and `nix run` invocations remain lenient unless you opt in.
 
 ### Key Options
 
-| Key                          | Default          | Description                                                                                                            |
-| ---------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `port`                       | `3000`           | TCP port to listen on                                                                                                  |
-| `host`                       | `0.0.0.0`        | Bind interface (`127.0.0.1` for loopback-only behind a proxy)                                                          |
-| `publicDomain`               | _(Host header)_  | Bare hostname this server is publicly reachable at, used in blob URLs and BUD-11 server-tag validation (no `https://`) |
-| `database.path`              | `data/sqlite.db` | Local SQLite database path                                                                                             |
-| `database.url`               | —                | Remote libSQL/Turso URL (`libsql://your-db.turso.io` or `http://localhost:8080`)                                       |
-| `storage.backend`            | `local`          | Storage backend: `local` or `s3`                                                                                       |
-| `storage.local.dir`          | `./data/blobs`   | Directory for blob files (local backend)                                                                               |
-| `storage.removeWhenNoOwners` | `false`          | Delete blobs with no owners on each prune cycle, regardless of expiry rules                                            |
-| `upload.enabled`             | `true`           | Enable `PUT /upload`                                                                                                   |
-| `upload.requireAuth`         | `true`           | Require Nostr auth for uploads                                                                                         |
-| `upload.maxSize`             | `2147483648`     | Maximum upload size in bytes (2 GB)                                                                                    |
-| `upload.workers`             | `0`              | Upload worker threads (0 = one per CPU core)                                                                           |
-| `upload.requirePubkeyInRule` | `false`          | Reject uploads unless the uploader's pubkey appears in a storage rule                                                  |
-| `mirror.enabled`             | `true`           | Enable `PUT /mirror` (BUD-04)                                                                                          |
-| `mirror.connectTimeout`      | `30000`          | Timeout (ms) to connect to the origin; 0 = no limit                                                                    |
-| `mirror.bodyTimeout`         | `0`              | Timeout (ms) for full body transfer from origin; 0 = no limit                                                          |
-| `delete.requireAuth`         | `true`           | Require Nostr auth for deletes                                                                                         |
-| `list.enabled`               | `false`          | Enable `GET /list/:pubkey` (BUD-02); disabled by default                                                               |
-| `list.requireAuth`           | `false`          | Require Nostr auth for list requests                                                                                   |
-| `list.allowListOthers`       | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
-| `media.enabled`              | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
-| `report.enabled`             | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
-| `landing.enabled`            | `true`           | Enable the landing page at `/`                                                                                         |
-| `landing.title`              | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
-| `dashboard.enabled`          | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
+| Key                               | Default          | Description                                                                                                            |
+| --------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `port`                            | `3000`           | TCP port to listen on                                                                                                  |
+| `host`                            | `0.0.0.0`        | Bind interface (`127.0.0.1` for loopback-only behind a proxy)                                                          |
+| `publicDomain`                    | _(Host header)_  | Bare hostname this server is publicly reachable at, used in blob URLs and BUD-11 server-tag validation (no `https://`) |
+| `database.path`                   | `data/sqlite.db` | Local SQLite database path                                                                                             |
+| `database.url`                    | —                | Remote libSQL/Turso URL (`libsql://your-db.turso.io` or `http://localhost:8080`)                                       |
+| `storage.backend`                 | `local`          | Storage backend: `local` or `s3`                                                                                       |
+| `storage.local.dir`               | `./data/blobs`   | Directory for blob files (local backend)                                                                               |
+| `storage.removeWhenNoOwners`      | `false`          | Delete blobs with no owners on each prune cycle, regardless of expiry rules                                            |
+| `storage.nip05.refreshIntervalMs` | `600000`         | How often (ms) rules with `nip05Domains` re-fetch `/.well-known/nostr.json`; 0 = startup only                          |
+| `storage.nip05.timeoutMs`         | `5000`           | Timeout (ms) for a single `nostr.json` fetch; a failed fetch keeps the previously fetched pubkeys                      |
+| `upload.enabled`                  | `true`           | Enable `PUT /upload`                                                                                                   |
+| `upload.requireAuth`              | `true`           | Require Nostr auth for uploads                                                                                         |
+| `upload.maxSize`                  | `2147483648`     | Maximum upload size in bytes (2 GB)                                                                                    |
+| `upload.workers`                  | `0`              | Upload worker threads (0 = one per CPU core)                                                                           |
+| `upload.requirePubkeyInRule`      | `false`          | Reject uploads unless the uploader's pubkey appears in a storage rule                                                  |
+| `mirror.enabled`                  | `true`           | Enable `PUT /mirror` (BUD-04)                                                                                          |
+| `mirror.connectTimeout`           | `30000`          | Timeout (ms) to connect to the origin; 0 = no limit                                                                    |
+| `mirror.bodyTimeout`              | `0`              | Timeout (ms) for full body transfer from origin; 0 = no limit                                                          |
+| `delete.requireAuth`              | `true`           | Require Nostr auth for deletes                                                                                         |
+| `list.enabled`                    | `false`          | Enable `GET /list/:pubkey` (BUD-02); disabled by default                                                               |
+| `list.requireAuth`                | `false`          | Require Nostr auth for list requests                                                                                   |
+| `list.allowListOthers`            | `true`           | Allow listing blobs belonging to a different pubkey                                                                    |
+| `media.enabled`                   | `false`          | Enable `PUT /media` (BUD-05); requires ffmpeg for video                                                                |
+| `media.requirePubkeyInRule`       | `true`           | Reject media uploads unless the uploader's pubkey appears in the matching storage rule                                 |
+| `report.enabled`                  | `true`           | Enable `PUT /report` (BUD-09)                                                                                          |
+| `landing.enabled`                 | `true`           | Enable the landing page at `/`                                                                                         |
+| `landing.title`                   | `Blossom Server` | Page title shown in `<title>` and `<h1>`                                                                               |
+| `dashboard.enabled`               | `false`          | Enable the admin dashboard at `/admin`                                                                                 |
 
-For all options with inline documentation, see
-[`config.example.yml`](config.example.yml).
+For all options with inline documentation, see [`config.example.yml`](config.example.yml).
+
+Existing configurations with a `media` section that omit `media.requirePubkeyInRule` temporarily inherit `upload.requirePubkeyInRule` and log a migration
+warning. Set the media option explicitly to avoid the compatibility fallback. New configurations default it to `true` so media processing is limited to pubkeys
+named by matching storage rules.
 
 ### S3 Storage Backend
 
@@ -234,9 +223,8 @@ storage:
 
 ### Storage Retention Rules
 
-Rules serve as both an upload allowlist and a retention policy. The first
-matching rule governs a blob's expiry. When the list is non-empty, blobs whose
-MIME type matches no rule are rejected with `415 Unsupported Media Type`.
+Rules serve as both an upload allowlist and a retention policy. The first matching rule governs a blob's expiry. When the list is non-empty, blobs whose MIME
+type matches no rule are rejected with `415 Unsupported Media Type`.
 
 ```yaml
 storage:
@@ -249,8 +237,7 @@ storage:
       expiration: 1 week
 ```
 
-Rules can be scoped to specific Nostr pubkeys (hex) to give certain users
-different retention:
+Rules can be scoped to specific Nostr pubkeys (hex) to give certain users different retention:
 
 ```yaml
 storage:
@@ -265,10 +252,29 @@ storage:
       expiration: 1 week
 ```
 
+Together with `upload.requirePubkeyInRule: true`, pubkey-scoped rules turn the server into a closed/invite-only one: only pubkeys named in some rule may upload.
+Instead of (or in addition to) listing pubkeys by hand, a rule can name NIP-05 domains — every pubkey published in the domain's `/.well-known/nostr.json` is
+added to the rule's allowlist, fetched at startup and refreshed every `storage.nip05.refreshIntervalMs` (default 10 minutes), so new members need no server
+restart:
+
+```yaml
+upload:
+  requirePubkeyInRule: true
+storage:
+  rules:
+    - type: "*"
+      expiration: 1 year
+      nip05Domains: ["example.org"]
+```
+
+A failed refresh keeps the previously fetched pubkeys; a domain that has never been fetched successfully grants nothing. A rule with `nip05Domains` is always
+pubkey-scoped, even while its fetched list is still empty, so it never matches everyone. Removing a name from `nostr.json` revokes that user's upload access on
+the next refresh and moves their existing blobs to the next matching rule for retention. With `storage.rulesManagement: database`, domains can also be edited
+per rule in the admin console; a newly added domain is fetched immediately. Fetched members are kept in memory only and never written to the rules.
+
 ## Authentication (BUD-11)
 
-All authenticated endpoints expect a Nostr-signed event in the `Authorization`
-header:
+All authenticated endpoints expect a Nostr-signed event in the `Authorization` header:
 
 ```
 Authorization: Nostr <base64-encoded-JSON-event>
@@ -330,8 +336,7 @@ Example event (before signing):
 | ------ | --------- | ---- | ------------------------------------------------------------------------- |
 | `PUT`  | `/report` | None | Submit a NIP-56 kind:1984 Nostr event to flag a blob for operator review. |
 
-_\* Auth requirement is configurable per-endpoint via `requireAuth` in the
-config._
+_\* Auth requirement is configurable per-endpoint via `requireAuth` in the config._
 
 ### Response Format
 
@@ -357,40 +362,77 @@ Successful upload, mirror, and media responses return a `BlobDescriptor`:
 
 ### Error Responses
 
-All error responses use `Content-Type: text/plain`. The reason is included in
-both the response body and an `X-Reason` header.
+All error responses use `Content-Type: text/plain`. The reason is included in both the response body and an `X-Reason` header.
 
 ## Admin Dashboard
 
-Enable the server-rendered admin dashboard (Hono JSX, no separate SPA) to manage
-blobs, users, rules, and reports:
+Enable the React admin console, served by the existing Hono/Deno application:
 
 ```yaml
 dashboard:
   enabled: true
   username: admin
   password: "" # Auto-generated and logged to stdout on first startup if blank
-  # Nostr relays used to look up kind:0 profiles in the user detail view
-  lookupRelays:
-    - wss://purplepag.es
-    - wss://index.hzrd149.com
-    - wss://indexer.coracle.social
 ```
 
-The dashboard is available at `http://localhost:3000/admin` and is protected by
-HTTP Basic Auth. It provides pages for:
+The console is available at `http://localhost:3000/admin` and is protected by HTTP Basic Auth. It is currently a minimal shell for building the new management
+interface. The previous blob, user, rule, and report pages have been removed; `/admin/console` redirects to `/admin`.
 
-- **Blobs** — browse, search, and force-delete blobs
-- **Users** — list uploaders with Nostr profile metadata lookup
-- **Rules** — view active storage retention rules
-- **Reports** — review and dismiss BUD-09 blob reports
+The management backend remains available under `/admin/api`, with read-only content, inventory, and sanitized configuration endpoints, plus blob/user-content
+deletion and report moderation actions. Configuration remains deployment-managed. The obsolete `dashboard.lookupRelays` setting is no longer used.
+
+Build assets with `deno task build:admin` and check the React client with `deno task check:admin`. Client code lives in `src/admin/client/`, API routes in
+`src/admin/server/`, and backend operations in `src/admin/services/`. Browser-safe API types live in `src/admin/contracts/`.
+
+The client is wrapped in TanStack Query's shared provider. Fetch data with `useQuery(adminQueries.summary())` or `useQuery(adminQueries.content(page, search))`,
+importing `adminQueries` from `src/admin/client/api/queries.ts`. Query functions pass cancellation signals to the authenticated API client. Reads stay fresh for
+30 seconds; network/server failures retry twice, while 4xx responses and mutations do not retry. Use `adminQueryKeys` to invalidate related queries after
+mutations. React Query Devtools is available through its floating toggle, initially closed, including in the built admin bundle.
+
+Admin styling uses Tailwind CSS 4 and daisyUI 5. Add Tailwind utilities and daisyUI component classes directly in React components; use semantic theme colors
+such as `bg-base-100`, `text-base-content`, and `btn-primary`. Light and dark themes follow the system preference. The CSS entry point is
+`src/admin/styles/input.css`, with separate pinned build dependencies in that directory. `deno task build:admin` builds both JS and CSS;
+`deno task build:admin:styles` rebuilds only CSS. For live styling work, run `deno task build:admin:styles --watch` alongside the server.
+
+### Browser-side Nostr
+
+The admin uses Applesauce directly: `src/admin/client/nostr/` exports shared `eventStore`, `eventLoader`, `pool`, `accounts`, and `actions` instances.
+`main.tsx` mounts Applesauce's native React providers. Use `applesauce-common` casts with `use$` for reactive Nostr data; TanStack Query owns HTTP admin API
+data. Metadata is fetched directly from relays by the browser.
+
+```tsx
+import { castUser } from "applesauce-common/casts";
+import { use$ } from "applesauce-react/hooks";
+import { eventStore } from "./nostr/event-store.ts";
+
+function UserName({ pubkey }: { pubkey: string }) {
+  const profile = use$(() => castUser(pubkey, eventStore).profile$, [pubkey]);
+  return <span>{profile?.displayName || profile?.name || pubkey.slice(0, 12)}</span>;
+}
+```
+
+Profile reads work anonymously, batch concurrent requests, verify signatures, and share an in-memory cache. Missing metadata returns `undefined` until it is
+available. Default lookup/fallback relays are in `src/admin/client/nostr/relays.ts`; no relay connections or signer prompts occur just from mounting the empty
+shell.
+
+- Create accounts with Applesauce's account classes, e.g. `await ExtensionAccount.fromExtension()` or `ReadonlyAccount.fromPubkey(pubkey)`, then call
+  `accounts.addAccount(account)` and `accounts.setActive(account)`. Observe the selection with `useActiveAccount()`.
+- `NostrConnectSigner.pool` uses the shared relay pool. Use the signer's native NIP-46 methods; close its connection when removing a bunker account.
+- Run actions with `actions` / `useActionRunner()`. Its publish callback uses explicit relays or NIP-65 outboxes with fallback relays and checks relay
+  acceptance.
+- Use `applesauce-common` factories and casts for event-specific behavior. For manual relay reads, use `pool.request` / `pool.subscription` with
+  `mapEventsToStore(eventStore)`; `use$` manages the subscription lifetime in React.
+
+Accounts and cached events currently live only for the browser session; no keys or sessions are persisted. Nostr account selection does not grant or replace
+HTTP Basic Auth access to the admin API.
 
 ## Development
 
 ```sh
-# Build the landing page client bundle (output: public/client.js)
-# Required before running `deno task dev` or `deno task start` when the
-# landing page is enabled.
+# Build landing and admin assets (public/client.js, public/styles.css, public/admin/)
+# Recommended before running `deno task dev` or `deno task start` when the
+# landing page or admin dashboard is enabled. Missing assets produce warnings;
+# blob API routes still start normally.
 deno task build
 
 # Start with file-watching
@@ -411,15 +453,13 @@ deno fmt
 
 ## Migrating from the Legacy Node.js Server
 
-If you have an existing database from the original Node.js blossom-server, the
-migration script imports all blob metadata atomically:
+If you have an existing database from the original Node.js blossom-server, the migration script imports all blob metadata atomically:
 
 ```sh
 deno task migrate-from-legacy
 ```
 
-The script reads the legacy SQLite database, imports all records into the Deno
-server's schema, and performs an atomic file swap. Blob files on disk are left
+The script reads the legacy SQLite database, imports all records into the Deno server's schema, and performs an atomic file swap. Blob files on disk are left
 untouched.
 
 ## License

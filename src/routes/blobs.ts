@@ -18,27 +18,46 @@ import { optionalAuth } from "../middleware/auth.ts";
 import type { BlossomVariables } from "../middleware/auth.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import type { Config } from "../config/schema.ts";
-import { mimeToExt } from "../utils/mime.ts";
+import { isActiveContentMime, mimeToExt } from "../utils/mime.ts";
 
-const SHA256_RE = /^[0-9a-f]{64}$/;
+const BLOB_PATH_RE = /^([0-9a-f]{64})(?:\.[a-z0-9]{1,10})*$/i;
+
+/** Extract and normalize the content address from an accepted blob filename. */
+export function extractBlobHash(filename: string): string | null {
+  return BLOB_PATH_RE.exec(filename)?.[1]?.toLowerCase() ?? null;
+}
+
+/** Compare If-None-Match candidates using RFC 9110 weak entity-tag comparison. */
+export function ifNoneMatchMatches(headerValue: string | undefined, etag: string): boolean {
+  if (headerValue === undefined) return false;
+
+  const value = headerValue.trim();
+  if (value === "*") return true;
+
+  const candidates = value.split(",").map((candidate) => candidate.trim());
+  if (candidates.includes("*")) return false;
+
+  return candidates.some((candidate) => {
+    const opaqueTag = candidate.startsWith("W/") ? candidate.slice(2) : candidate;
+    return opaqueTag === etag;
+  });
+}
 
 export function buildBlobsRouter(
   db: Client,
   storage: IBlobStorage,
-  _config: Config,
+  config: Config,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
   // GET /:sha256 and GET /:sha256.ext
   // HEAD /:sha256 and HEAD /:sha256.ext
   // Match the full segment including optional extension (e.g. abc123...def.jpg)
-  app.on(["GET", "HEAD"], "/:filename", async (ctx, next) => {
+  app.on(["GET", "HEAD"], ["/:filename", "/:filename/"], async (ctx, next) => {
     const filename = ctx.req.param("filename") ?? "";
-    // Extract 64-char hex hash — the last 64-char hex run in the segment
-    const match = filename.match(/([0-9a-f]{64})/);
-    const hash = match?.[1] ?? "";
+    const hash = extractBlobHash(filename);
 
-    if (!SHA256_RE.test(hash)) {
+    if (!hash) {
       return next();
     }
 
@@ -62,9 +81,7 @@ export function buildBlobsRouter(
 
     // Update last-access timestamp (for prune rules) — fire-and-forget
     const now = Math.floor(Date.now() / 1000);
-    touchBlob(db, hash, now).catch((err) =>
-      console.warn("touchBlob failed:", err)
-    );
+    touchBlob(db, hash, now).catch((err) => console.warn("touchBlob failed:", err));
 
     const mimeType = blob.type ?? "application/octet-stream";
     const headers: Record<string, string> = {
@@ -74,27 +91,42 @@ export function buildBlobsRouter(
       "Cache-Control": "public, max-age=31536000, immutable",
       ETag: `"${hash}"`,
       "Last-Modified": new Date(blob.uploaded * 1000).toUTCString(),
+      "X-Content-Type-Options": "nosniff",
     };
+
+    if (isActiveContentMime(blob.type)) {
+      const safeExt = /^[a-z0-9]{1,10}$/i.test(ext) ? ext.toLowerCase() : "";
+      const attachmentName = `${hash}${safeExt ? `.${safeExt}` : ""}`;
+      headers["Content-Disposition"] = `attachment; filename="${attachmentName}"`;
+    }
 
     // Conditional request: If-None-Match (RFC 9110 §13.1.2)
     // The SHA-256 hash is a perfect ETag — content-addressed, immutable, already computed.
     // Short-circuit before storage I/O: only the DB lookup has occurred at this point.
     const ifNoneMatch = ctx.req.header("if-none-match");
-    if (ifNoneMatch) {
-      const tags = ifNoneMatch.split(",").map((t) =>
-        t.trim().replace(/^"(.*)"$/, "$1")
-      );
-      if (tags.includes(hash) || tags.includes("*")) {
-        return ctx.body(null, 304, {
-          ETag: headers["ETag"],
-          "Cache-Control": headers["Cache-Control"],
-          "Last-Modified": headers["Last-Modified"],
-        });
-      }
+    if (ifNoneMatchMatches(ifNoneMatch, headers["ETag"])) {
+      const notModifiedHeaders: Record<string, string> = {
+        ETag: headers["ETag"],
+        "Cache-Control": headers["Cache-Control"],
+        "Last-Modified": headers["Last-Modified"],
+        "X-Content-Type-Options": headers["X-Content-Type-Options"],
+      };
+      const disposition = headers["Content-Disposition"];
+      if (disposition) notModifiedHeaders["Content-Disposition"] = disposition;
+
+      return ctx.body(null, 304, notModifiedHeaders);
     }
 
     if (ctx.req.method === "HEAD") {
       return ctx.body(null, 200, headers);
+    }
+
+    // S3 public downloads are served by the CDN, including Range requests.
+    // Use the stored extension, not the cosmetic extension in the request URL.
+    const publicURL = config.storage.backend === "s3" ? config.storage.s3?.publicURL : undefined;
+    if (publicURL) {
+      const key = ext ? `${hash}.${ext}` : hash;
+      return ctx.redirect(`${publicURL.replace(/\/$/, "")}/${key}`, 302);
     }
 
     // Range request support (BUD-01)
@@ -185,7 +217,7 @@ export function parseRange(
  * Falls back to stream-slicing over the full read() stream when readRange()
  * is not implemented (e.g. a custom IBlobStorage that only provides the base interface).
  */
-async function readRange(
+export async function readRange(
   storage: IBlobStorage,
   hash: string,
   ext: string,
@@ -204,14 +236,20 @@ async function readRange(
   let bytesSkipped = 0;
   let bytesRead = 0;
   const length = end - start + 1;
+  const reader = fullStream.getReader();
+  let cancelled = false;
 
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = fullStream.getReader();
+    async pull(controller) {
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (cancelled) return;
+          if (done) {
+            reader.releaseLock();
+            controller.close();
+            return;
+          }
           if (!value) continue;
 
           // Skip bytes before start
@@ -233,12 +271,26 @@ async function readRange(
             bytesRead += toRead;
           }
 
-          if (bytesRead >= length) break;
+          if (bytesRead >= length) {
+            controller.close();
+            await reader.cancel();
+            reader.releaseLock();
+          }
+          return;
         }
-      } finally {
-        reader.cancel().catch(() => {});
-        controller.close();
+      } catch (error) {
+        if (!cancelled) controller.error(error);
+        await reader.cancel(error).catch(() => {});
+        reader.releaseLock();
       }
     },
-  });
+    async cancel(reason) {
+      cancelled = true;
+      try {
+        await reader.cancel(reason);
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  }, { highWaterMark: 0 });
 }

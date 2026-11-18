@@ -1,46 +1,43 @@
 /**
  * Storage rule helpers — pure functions, no I/O.
  *
- * Used at two callsites:
- *   1. Upload time — getFileRule() gates whether a blob is accepted
- *   2. Prune time  — mimeToSqlLike() + parseDuration() drive expiry queries
+ * Used at upload time to select a rule and at prune time to evaluate retention.
  */
 
-import type { StorageRule } from "../config/schema.ts";
+import type { StorageRule } from "../policy/rule-schema.ts";
 
-/** Seconds per named unit. Month = 30 days, year = 365 days. */
-const DURATION_UNITS: Record<string, number> = {
-  second: 1,
-  seconds: 1,
-  minute: 60,
-  minutes: 60,
-  hour: 3600,
-  hours: 3600,
-  day: 86400,
-  days: 86400,
-  week: 604800,
-  weeks: 604800,
-  month: 2592000, // 30 days
-  months: 2592000,
-  year: 31536000, // 365 days
-  years: 31536000,
-};
+import { parseDuration } from "../policy/rule-schema.ts";
+
+export { parseDuration };
 
 /**
- * Parse a human-readable duration string into seconds.
- * Accepts formats like "1 month", "7 days", "2 weeks", "30 minutes".
- * Throws if the string cannot be parsed.
+ * Whether a rule restricts uploaders to an allowlist. A rule with static
+ * pubkeys is scoped; so is a rule with nip05Domains even while its fetched
+ * list is still empty — it must never fall back to matching everyone.
  */
-export function parseDuration(s: string): number {
-  const match = s.trim().match(/^(\d+)\s*(\w+)$/);
-  if (!match) throw new Error(`Invalid duration: "${s}"`);
-  const count = parseInt(match[1], 10);
-  const unit = match[2].toLowerCase();
-  const multiplier = DURATION_UNITS[unit];
-  if (multiplier === undefined) {
-    throw new Error(`Unknown duration unit: "${unit}" in "${s}"`);
-  }
-  return count * multiplier;
+export function isPubkeyScoped(rule: StorageRule): boolean {
+  return (rule.pubkeys?.length ?? 0) > 0 || (rule.nip05Domains?.length ?? 0) > 0;
+}
+
+/**
+ * Whether a pubkey would be allowed by ANY rule under requirePubkeyInRule
+ * semantics — i.e. it appears in at least one rule's pubkeys allowlist.
+ *
+ * Used by PUT /mirror to reject non-allowlisted uploaders BEFORE fetching
+ * the origin: without this, a non-allowlisted authenticated key could make
+ * the server issue outbound HTTP requests (SSRF-guarded, but still an
+ * unintended capability) whose results it would never be allowed to store.
+ */
+export function pubkeyAllowedByRules(
+  pubkey: string | undefined,
+  rules: StorageRule[],
+  requirePubkeyInRule: boolean,
+): boolean {
+  if (!requirePubkeyInRule) return true;
+  if (!pubkey) return false;
+  return rules.some(
+    (rule) => rule.pubkeys !== undefined && rule.pubkeys.includes(pubkey),
+  );
 }
 
 /**
@@ -67,20 +64,6 @@ export function mimeMatchesRule(
 }
 
 /**
- * Convert a rule type pattern to a SQL LIKE operand.
- * Used in getBlobsForPrune() to pre-filter blobs by type at the DB level.
- *
- *   "*"       → "%"
- *   "image/*" → "image/%"
- *   exact     → unchanged (still a valid LIKE pattern, no wildcards)
- */
-export function mimeToSqlLike(ruleType: string): string {
-  if (ruleType === "*") return "%";
-  if (ruleType.endsWith("/*")) return ruleType.slice(0, -1) + "%"; // "image/*" → "image/%"
-  return ruleType;
-}
-
-/**
  * Find the first storage rule that matches the given MIME type and pubkey.
  * Returns null if no rule matches — callers should reject the upload.
  *
@@ -103,8 +86,8 @@ export function getFileRule(
     // Pubkey scoping: if the rule restricts to specific pubkeys, the uploader
     // must be in that list. If requirePubkeyInRule is set globally, an anonymous
     // uploader (no pubkey) can never satisfy a pubkey-scoped rule.
-    if (rule.pubkeys && rule.pubkeys.length > 0) {
-      if (!pubkey || !rule.pubkeys.includes(pubkey)) {
+    if (isPubkeyScoped(rule)) {
+      if (!pubkey || !rule.pubkeys?.includes(pubkey)) {
         // If requirePubkeyInRule: only pubkey-scoped rules are valid gates,
         // so we continue searching instead of skipping to an unscoped rule.
         continue;
@@ -119,4 +102,40 @@ export function getFileRule(
   }
 
   return null;
+}
+
+/**
+ * Index of the rule that governs an existing blob's retention, or -1.
+ *
+ * Retention is first-match over the ordered rules: a pubkey-scoped rule applies
+ * when ANY owner is in its pubkeys list. Unlike getFileRule (the upload gate),
+ * requirePubkeyInRule is not considered — it controls admission, not retention.
+ */
+export function getGoverningRuleIndex(
+  blob: { type: string | null; owners: readonly string[] },
+  rules: readonly StorageRule[],
+): number {
+  for (let index = 0; index < rules.length; index++) {
+    const rule = rules[index];
+    if (!mimeMatchesRule(blob.type, rule.type)) continue;
+    if (isPubkeyScoped(rule) && !blob.owners.some((owner) => rule.pubkeys?.includes(owner))) continue;
+    return index;
+  }
+  return -1;
+}
+
+/**
+ * Unix time at which a blob governed by `rule` becomes eligible for pruning,
+ * or null when the rule's expiration is invalid.
+ */
+export function computeExpiry(
+  blob: { uploaded: number; accessed: number | null },
+  rule: StorageRule,
+): number | null {
+  try {
+    const basis = rule.basis === "uploaded" ? blob.uploaded : blob.accessed ?? blob.uploaded;
+    return basis + parseDuration(rule.expiration);
+  } catch {
+    return null;
+  }
 }

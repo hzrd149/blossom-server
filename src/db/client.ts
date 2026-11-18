@@ -32,8 +32,33 @@ export async function initDb(config: DbConfig): Promise<Client> {
     client = createClient({ url: `file:${config.path}` });
   }
 
-  // Run all migrations in alphabetical (numeric) order.
-  // All statements use CREATE TABLE IF NOT EXISTS — safe to re-run at startup.
+  await runMigrations(client);
+
+  // WAL mode and related pragmas are SQLite-only — skip for remote libSQL
+  if (!remote) {
+    await client.execute("PRAGMA journal_mode=WAL");
+    await client.execute("PRAGMA synchronous=NORMAL");
+    await client.execute("PRAGMA foreign_keys=ON");
+  }
+
+  _client = client;
+  return client;
+}
+
+/**
+ * Run pending migrations in alphabetical (numeric) order and record each applied
+ * file in schema_migrations so one-time statements (backfills, seeds) never re-run.
+ * Files 001-006 predate tracking and are idempotent, so on an existing database
+ * the first tracked boot re-executes them harmlessly and records them.
+ */
+export async function runMigrations(client: Client): Promise<void> {
+  await client.execute(
+    "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied INTEGER NOT NULL)",
+  );
+  const applied = new Set(
+    (await client.execute("SELECT name FROM schema_migrations")).rows.map((row) => row[0] as string),
+  );
+
   const migrationsDir = new URL("./migrations/", import.meta.url);
   const entries: string[] = [];
   for await (const entry of Deno.readDir(migrationsDir)) {
@@ -44,6 +69,7 @@ export async function initDb(config: DbConfig): Promise<Client> {
   entries.sort();
 
   for (const name of entries) {
+    if (applied.has(name)) continue;
     const sql = await Deno.readTextFile(
       new URL(join("./migrations/", name), import.meta.url),
     );
@@ -62,17 +88,11 @@ export async function initDb(config: DbConfig): Promise<Client> {
         throw err;
       }
     }
+    await client.execute({
+      sql: "INSERT OR IGNORE INTO schema_migrations (name, applied) VALUES (?, ?)",
+      args: [name, Math.floor(Date.now() / 1000)],
+    });
   }
-
-  // WAL mode and related pragmas are SQLite-only — skip for remote libSQL
-  if (!remote) {
-    await client.execute("PRAGMA journal_mode=WAL");
-    await client.execute("PRAGMA synchronous=NORMAL");
-    await client.execute("PRAGMA foreign_keys=ON");
-  }
-
-  _client = client;
-  return client;
 }
 
 export function getDb(): Client {

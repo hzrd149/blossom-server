@@ -119,9 +119,7 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
   log(`         blobs:    ${blobs.length}`);
   log(
     `         owners:   ${owners.length}` +
-      (duplicatesRemoved > 0
-        ? ` (${duplicatesRemoved} duplicate rows removed)`
-        : ""),
+      (duplicatesRemoved > 0 ? ` (${duplicatesRemoved} duplicate rows removed)` : ""),
   );
   log(`         accessed: ${accessed.length}`);
 
@@ -157,16 +155,16 @@ async function runMigration(dbPath: string, dbConfig: DbConfig): Promise<void> {
     const normalized = normalizeType(b.type);
     if (normalized !== b.type) normalizedCount++;
     await fresh.execute({
-      sql:
-        "INSERT OR IGNORE INTO blobs (sha256, type, size, uploaded) VALUES (?, ?, ?, ?)",
+      sql: "INSERT OR IGNORE INTO blobs (sha256, type, size, uploaded) VALUES (?, ?, ?, ?)",
       args: [b.sha256, normalized, b.size, b.uploaded],
     });
   }
 
   for (const o of owners) {
     await fresh.execute({
-      sql: "INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)",
-      args: [o.blob, o.pubkey],
+      // Legacy owners have no timestamp; use the blob's first upload time.
+      sql: "INSERT OR IGNORE INTO owners (blob, pubkey, uploaded) VALUES (?, ?, (SELECT uploaded FROM blobs WHERE sha256 = ?))",
+      args: [o.blob, o.pubkey, o.blob],
     });
   }
 
