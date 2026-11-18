@@ -10,7 +10,7 @@ import {
   ErrorAlert,
   HashLink,
   Loading,
-  PageHeader,
+  PageToolbar,
 } from "../components/ui.tsx";
 import { UserBadge } from "../components/user.tsx";
 import {
@@ -162,37 +162,20 @@ export function BlobPage({ sha256 }: { sha256: string }) {
   if (isPending) return <Loading />;
   if (error instanceof AdminApiError && error.status === 404) {
     return (
-      <>
-        <PageHeader
-          title="Blob not found"
-          subtitle={<span className="font-mono">{hash}</span>}
-        />
-        <EmptyState>
-          This hash is not stored on the server.{" "}
-          <Link to={`/users/${hash}`} className="link">
-            Look it up as a user instead
-          </Link>.
-        </EmptyState>
-      </>
+      <EmptyState>
+        <div className="font-mono break-all">{hash}</div>
+        This hash is not stored on the server.{" "}
+        <Link to={`/users/${hash}`} className="link">
+          Look it up as a user instead
+        </Link>.
+      </EmptyState>
     );
   }
   if (!blob) return <ErrorAlert error={error} />;
 
   return (
     <>
-      <PageHeader
-        title={
-          <span className="font-mono text-xl">
-            {shortHash(blob.sha256, 16)}
-          </span>
-        }
-        subtitle={
-          <>
-            {blob.type ?? "unknown type"} · {formatBytes(blob.size)} · uploaded
-            {" "}
-            {formatRelative(blob.uploaded)}
-          </>
-        }
+      <PageToolbar
         actions={
           <>
             <a
@@ -219,7 +202,16 @@ export function BlobPage({ sha256 }: { sha256: string }) {
             </ConfirmButton>
           </>
         }
-      />
+      >
+        <span className="font-mono break-all text-base-content">
+          {blob.sha256}
+        </span>
+        <span>
+          {blob.type ?? "unknown type"} · {formatBytes(blob.size)} · uploaded
+          {" "}
+          {formatRelative(blob.uploaded)}
+        </span>
+      </PageToolbar>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="flex flex-col gap-4">
           <MediaPreview blob={blob} />

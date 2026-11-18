@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Remove page titles from the admin console and let admin pages use the full browser width.
+
 - Preserve prune metadata until blob and thumbnail storage deletion succeeds, and report local deletion failures so cleanup can retry safely (#33).
 
 - Use standard-size admin buttons, search fields, forms, and pagination; reserve compact controls for dense table rows and inline copy actions.

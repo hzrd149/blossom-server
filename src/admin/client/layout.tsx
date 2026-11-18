@@ -112,7 +112,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </label>
           <GlobalSearch />
         </nav>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-3 sm:px-6">
+        <main className="w-full flex-1 px-4 py-3 sm:px-6">
           {children}
         </main>
       </div>

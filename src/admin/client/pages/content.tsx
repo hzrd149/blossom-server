@@ -13,7 +13,7 @@ import {
   ErrorAlert,
   HashLink,
   Loading,
-  PageHeader,
+  PageToolbar,
   Paginator,
 } from "../components/ui.tsx";
 import { UserBadge } from "../components/user.tsx";
@@ -119,15 +119,7 @@ export function ContentPage() {
 
   return (
     <>
-      <PageHeader
-        title="Content"
-        subtitle={owner
-          ? (
-            <>
-              Blobs owned by <UserBadge pubkey={owner} />
-            </>
-          )
-          : undefined}
+      <PageToolbar
         actions={
           <ConfirmButton
             disabled={selected.size === 0}
@@ -141,10 +133,16 @@ export function ContentPage() {
             Delete selected ({selected.size})
           </ConfirmButton>
         }
-      />
+      >
+        {owner && (
+          <>
+            Blobs owned by <UserBadge pubkey={owner} />
+          </>
+        )}
+      </PageToolbar>
       <form onSubmit={submit} className="mb-3 flex flex-wrap gap-2">
         <input
-          className="input input-bordered w-full max-w-md"
+          className="input input-bordered flex-1 min-w-48"
           placeholder="Filter by hash or MIME type (e.g. video/)"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

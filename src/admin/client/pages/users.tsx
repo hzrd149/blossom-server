@@ -15,7 +15,7 @@ import {
   ErrorAlert,
   HashLink,
   Loading,
-  PageHeader,
+  PageToolbar,
   Paginator,
   StatTile,
 } from "../components/ui.tsx";
@@ -35,7 +35,6 @@ export function UsersPage() {
   const { data, error, isPending } = useQuery(adminQueries.users(params));
   return (
     <>
-      <PageHeader title="Users" subtitle="Blob owners and reporters" />
       <form
         className="flex flex-wrap gap-2 mb-3"
         onSubmit={(event) => {
@@ -343,8 +342,7 @@ function UserDetail({ pubkey }: { pubkey: string }) {
   const npub = safeNpub(pubkey);
   return (
     <>
-      <PageHeader
-        title="User profile"
+      <PageToolbar
         actions={<Link to="/users" className="btn btn-ghost">All users</Link>}
       />
       <ErrorAlert error={error ?? remove.error} />

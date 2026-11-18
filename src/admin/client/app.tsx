@@ -8,7 +8,7 @@ import { DashboardPage } from "./pages/dashboard.tsx";
 import { RulesPage } from "./pages/rules.tsx";
 import { SettingsPage } from "./pages/settings.tsx";
 import { UserPage, UsersPage } from "./pages/users.tsx";
-import { EmptyState, PageHeader } from "./components/ui.tsx";
+import { EmptyState } from "./components/ui.tsx";
 import { Link, useLocation } from "./router.tsx";
 
 const ROUTES: {
@@ -33,12 +33,9 @@ const ROUTES: {
 
 function NotFound() {
   return (
-    <>
-      <PageHeader title="Page not found" />
-      <EmptyState>
-        <Link to="/" className="link">Back to the dashboard</Link>
-      </EmptyState>
-    </>
+    <EmptyState>
+      Page not found. <Link to="/" className="link">Back to the dashboard</Link>
+    </EmptyState>
   );
 }
 

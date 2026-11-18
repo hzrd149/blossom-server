@@ -16,7 +16,7 @@ import {
   ErrorAlert,
   HashLink,
   Loading,
-  PageHeader,
+  PageToolbar,
 } from "../components/ui.tsx";
 import { safeNpub } from "../components/user.tsx";
 import { normalizeNip05Domain } from "../../../allowlist/nip05-domain.ts";
@@ -511,9 +511,7 @@ function RulesEditor({ view }: { view: RulesView }) {
 
   return (
     <>
-      <PageHeader
-        title="Storage rules"
-        subtitle="Rules are evaluated top to bottom; the first match admits an upload and decides how long it is kept."
+      <PageToolbar
         actions={view.editable && (
           <>
             <ConfirmButton
@@ -546,7 +544,10 @@ function RulesEditor({ view }: { view: RulesView }) {
             </button>
           </>
         )}
-      />
+      >
+        Rules are evaluated top to bottom; the first match admits an upload and
+        decides how long it is kept.
+      </PageToolbar>
       {!view.editable && (
         <div role="note" className="alert alert-info alert-soft mb-4 text-sm">
           These rules come from <code>storage.rules</code>{" "}

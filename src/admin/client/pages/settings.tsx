@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { adminQueries } from "../api/queries.ts";
-import { ErrorAlert, Loading, PageHeader } from "../components/ui.tsx";
+import { ErrorAlert, Loading, PageToolbar } from "../components/ui.tsx";
 import { formatBytes } from "../lib/format.ts";
 
 export function SettingsPage() {
@@ -20,10 +20,9 @@ export function SettingsPage() {
   ];
   return (
     <>
-      <PageHeader
-        title="Settings"
-        subtitle="Server configuration is managed in config.yml and applied on restart."
-      />
+      <PageToolbar>
+        Server configuration is managed in config.yml and applied on restart.
+      </PageToolbar>
       {!settings.uploadRequireAuth && (
         <div
           role="alert"

@@ -1,11 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { adminQueries } from "../api/queries.ts";
-import {
-  ErrorAlert,
-  Loading,
-  PageHeader,
-  StatTile,
-} from "../components/ui.tsx";
+import { ErrorAlert, Loading, StatTile } from "../components/ui.tsx";
 import {
   formatBytes,
   formatDate,
@@ -66,7 +61,6 @@ export function DashboardPage() {
   const { data, error, isPending } = useQuery(adminQueries.summary());
   return (
     <>
-      <PageHeader title="Dashboard" />
       <ErrorAlert error={error} />
       {isPending
         ? <Loading />

@@ -13,7 +13,6 @@ import {
   ErrorAlert,
   HashLink,
   Loading,
-  PageHeader,
   Paginator,
 } from "../components/ui.tsx";
 import { UserBadge } from "../components/user.tsx";
@@ -50,10 +49,6 @@ export function ReportsPage() {
   }, [data, params.page]);
   return (
     <>
-      <PageHeader
-        title="Reports"
-        subtitle="Review and moderate reported content"
-      />
       <form
         className="flex flex-wrap gap-2 mb-3"
         onSubmit={(event) => {

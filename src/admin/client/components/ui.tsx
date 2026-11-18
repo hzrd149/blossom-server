@@ -3,21 +3,21 @@ import { AdminApiError } from "../api/client.ts";
 import { formatNumber, shortHash } from "../lib/format.ts";
 import { Link } from "../router.tsx";
 
-export function PageHeader(
-  { title, subtitle, actions }: {
-    title: ReactNode;
-    subtitle?: ReactNode;
-    actions?: ReactNode;
-  },
+/**
+ * Title-less row above page content: optional context on the left and page
+ * actions on the right. The sidebar already names the current page.
+ */
+export function PageToolbar(
+  { children, actions }: { children?: ReactNode; actions?: ReactNode },
 ) {
+  if (!children && !actions) return null;
   return (
-    <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-lg font-semibold break-all">{title}</h1>
-        {subtitle && <p className="text-base-content/60 text-sm">{subtitle}</p>}
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-base-content/70">
+        {children}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
-    </header>
+    </div>
   );
 }
 
