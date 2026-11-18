@@ -154,8 +154,13 @@ export async function pruneStorage(
   const removeBlob = async (row: { sha256: string; size: number; type: string | null }, reason: PruneReason) => {
     const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
     if (!dryRun) {
-      await deleteBlob(db, row.sha256); // FK cascade removes owners + accessed rows
+      // Keep all metadata (including thumbnail links) until storage cleanup succeeds,
+      // so a later cycle can retry failures. Already-missing files are safe to retry.
       await storage.remove(row.sha256, mimeToExt(row.type));
+      for (const thumbnail of thumbnails) {
+        await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
+      }
+      await deleteBlob(db, row.sha256); // FK cascade removes owners + accessed rows
       metrics?.add("blossom_prune_deleted_bytes_total", "", row.size, "Logical bytes removed by pruning; not physical backend usage.");
     }
     deleted++;
@@ -163,7 +168,6 @@ export async function pruneStorage(
     for (const thumbnail of thumbnails) {
       if (!dryRun) {
         await deleteBlob(db, thumbnail.sha256);
-        await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
         metrics?.add("blossom_prune_deleted_bytes_total", "", thumbnail.size, "Logical bytes removed by pruning; not physical backend usage.");
       }
       deleted++;

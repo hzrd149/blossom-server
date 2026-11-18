@@ -99,6 +99,6 @@ export interface IBlobStorage {
    */
   commitFile(srcPath: string, hash: string, ext: string): Promise<void>;
 
-  /** Removes a blob from storage. Returns true if it existed. */
+  /** Removes a blob from storage. Returns false if missing; throws on other failures. */
   remove(hash: string, ext: string): Promise<boolean>;
 }

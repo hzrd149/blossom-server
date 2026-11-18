@@ -4,6 +4,8 @@
 
 ### Patch Changes
 
+- Preserve prune metadata until blob and thumbnail storage deletion succeeds, and report local deletion failures so cleanup can retry safely (#33).
+
 - Use standard-size admin buttons, search fields, forms, and pagination; reserve compact controls for dense table rows and inline copy actions.
 
 - Show admin success notifications as dismissible, auto-clearing bottom-right toasts instead of page-shifting inline banners.
