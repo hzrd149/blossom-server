@@ -12,6 +12,7 @@
 import type { Hono } from "@hono/hono";
 import { assertEquals } from "@std/assert";
 import { encodeBase64Url } from "@std/encoding/base64url";
+import { encodeHex } from "@std/encoding/hex";
 import { join } from "@std/path";
 import type { NostrEvent } from "nostr-tools";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
@@ -27,13 +28,13 @@ const pkA = getPublicKey(skA);
 const skB = generateSecretKey();
 const pkB = getPublicKey(skB);
 
-function authHeader(sk: Uint8Array, tTag: string): string {
+function authHeader(sk: Uint8Array, tTag: string, hash: string): string {
   const now = Math.floor(Date.now() / 1000);
   const ev = finalizeEvent(
     {
       kind: 24242,
       created_at: now,
-      tags: [["t", tTag], ["expiration", String(now + 600)]],
+      tags: [["t", tTag], ["expiration", String(now + 600)], ["x", hash]],
       content: "type-filter test",
     },
     sk,
@@ -72,13 +73,14 @@ Deno.test({
       into?: string[],
     ): Promise<string> {
       const body = new TextEncoder().encode(content);
+      const hash = encodeHex(new Uint8Array(await crypto.subtle.digest("SHA-256", body)));
       const res = await app.fetch(
         new Request("http://localhost/upload", {
           method: "PUT",
           headers: {
             "Content-Length": String(body.byteLength),
             "Content-Type": contentType,
-            Authorization: authHeader(sk, "upload"),
+            Authorization: authHeader(sk, "upload", hash),
           },
           body,
         }),
