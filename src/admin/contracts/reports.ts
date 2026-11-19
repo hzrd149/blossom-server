@@ -15,6 +15,10 @@ export interface ReportItem extends ReportDto {
   blobType: string | null;
   blobSize: number | null;
   ownerCount: number;
+  /** All retained reports on this blob, including this one. */
+  blobReportCount: number;
+  /** Same-origin path that serves the blob, e.g. "/<sha256>.png". */
+  path: string;
 }
 export interface ReportsPage {
   items: ReportItem[];

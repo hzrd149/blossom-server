@@ -46,6 +46,9 @@ Deno.test("admin reports filter, paginate and moderate shared blobs without infl
     const second = await (await request("/api/reports?pageSize=1&page=2")).json();
     assertEquals(second.items[0].ownerCount, 2);
     assertEquals(second.items[0].blobSize, 10);
+    assertEquals(second.items[0].blobReportCount, 2);
+    assertEquals(second.items[0].path, `/${hash}.txt`);
+    assertEquals(all.items[0].blobReportCount, 1);
     assertEquals((await (await request("/api/reports?type=spam")).json()).total, 2);
     assertEquals((await (await request("/api/reports?type=unspecified")).json()).total, 1);
     assertEquals((await (await request("/api/reports?q=EVIDENCE%201")).json()).total, 1);

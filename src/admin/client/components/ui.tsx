@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AdminApiError } from "../api/client.ts";
 import { formatNumber, shortHash } from "../lib/format.ts";
-import { Link } from "../router.tsx";
+import { Link, setSearch } from "../router.tsx";
 
 /**
  * Title-less row above page content: optional context on the left and page
@@ -94,7 +94,11 @@ export function StatTile(
 }
 
 export function CopyButton(
-  { value, label = "Copy" }: { value: string; label?: string },
+  { value, label = "Copy", className = "btn btn-ghost btn-sm" }: {
+    value: string;
+    label?: string;
+    className?: string;
+  },
 ) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -105,7 +109,7 @@ export function CopyButton(
   return (
     <button
       type="button"
-      className="btn btn-ghost btn-sm"
+      className={className}
       title={`Copy ${value}`}
       onClick={() =>
         navigator.clipboard.writeText(value).then(() => setCopied(true)).catch(
@@ -126,6 +130,36 @@ export function HashLink({ hash, length }: { hash: string; length?: number }) {
     >
       {shortHash(hash, length)}
     </Link>
+  );
+}
+
+/** Table header that sorts by `column` through the URL, toggling direction. */
+export function SortHeader<T extends string>(
+  { column, label, sort, dir, className }: {
+    column: T;
+    label: string;
+    sort: T;
+    dir: "asc" | "desc";
+    className?: string;
+  },
+) {
+  const active = sort === column;
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 hover:underline"
+        onClick={() =>
+          setSearch({
+            sort: column,
+            dir: active && dir === "desc" ? "asc" : "desc",
+            page: 1,
+          })}
+      >
+        {label}
+        {active && <span aria-hidden>{dir === "desc" ? "▼" : "▲"}</span>}
+      </button>
+    </th>
   );
 }
 

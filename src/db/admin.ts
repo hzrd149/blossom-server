@@ -4,11 +4,14 @@
  */
 
 import type { Client } from "@libsql/client";
-import type { ReportsPage, ReportsQuery } from "../admin/contracts/reports.ts";
+import type { ReportItem, ReportsPage, ReportsQuery } from "../admin/contracts/reports.ts";
 import type { UserPageQuery, UserReportsQuery, UsersQuery, UserSummary } from "../admin/contracts/users.ts";
 import type { ReportRecord } from "./reports.ts";
 
-export async function listAdminReports(db: Client, query: ReportsQuery): Promise<ReportsPage> {
+/** Report rows before the service layer attaches the public blob path. */
+export type AdminReportsRows = Omit<ReportsPage, "items"> & { items: Omit<ReportItem, "path">[] };
+
+export async function listAdminReports(db: Client, query: ReportsQuery): Promise<AdminReportsRows> {
   const conditions = [
     "(instr(lower(r.blob), lower(?)) > 0 OR instr(lower(r.reporter), lower(?)) > 0 OR instr(lower(r.content), lower(?)) > 0 OR instr(lower(r.event_id), lower(?)) > 0)",
   ];
@@ -23,7 +26,8 @@ export async function listAdminReports(db: Client, query: ReportsQuery): Promise
   const [rows, counts] = await db.batch([
     {
       sql: `SELECT r.*, b.type AS blob_type, b.size AS blob_size,
-        (SELECT COUNT(*) FROM owners o WHERE o.blob = r.blob) AS owner_count
+        (SELECT COUNT(*) FROM owners o WHERE o.blob = r.blob) AS owner_count,
+        (SELECT COUNT(*) FROM reports x WHERE x.blob = r.blob) AS blob_report_count
       FROM reports r LEFT JOIN blobs b ON b.sha256 = r.blob ${where}
       ORDER BY r.${sort} ${query.dir === "asc" ? "ASC" : "DESC"}, r.id DESC LIMIT ? OFFSET ?`,
       args: [...args, query.pageSize, (query.page - 1) * query.pageSize],
@@ -42,6 +46,7 @@ export async function listAdminReports(db: Client, query: ReportsQuery): Promise
       blobType: r.blob_type as string | null,
       blobSize: r.blob_size == null ? null : Number(r.blob_size),
       ownerCount: Number(r.owner_count),
+      blobReportCount: Number(r.blob_report_count),
     })),
     total: Number(counts.rows[0].total),
     blobCount: Number(counts.rows[0].blobs),

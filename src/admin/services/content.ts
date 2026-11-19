@@ -7,7 +7,7 @@ import type { BlobDetail, ReportDto } from "../contracts/blobs.ts";
 import type { ContentPage, ContentQuery, InventorySummary } from "../contracts/content.ts";
 import type { ManagementDatabase } from "./database.ts";
 
-function blobPath(sha256: string, type: string | null): string {
+export function blobPath(sha256: string, type: string | null): string {
   const ext = mimeToExt(type);
   return `/${sha256}${ext ? `.${ext}` : ""}`;
 }

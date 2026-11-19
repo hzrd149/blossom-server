@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
   REPORT_FILTER_TYPES,
+  type ReportItem,
+  type ReportsQuery,
   ReportsQuerySchema,
 } from "../../contracts/reports.ts";
 import { adminApi } from "../api/client.ts";
@@ -13,12 +15,56 @@ import {
   ErrorAlert,
   HashLink,
   Loading,
+  PageToolbar,
   Paginator,
+  SortHeader,
 } from "../components/ui.tsx";
 import { UserBadge } from "../components/user.tsx";
-import { formatBytes, formatDate, formatNumber } from "../lib/format.ts";
+import {
+  formatBytes,
+  formatDate,
+  formatNumber,
+  formatRelative,
+  mediaKind,
+} from "../lib/format.ts";
 import { Link, setSearch, useLocation } from "../router.tsx";
 import { useToast } from "../components/toasts.tsx";
+
+type Sort = ReportsQuery["sort"];
+
+const plural = (count: number, word: string) =>
+  `${formatNumber(count)} ${word}${count === 1 ? "" : "s"}`;
+
+/** Reported media is blurred until hovered so moderators opt in to seeing it. */
+function Preview({ report }: { report: ReportItem }) {
+  const kind = report.blobSize === null ? null : mediaKind(report.blobType);
+  if (kind !== "image") {
+    return (
+      <span className="badge badge-ghost badge-sm w-10 justify-center">
+        {report.blobSize === null ? "—" : report.blobType?.split("/")[0] ?? "?"}
+      </span>
+    );
+  }
+  return (
+    <Link to={`/blobs/${report.blob}`} title="Inspect blob">
+      <img
+        src={report.path}
+        alt=""
+        loading="lazy"
+        className="h-10 w-10 rounded object-cover bg-base-300 blur-sm hover:blur-none transition"
+      />
+    </Link>
+  );
+}
+
+/** One report id per distinct blob, so bulk blob deletion never hits a report the previous call removed. */
+function onePerBlob(reports: ReportItem[]): ReportItem[] {
+  const byBlob = new Map<string, ReportItem>();
+  for (const report of reports) {
+    if (!byBlob.has(report.blob)) byBlob.set(report.blob, report);
+  }
+  return [...byBlob.values()];
+}
 
 export function ReportsPage() {
   const { search } = useLocation();
@@ -27,28 +73,118 @@ export function ReportsPage() {
   const [input, setInput] = useState(params.q);
   const notify = useToast();
   useEffect(() => setInput(params.q), [params.q]);
-  const { data, error, isPending } = useQuery(adminQueries.reports(params));
+  const { data, error, isPending, isFetching } = useQuery(
+    adminQueries.reports(params),
+  );
+  const items = data?.items ?? [];
+
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const paramsKey = JSON.stringify(params);
+  useEffect(() => setSelected(new Set()), [paramsKey]);
+  const selectedReports = items.filter((report) => selected.has(report.id));
+  const selectedBlobs = onePerBlob(selectedReports);
+  const allSelected = items.length > 0 &&
+    items.every((report) => selected.has(report.id));
+  const toggle = (id: number) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const queryClient = useQueryClient();
   const action = useMutation({
-    mutationFn: (
-      { id, action }: { id: number; action: "dismiss" | "delete-blob" },
-    ) => adminApi.reportAction(id, action),
-    onSuccess: (_, variables) =>
+    mutationFn: async (
+      { ids, action }: { ids: number[]; action: "dismiss" | "delete-blob" },
+    ) => {
+      for (const id of ids) await adminApi.reportAction(id, action);
+    },
+    onSuccess: (_, { ids, action }) => {
+      setSelected(new Set());
       notify(
-        variables.action === "dismiss"
-          ? "Report dismissed."
-          : "Blob deleted for all owners and its reports removed.",
-      ),
+        action === "dismiss"
+          ? `${plural(ids.length, "report")} dismissed.`
+          : `${
+            plural(ids.length, "blob")
+          } deleted for all owners and their reports removed.`,
+      );
+    },
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
   });
+  const dismiss = (ids: number[]) =>
+    action.mutateAsync({ ids, action: "dismiss" });
+  const deleteBlobs = (reports: ReportItem[]) =>
+    action.mutateAsync({
+      ids: onePerBlob(reports).map((report) => report.id),
+      action: "delete-blob",
+    });
+
   useEffect(() => {
     if (data && params.page > 1 && !data.items.length) {
       setSearch({ page: Math.max(1, Math.ceil(data.total / data.pageSize)) });
     }
   }, [data, params.page]);
+
   return (
     <>
+      <PageToolbar
+        actions={
+          <>
+            <ConfirmButton
+              className="btn btn-sm"
+              disabled={selected.size === 0}
+              title={`Dismiss ${plural(selected.size, "report")}?`}
+              description="Removes only the selected reports. Their blobs remain available."
+              confirmLabel="Dismiss"
+              onConfirm={() => dismiss([...selected])}
+            >
+              Dismiss ({selected.size})
+            </ConfirmButton>
+            <ConfirmButton
+              className="btn btn-sm btn-error btn-outline"
+              disabled={selectedBlobs.length === 0}
+              title={`Delete ${plural(selectedBlobs.length, "reported blob")}?`}
+              description={`Permanently deletes ${
+                plural(selectedBlobs.length, "blob")
+              } for all ${
+                plural(
+                  selectedBlobs.reduce((sum, r) => sum + r.ownerCount, 0),
+                  "owner",
+                )
+              } and removes every report on them. This cannot be undone.`}
+              confirmLabel="Delete blobs"
+              onConfirm={() => deleteBlobs(selectedBlobs)}
+            >
+              Delete blobs ({selectedBlobs.length})
+            </ConfirmButton>
+          </>
+        }
+      >
+        {data && (
+          <>
+            <span>
+              <strong className="text-base-content">
+                {formatNumber(data.total)}
+              </strong>{" "}
+              reports
+            </span>
+            <span>
+              <strong className="text-base-content">
+                {formatNumber(data.blobCount)}
+              </strong>{" "}
+              blobs
+            </span>
+            <span>
+              <strong className="text-base-content">
+                {formatNumber(data.reporterCount)}
+              </strong>{" "}
+              reporters
+            </span>
+          </>
+        )}
+      </PageToolbar>
       <form
         className="flex flex-wrap gap-2 mb-3"
         onSubmit={(event) => {
@@ -76,107 +212,194 @@ export function ReportsPage() {
             <option key={type} value={type}>{type}</option>
           ))}
         </select>
-        <select
-          aria-label="Sort reports"
-          className="select w-auto"
-          value={params.sort}
-          onChange={(e) => setSearch({ sort: e.target.value, page: 1 })}
-        >
-          <option value="created">Report date</option>
-          <option value="type">Type</option>
-          <option value="reporter">Reporter</option>
-          <option value="blob">Blob</option>
-        </select>
-        <button
-          type="button"
-          className="btn"
-          onClick={() =>
-            setSearch({ dir: params.dir === "desc" ? "asc" : "desc", page: 1 })}
-        >
-          {params.dir === "desc" ? "Descending" : "Ascending"}
-        </button>
-        <Link to="/reports" className="btn btn-ghost">Reset</Link>
+        {(params.q || params.type !== "all") && (
+          <Link to="/reports" className="btn btn-ghost">Reset</Link>
+        )}
+        {isFetching && !isPending && (
+          <span className="loading loading-spinner loading-sm self-center" />
+        )}
       </form>
       <ErrorAlert error={error ?? action.error} />
-      {isPending ? <Loading /> : data && (
-        <>
-          <p className="text-sm text-base-content/70 mb-3">
-            {formatNumber(data.total)} reports · {formatNumber(data.blobCount)}
-            {" "}
-            blobs · {formatNumber(data.reporterCount)}{" "}
-            reporters matching filters
-          </p>
-          <div className="space-y-3">
-            {data.items.map((report) => (
-              <article
-                key={report.id}
-                className="border border-base-300 rounded-box p-3 min-w-0"
-              >
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="badge badge-sm">
-                    {report.type ?? "unspecified"}
-                  </span>
-                  <HashLink hash={report.blob} />
-                  <span className="text-base-content/60">
-                    {report.blobSize === null
-                      ? "Blob no longer stored"
-                      : `${report.blobType ?? "unknown type"} · ${
-                        formatBytes(report.blobSize)
-                      } · ${report.ownerCount} owner(s)`}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm mt-2">
-                  <Link
-                    to={`/users/${report.reporter}`}
-                    className="link link-hover min-w-0"
+      {isPending
+        ? <Loading />
+        : !data
+        ? null
+        : items.length === 0
+        ? <EmptyState>No reports match these filters.</EmptyState>
+        : (
+          <div className="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+            <table className="table table-sm">
+              <thead>
+                <tr>
+                  <th className="w-px">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm"
+                      aria-label="Select page"
+                      checked={allSelected}
+                      onChange={() =>
+                        setSelected(
+                          allSelected
+                            ? new Set()
+                            : new Set(items.map((report) => report.id)),
+                        )}
+                    />
+                  </th>
+                  <th className="w-px" />
+                  <SortHeader<Sort>
+                    column="blob"
+                    label="Blob"
+                    sort={params.sort}
+                    dir={params.dir}
+                  />
+                  <SortHeader<Sort>
+                    column="type"
+                    label="Report"
+                    sort={params.sort}
+                    dir={params.dir}
+                  />
+                  <SortHeader<Sort>
+                    column="reporter"
+                    label="Reporter"
+                    sort={params.sort}
+                    dir={params.dir}
+                  />
+                  <SortHeader<Sort>
+                    column="created"
+                    label="Reported"
+                    sort={params.sort}
+                    dir={params.dir}
+                  />
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((report) => (
+                  <tr
+                    key={report.id}
+                    className={selected.has(report.id)
+                      ? "bg-base-200"
+                      : "hover:bg-base-200/50"}
                   >
-                    <UserBadge pubkey={report.reporter} />
-                  </Link>
-                  <span title="Reporter-supplied date">
-                    {formatDate(report.created)}
-                  </span>
-                  <span className="text-base-content/60">
-                    Report #{report.id}
-                  </span>
-                </div>
-                <p className="text-sm whitespace-pre-wrap break-words my-3">
-                  {report.content || "No report text provided."}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link to={`/blobs/${report.blob}`} className="btn">
-                    Inspect blob
-                  </Link>
-                  <CopyButton value={report.eventId} label="Copy event ID" />
-                  <ConfirmButton
-                    className="btn"
-                    title="Dismiss report?"
-                    description="Removes only this report. The blob remains available."
-                    confirmLabel="Dismiss"
-                    onConfirm={() =>
-                      action.mutateAsync({ id: report.id, action: "dismiss" })}
-                  >
-                    Dismiss
-                  </ConfirmButton>
-                  <ConfirmButton
-                    className="btn btn-error btn-outline"
-                    title="Delete reported blob?"
-                    description={`Permanently deletes this blob for all ${report.ownerCount} owner(s) and removes every report on it.`}
-                    confirmLabel="Delete blob"
-                    onConfirm={() =>
-                      action.mutateAsync({
-                        id: report.id,
-                        action: "delete-blob",
-                      })}
-                  >
-                    Delete blob
-                  </ConfirmButton>
-                </div>
-              </article>
-            ))}
+                    <td>
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm"
+                        aria-label={`Select report ${report.id}`}
+                        checked={selected.has(report.id)}
+                        onChange={() => toggle(report.id)}
+                      />
+                    </td>
+                    <td>
+                      <Preview report={report} />
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <HashLink hash={report.blob} />
+                      <div className="text-xs text-base-content/60">
+                        {report.blobSize === null
+                          ? <span className="text-warning">Not stored</span>
+                          : (
+                            <>
+                              <span className="font-mono">
+                                {report.blobType ?? "unknown"}
+                              </span>{" "}
+                              · {formatBytes(report.blobSize)} ·{" "}
+                              {plural(report.ownerCount, "owner")}
+                            </>
+                          )}
+                      </div>
+                      {report.blobReportCount > 1 && (
+                        <button
+                          type="button"
+                          className="link link-hover text-xs text-error"
+                          title="Show all reports on this blob"
+                          onClick={() =>
+                            setSearch({ q: report.blob, type: null, page: 1 })}
+                        >
+                          {plural(report.blobReportCount, "report")} on blob
+                        </button>
+                      )}
+                    </td>
+                    <td className="min-w-64 max-w-md">
+                      <span
+                        className={`badge badge-sm ${
+                          report.type ? "badge-soft badge-error" : "badge-ghost"
+                        }`}
+                      >
+                        {report.type ?? "unspecified"}
+                      </span>
+                      <p
+                        className={`mt-1 text-sm line-clamp-2 break-words ${
+                          report.content ? "" : "text-base-content/50 italic"
+                        }`}
+                        title={report.content || undefined}
+                      >
+                        {report.content || "No report text"}
+                      </p>
+                    </td>
+                    <td>
+                      <Link
+                        to={`/users/${report.reporter}`}
+                        className="link link-hover"
+                      >
+                        <UserBadge pubkey={report.reporter} />
+                      </Link>
+                    </td>
+                    <td
+                      className="whitespace-nowrap"
+                      title={`${
+                        formatDate(report.created)
+                      } (reporter-supplied)`}
+                    >
+                      {formatRelative(report.created)}
+                    </td>
+                    <td>
+                      <div className="flex justify-end gap-1 whitespace-nowrap">
+                        <Link
+                          to={`/blobs/${report.blob}`}
+                          className="btn btn-ghost btn-xs"
+                        >
+                          Inspect
+                        </Link>
+                        <CopyButton
+                          className="btn btn-ghost btn-xs"
+                          value={report.eventId}
+                          label="Event ID"
+                        />
+                        <ConfirmButton
+                          className="btn btn-ghost btn-xs"
+                          title="Dismiss report?"
+                          description="Removes only this report. The blob remains available."
+                          confirmLabel="Dismiss"
+                          onConfirm={() => dismiss([report.id])}
+                        >
+                          Dismiss
+                        </ConfirmButton>
+                        <ConfirmButton
+                          className="btn btn-ghost btn-xs text-error"
+                          title="Delete reported blob?"
+                          description={`Permanently deletes this blob for all ${
+                            plural(report.ownerCount, "owner")
+                          } and removes ${
+                            report.blobReportCount > 1
+                              ? `all ${report.blobReportCount} reports`
+                              : "the report"
+                          } on it.`}
+                          confirmLabel="Delete blob"
+                          onConfirm={() => deleteBlobs([report])}
+                        >
+                          Delete
+                        </ConfirmButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          {!data.items.length && (
-            <EmptyState>No reports match these filters.</EmptyState>
-          )}
+        )}
+      {data && (
+        <>
           <Paginator
             page={data.page}
             pageSize={data.pageSize}
@@ -185,7 +408,7 @@ export function ReportsPage() {
           />
           <p className="text-xs text-base-content/60">
             Retained reports only; dismissed reports are removed. Dates are
-            supplied by reporters.
+            supplied by reporters. Image previews are blurred until hovered.
           </p>
         </>
       )}

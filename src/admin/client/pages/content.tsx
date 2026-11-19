@@ -15,6 +15,7 @@ import {
   Loading,
   PageToolbar,
   Paginator,
+  SortHeader,
 } from "../components/ui.tsx";
 import { UserBadge } from "../components/user.tsx";
 import {
@@ -43,34 +44,6 @@ function Preview({ item }: { item: ContentItem }) {
       loading="lazy"
       className="h-10 w-10 rounded object-cover bg-base-300"
     />
-  );
-}
-
-function SortHeader(
-  { column, label, sort, dir }: {
-    column: Sort;
-    label: string;
-    sort: Sort;
-    dir: "asc" | "desc";
-  },
-) {
-  const active = sort === column;
-  return (
-    <th>
-      <button
-        type="button"
-        className="inline-flex items-center gap-1 hover:underline"
-        onClick={() =>
-          setSearch({
-            sort: column,
-            dir: active && dir === "desc" ? "asc" : "desc",
-            page: 1,
-          })}
-      >
-        {label}
-        {active && <span aria-hidden>{dir === "desc" ? "▼" : "▲"}</span>}
-      </button>
-    </th>
   );
 }
 

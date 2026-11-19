@@ -1,9 +1,13 @@
-import type { ContentService } from "./content.ts";
+import type { ReportsPage, ReportsQuery } from "../contracts/reports.ts";
+import { blobPath, type ContentService } from "./content.ts";
 import type { ManagementDatabase } from "./database.ts";
 
 export function createReportService(db: ManagementDatabase, content: ContentService) {
   return {
-    list: db.listAdminReports,
+    async list(query: ReportsQuery): Promise<ReportsPage> {
+      const page = await db.listAdminReports(query);
+      return { ...page, items: page.items.map((item) => ({ ...item, path: blobPath(item.blob, item.blobType) })) };
+    },
     dismiss: (id: number) => db.deleteReport(id),
     async deleteContent(id: number): Promise<boolean> {
       const report = await db.getReport(id);
