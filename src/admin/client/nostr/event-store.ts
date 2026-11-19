@@ -1,6 +1,6 @@
 import { EventStore } from "applesauce-core/event-store";
 import { createEventLoaderForStore } from "applesauce-loaders/loaders";
-import { verifyEvent } from "nostr-tools/pure";
+import { verifyEvent } from "applesauce-core/helpers";
 import { fallbackRelays, lookupRelays, pool } from "./relays.ts";
 
 export const eventStore = new EventStore({ verifyEvent });
