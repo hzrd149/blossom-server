@@ -23,6 +23,7 @@
 
 - Bound media processing concurrency, image pixels and animation frames, and video duration; restrict and time out video probes/transcodes on `/media`,
   `/upload`, and `/mirror` (#75).
+- Upgrade `file-type` to v22 so a malformed ASF upload can no longer hang media MIME detection (GHSA-5v7r-6r5c-r473).
 - Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400, while continuing to reject malformed supplied credentials on public routes (#73).
 - Remove page titles from the admin console and let admin pages use the full browser width.
 - Restore S3 `publicURL` redirects for blob downloads, including Range requests, instead of returning 404 (#68).
