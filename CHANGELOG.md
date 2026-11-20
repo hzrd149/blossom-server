@@ -4,6 +4,9 @@
 
 ### Minor Changes
 
+- Strip source video metadata and chapters from new `/media` transcodes by default (`media.video.keepMetadata` restores copying), and add
+  `media.optimizeByDefault` to pre-select optimization in the landing uploader; existing cached derivatives are unchanged.
+
 - Add optional MIME-type prefix filtering with `?type=` on `GET /list/:pubkey`, including untyped uploads as `application/octet-stream`, combined with
   pagination and date filters.
 

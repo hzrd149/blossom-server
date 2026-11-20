@@ -41,7 +41,7 @@ let
       "--platform=browser"
     ];
 
-    hash = "sha256-f6m9WuXk0BFxstULgQHyAdWPPGv7uvYHXqEfFAEnXqY=";
+    hash = "sha256-ce/Bo4ij39GDuL0PL+Mh8mD+zallYK7zM35KyOH6cmA=";
   };
 
   styles = pkgs.runCommand "blossom-server-styles-${version}.css" {
@@ -60,7 +60,7 @@ let
     inherit version src;
 
     entrypoint = "main.ts";
-    denoDepsHash = "sha256-Xk0zXtxDzE+omA6gqj+1+QVM5jN1G6+DFMEzDMwpQdI=";
+    denoDepsHash = "sha256-VwV+WagVXen5iTNSWpJ3It0Owpd5lp2w4BPY1OUYgvE=";
     runtimeInputs = [ pkgs.ffmpeg ];
     runFlags = [
       "-P"

@@ -315,6 +315,9 @@ const VideoOptimizeSchema = z
       .describe(
         'Video codec. Must be compatible with the chosen format. mp4/mkv: "libx264" (default), "libx265". webm: "vp9" (default), "vp8".',
       ),
+    keepMetadata: z.boolean().default(false).describe(
+      "Keep source video metadata and chapters during transcoding. Encoder/container tags may still be written when false.",
+    ),
   })
   .superRefine((v, ctx) => {
     const validVideo = VIDEO_CODEC_FOR_FORMAT[v.format] as readonly string[];
@@ -344,6 +347,9 @@ const VideoOptimizeSchema = z
   });
 
 const MediaSchema = z.object({
+  optimizeByDefault: z.boolean().default(false).describe(
+    "Pre-select Optimize media on the landing uploader when media is enabled. Users can opt out; API uploads are unaffected.",
+  ),
   enabled: z
     .boolean()
     .default(false)

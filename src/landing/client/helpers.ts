@@ -121,7 +121,9 @@ export async function sha256Hex(file: File): Promise<string> {
 }
 
 export function createClientId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${Date.now().toString(36)}-${
+    Math.random().toString(36).slice(2, 10)
+  }`;
 }
 
 export function formatBytes(bytes: number): string {
@@ -133,7 +135,11 @@ export function formatBytes(bytes: number): string {
 }
 
 export function isMediaFile(file: File): boolean {
-  return file.type.startsWith("image/") || file.type.startsWith("video/");
+  // Match the image formats accepted by optimizeMedia; SVG/AVIF/etc. stay raw.
+  return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(
+    file.type,
+  ) ||
+    file.type.startsWith("video/");
 }
 
 const STATUS_MESSAGES: Record<number, string> = {
@@ -149,7 +155,10 @@ const STATUS_MESSAGES: Record<number, string> = {
 };
 
 /** Map an HTTP status code to actionable user-facing text. */
-export function friendlyErrorMessage(status: number, xReason: string | null = null): string {
+export function friendlyErrorMessage(
+  status: number,
+  xReason: string | null = null,
+): string {
   const base = STATUS_MESSAGES[status];
   if (base && xReason) return `${base} \u2014 ${xReason}`;
   if (base) return base;

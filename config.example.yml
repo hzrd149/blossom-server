@@ -270,6 +270,12 @@ media:
   # Video transcoding requires ffmpeg to be installed on the host.
   enabled: false
 
+  # Pre-select "Optimize media" in the landing uploader. Users can opt out.
+  # Runs full optimization (may change quality, dimensions, format and hash),
+  # not just metadata stripping. No effect when media.enabled is false.
+  # API clients, /upload and /mirror are unaffected.
+  optimizeByDefault: false
+
   # Require a valid BUD-11 Nostr auth event for media uploads.
   requireAuth: true
 
@@ -342,6 +348,11 @@ media:
     #   mp4 / mkv: "libx264" (default), "libx265"
     #   webm:      "vp9", "vp8"
     videoCodec: libx264
+
+    # Keep source metadata and chapters during transcoding.
+    # False removes copied metadata (such as location/title); encoder/container
+    # tags may still be written. Existing cached derivatives are not reprocessed.
+    keepMetadata: false
 
     # Example: webm output (all three fields must be changed together)
     # format: webm

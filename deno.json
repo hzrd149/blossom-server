@@ -13,7 +13,7 @@
     "dev": "deno run -P --env-file=.env --watch main.ts",
     "start": "deno run -P --env-file=.env main.ts",
     "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/ && deno task test:client && deno task check:admin",
-    "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/identity.test.ts",
+    "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/*.test.ts",
     "build": {
       "dependencies": ["build:client", "build:styles", "build:admin"]
     },

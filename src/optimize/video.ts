@@ -85,6 +85,8 @@ export async function optimizeVideo(
     String(MAX_VIDEO_SECONDS),
     "-fs",
     String(MAX_OUTPUT_BYTES),
+    // Disable automatic copying of source metadata and chapters, not encoder-generated tags.
+    ...(opts.keepMetadata ? [] : ["-map_metadata", "-1", "-map_chapters", "-1"]),
     ...extraArgs,
     "-y", // overwrite output without prompting (temp file already exists)
     outputPath,

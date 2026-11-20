@@ -33,6 +33,21 @@ Deno.test("ConfigSchema: media pubkey rule requirement can be disabled", () => {
   assertEquals(config.media.requirePubkeyInRule, false);
 });
 
+Deno.test("ConfigSchema: video metadata copying and landing optimization preset default off", () => {
+  for (const input of [{}, { media: {} }, { media: { enabled: true } }]) {
+    const { media } = ConfigSchema.parse(input);
+    assertEquals(media.video.keepMetadata, false);
+    assertEquals(media.optimizeByDefault, false);
+  }
+  const { media } = ConfigSchema.parse({
+    media: { optimizeByDefault: true, video: { keepMetadata: true } },
+  });
+  assertEquals(media.optimizeByDefault, true);
+  assertEquals(media.video.keepMetadata, true);
+  assertEquals(ConfigSchema.safeParse({ media: { optimizeByDefault: "true" } }).success, false);
+  assertEquals(ConfigSchema.safeParse({ media: { video: { keepMetadata: "true" } } }).success, false);
+});
+
 Deno.test("loadConfig: legacy media config inherits upload pubkey setting", async () => {
   const dir = await Deno.makeTempDir();
   const configPath = join(dir, "config.yml");
