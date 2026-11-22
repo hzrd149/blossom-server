@@ -367,6 +367,17 @@ export function UploadForm({
   const existsCount = queue.filter((f) => f.status === "exists").length;
   const skippedCount = queue.filter((f) => f.status === "skipped").length;
   const errorCount = queue.filter((f) => f.status === "error").length;
+  const finishedCount = doneCount + existsCount + skippedCount + errorCount;
+  // Each blob contributes one share; reserve completion for the server response.
+  const totalProgress = queue.length === 0 ? 0 : Math.floor(
+    queue.reduce((total, file) => {
+      if (TERMINAL_STATUSES.includes(file.status)) return total + 100;
+      if (file.status === "uploading" || file.status === "retrying") {
+        return total + Math.min(99, Math.max(0, file.progress));
+      }
+      return total;
+    }, 0) / queue.length,
+  );
 
   return (
     <div class="p-6 space-y-4">
@@ -440,6 +451,38 @@ export function UploadForm({
             </div>
           )}
       </label>
+
+      {queue.length > 2 && (
+        <div class="space-y-2">
+          <div class="flex items-center justify-between gap-4 text-sm text-gray-400">
+            <span>Overall progress</span>
+            <span class="tabular-nums">
+              {finishedCount} / {queue.length} finished &middot;{" "}
+              {totalProgress}%
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Overall upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={totalProgress}
+            aria-valuetext={`${finishedCount} of ${queue.length} blobs finished, ${totalProgress}%`}
+            class="w-full bg-gray-700 rounded-full h-2 overflow-hidden"
+          >
+            <div
+              class={`h-2 rounded-full transition-all duration-200 ${
+                allDone
+                  ? errorCount > 0 || skippedCount > 0
+                    ? "bg-amber-500"
+                    : "bg-green-500"
+                  : "bg-blue-500"
+              }`}
+              style={`width:${totalProgress}%`}
+            />
+          </div>
+        </div>
+      )}
 
       {queue.length > 0 && (
         <div class="space-y-2">
