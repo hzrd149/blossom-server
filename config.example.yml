@@ -436,6 +436,10 @@ report:
 
 # ---------------------------------------------------------------------------
 # Admin dashboard  (disabled by default)
+# Failed logins are throttled per client IP after 5 attempts, with 1–60 second
+# exponential backoff. Failures reset after a successful login or 15 idle minutes.
+# Tracking is process-local (up to 10,000 IPs, oldest evicted when full).
+# Behind a reverse proxy, configure network.trustedProxies for per-client limits.
 # ---------------------------------------------------------------------------
 
 # dashboard:

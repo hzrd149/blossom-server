@@ -4,39 +4,29 @@
 
 ### Minor Changes
 
-- Strip source video metadata and chapters from new `/media` transcodes by default (`media.video.keepMetadata` restores copying), and add
-  `media.optimizeByDefault` to pre-select optimization in the landing uploader; existing cached derivatives are unchanged.
-
-- Add optional MIME-type prefix filtering with `?type=` on `GET /list/:pubkey`, including untyped uploads as `application/octet-stream`, combined with
-  pagination and date filters.
-
-- Replace the legacy admin dashboard with a new admin console at `/admin`: dashboard overview, content browser with bulk delete, blob details, a users directory
-  with Nostr profiles, a reports moderation queue, and global search by hash, URL, npub, or MIME type.
-- Add a storage rule builder to the admin console. Rules stay in `config.yml`: when the file is writable, saving rewrites `storage.rules` (keeping comments and
-  other settings) and applies the rules without a restart; otherwise the console generates the updated file to copy or download. The console also tests whether
-  an upload would be accepted, previews or runs pruning on demand, and applies hand edits to `storage.rules` without a restart. Rules accept optional `enabled`
-  and `note` fields.
-- Add moderation: ban pubkeys and blob hashes from a new admin console Moderation page (and from the users, blob, and reports pages); banned pubkeys cannot
-  upload, mirror, or report, and banned blobs are deleted and cannot be uploaded again. See `docs/moderation/`.
-- Add `nip05Domains` to storage rules to allow every pubkey listed in a domain's `/.well-known/nostr.json`, refreshed every `storage.nip05.refreshIntervalMs`.
+- Strip source metadata and chapters from new `/media` video transcodes unless `media.video.keepMetadata` is enabled.
+- Add `media.optimizeByDefault` to pre-select optimization in the landing uploader.
+- Add MIME-prefix filtering with `?type=` on `GET /list/:pubkey`, treating untyped uploads as `application/octet-stream`.
+- Replace `/admin` with a console featuring content previews, bulk deletion, Nostr profiles, report moderation, and global search.
+- Add an admin rule builder with upload checks and pruning controls, preserving YAML comments and hot-reloading `storage.rules`, with config export for
+  read-only files.
+- Add optional `enabled` and `note` fields to storage rules.
+- Add admin pubkey and blob bans to block uploads, mirrors, and reports from banned users and delete and prevent re-uploading banned blobs.
+- Add `nip05Domains` storage allowlists, refreshed from domain Nostr directories every `storage.nip05.refreshIntervalMs`.
 - Add storage rule `basis: uploaded` to expire blobs a fixed time after upload instead of after last access.
 - Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IPs behind reverse proxies.
-- Add an opt-in Prometheus metrics listener (`metrics`) covering HTTP requests, downloads, storage, upload workers, pruning, and blob inventory, plus an
-  optional Docker Compose `monitoring` profile with a local Prometheus.
+- Add opt-in Prometheus `metrics` for HTTP, storage, workers, and pruning, plus a Docker Compose `monitoring` profile.
 
 ### Patch Changes
 
-- Keep landing-page uploads and mirrors flowing through bounded concurrent queues while batching authorization signatures and preserving progress across tabs.
-
-- Bound media processing concurrency, image pixels and animation frames, and video duration; restrict and time out video probes/transcodes on `/media`,
-  `/upload`, and `/mirror` (#75).
-- Upgrade `file-type` to v22 so a malformed ASF upload can no longer hang media MIME detection (GHSA-5v7r-6r5c-r473).
-- Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400, while continuing to reject malformed supplied credentials on public routes (#73).
-- Remove page titles from the admin console and let admin pages use the full browser width.
+- Improve landing upload and mirror throughput with bounded concurrency, batched authorization, and progress preserved across uploader tabs.
+- Bound media processing resources and video subprocess execution on `/media`, `/upload`, and `/mirror` (#75).
+- Fix MIME detection hangs on malformed ASF uploads by upgrading `file-type` to v22 (GHSA-5v7r-6r5c-r473).
+- Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400 (#73).
 - Restore S3 `publicURL` redirects for blob downloads, including Range requests, instead of returning 404 (#68).
 - Keep blob records until storage deletion succeeds so failed prune deletions are retried (#33).
-- Reject cross-site browser requests that modify admin data.
-- Make browsers revalidate the landing page and public assets so updates show up after deploying.
+- Reject cross-site admin mutations and throttle failed `/admin` logins per IP with exponential backoff (#74).
+- Revalidate the landing page and public assets so browsers receive updates after deployment.
 
 ## 6.4.1 - 2026-10-06
 
