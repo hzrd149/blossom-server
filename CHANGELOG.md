@@ -1,6 +1,6 @@
 # blossom-server
 
-## Unreleased
+## 6.5.0 - 2026-11-21
 
 ### Minor Changes
 
