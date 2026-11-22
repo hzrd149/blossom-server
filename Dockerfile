@@ -1,5 +1,15 @@
 # syntax=docker/dockerfile:1
 
+# Browser assets are architecture-independent; build natively rather than running
+# Deno and native CSS tooling under QEMU for each target architecture.
+FROM --platform=$BUILDPLATFORM denoland/deno:debian AS assets
+WORKDIR /app
+COPY deno.json deno.lock tailwind.config.js ./
+COPY public/ ./public/
+COPY src/ ./src/
+# Serialize asset tasks to avoid concurrent esbuild installation into a cold cache.
+RUN deno task --jobs 1 build
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Runtime image
 #
@@ -27,19 +37,16 @@ RUN apt-get update \
 COPY deno.json deno.lock ./
 COPY tailwind.config.js ./
 COPY main.ts ./
-COPY public/ ./public/
+COPY --from=assets /app/public/ ./public/
 COPY src/ ./src/
 
-# Warm the Deno module cache and pre-build the landing and admin assets.
-#
-# Step 1: deno cache downloads all JSR/npm module sources declared in deno.json.
+# Warm the target architecture's Deno module cache.
 #
 # Note: @libsql/client's native binary is NOT pre-fetched here — attempting to
 # load FFI bindings under QEMU emulation (ARM64 builds on amd64 runners) causes
 # illegal instruction crashes. The .so binary will be fetched automatically on
 # first use at container runtime, which runs natively on the target architecture.
-# Serialize asset tasks to avoid concurrent esbuild installation into a cold cache.
-RUN deno cache main.ts && deno task --jobs 1 build
+RUN deno cache main.ts
 
 # Data volume — SQLite DB and blob storage. Mounted at runtime.
 VOLUME ["/app/data"]
