@@ -60,7 +60,31 @@ export async function loadConfigStrict(
     }
   }
 
-  const interpolated = interpolateEnv(raw);
+  try {
+    return parseConfig(raw);
+  } catch (err) {
+    if (!(err instanceof InvalidConfigError)) throw err;
+    console.error("Invalid configuration:");
+    for (const issue of err.issues) console.error(`  ${issue.path}: ${issue.message}`);
+    Deno.exit(1);
+  }
+}
+
+/** Thrown by parseConfig()/parseConfigText() when YAML or schema validation fails. */
+export class InvalidConfigError extends Error {
+  constructor(readonly issues: { path: string; message: string }[]) {
+    super(`Invalid configuration: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join("; ")}`);
+    this.name = "InvalidConfigError";
+  }
+}
+
+/**
+ * Validate an already-parsed (not yet interpolated) config document: interpolate
+ * ${VAR} placeholders, apply the schema, and resolve legacy settings.
+ * Throws InvalidConfigError instead of exiting.
+ */
+export function parseConfig(raw: unknown, { quiet = false } = {}): Config {
+  const interpolated = interpolateEnv(raw ?? {});
   const media = interpolated !== null && typeof interpolated === "object" &&
       !Array.isArray(interpolated)
     ? (interpolated as Record<string, unknown>).media
@@ -72,17 +96,17 @@ export async function loadConfigStrict(
   const result = ConfigSchema.safeParse(interpolated);
 
   if (!result.success) {
-    console.error("Invalid configuration:");
-    for (const issue of result.error.issues) {
-      console.error(`  ${issue.path.join(".")}: ${issue.message}`);
-    }
-    Deno.exit(1);
+    throw new InvalidConfigError(
+      result.error.issues.map((issue) => ({ path: issue.path.join(".") || "(root)", message: issue.message })),
+    );
   }
 
   if (usesLegacyMediaPubkeySetting) {
-    console.warn(
-      "media.requirePubkeyInRule is not set; falling back to upload.requirePubkeyInRule for backward compatibility. Set it explicitly; the new default is true.",
-    );
+    if (!quiet) {
+      console.warn(
+        "media.requirePubkeyInRule is not set; falling back to upload.requirePubkeyInRule for backward compatibility. Set it explicitly; the new default is true.",
+      );
+    }
     return {
       ...result.data,
       media: {
@@ -93,6 +117,17 @@ export async function loadConfigStrict(
   }
 
   return result.data;
+}
+
+/** Parse and validate config.yml text. Throws InvalidConfigError on YAML or schema errors. */
+export function parseConfigText(text: string, options: { quiet?: boolean } = {}): Config {
+  let raw: unknown;
+  try {
+    raw = parseYaml(text);
+  } catch (err) {
+    throw new InvalidConfigError([{ path: "(yaml)", message: err instanceof Error ? err.message : String(err) }]);
+  }
+  return parseConfig(raw, options);
 }
 
 /**

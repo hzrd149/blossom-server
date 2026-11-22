@@ -1,7 +1,16 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { join } from "@std/path";
 import { loadConfig, loadConfigStrict, MissingConfigError } from "../../src/config/loader.ts";
-import { ConfigSchema } from "../../src/config/schema.ts";
+import { ConfigSchema, StorageRuleSchema } from "../../src/config/schema.ts";
+
+Deno.test("StorageRuleSchema accepts legacy rules and validates optional basis", () => {
+  const rule = { type: "*", expiration: "1 week" };
+  assertEquals(StorageRuleSchema.parse(rule), rule);
+  for (const basis of ["accessed", "uploaded"] as const) {
+    assertEquals(StorageRuleSchema.parse({ ...rule, basis }), { ...rule, basis });
+  }
+  assertEquals(StorageRuleSchema.safeParse({ ...rule, basis: "created" }).success, false);
+});
 
 Deno.test("ConfigSchema: media thumbnail defaults are enabled", () => {
   const config = ConfigSchema.parse({ media: { enabled: true } });
@@ -22,6 +31,21 @@ Deno.test("ConfigSchema: media pubkey rule requirement can be disabled", () => {
   });
 
   assertEquals(config.media.requirePubkeyInRule, false);
+});
+
+Deno.test("ConfigSchema: video metadata copying and landing optimization preset default off", () => {
+  for (const input of [{}, { media: {} }, { media: { enabled: true } }]) {
+    const { media } = ConfigSchema.parse(input);
+    assertEquals(media.video.keepMetadata, false);
+    assertEquals(media.optimizeByDefault, false);
+  }
+  const { media } = ConfigSchema.parse({
+    media: { optimizeByDefault: true, video: { keepMetadata: true } },
+  });
+  assertEquals(media.optimizeByDefault, true);
+  assertEquals(media.video.keepMetadata, true);
+  assertEquals(ConfigSchema.safeParse({ media: { optimizeByDefault: "true" } }).success, false);
+  assertEquals(ConfigSchema.safeParse({ media: { video: { keepMetadata: "true" } } }).success, false);
 });
 
 Deno.test("ConfigSchema: landing stats are shown by default and can be hidden", () => {
@@ -151,4 +175,69 @@ Deno.test("loadConfigStrict: valid file loads identically in strict mode", async
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
+});
+
+Deno.test("ConfigSchema: storage rule accepts nip05Domains", () => {
+  const config = ConfigSchema.parse({
+    storage: {
+      rules: [{ type: "*", expiration: "1 year", nip05Domains: ["example.org", "edufeed.org"] }],
+    },
+  });
+
+  assertEquals(config.storage.rules[0].nip05Domains, ["example.org", "edufeed.org"]);
+  assertEquals(config.storage.rules[0].pubkeys, undefined);
+});
+
+Deno.test("ConfigSchema: storage.nip05 defaults", () => {
+  const config = ConfigSchema.parse({});
+
+  assertEquals(config.storage.nip05.refreshIntervalMs, 600_000);
+  assertEquals(config.storage.nip05.timeoutMs, 5000);
+});
+
+Deno.test("ConfigSchema: storage.nip05.refreshIntervalMs rejects values below one minute", () => {
+  const result = ConfigSchema.safeParse({ storage: { nip05: { refreshIntervalMs: 1000 } } });
+
+  assertEquals(result.success, false);
+});
+
+Deno.test("ConfigSchema: storage.nip05.refreshIntervalMs accepts 0 (startup only)", () => {
+  const config = ConfigSchema.parse({ storage: { nip05: { refreshIntervalMs: 0, timeoutMs: 1000 } } });
+
+  assertEquals(config.storage.nip05.refreshIntervalMs, 0);
+  assertEquals(config.storage.nip05.timeoutMs, 1000);
+});
+
+Deno.test("ConfigSchema: storage.nip05.timeoutMs rejects values below one second", () => {
+  const result = ConfigSchema.safeParse({ storage: { nip05: { timeoutMs: 999 } } });
+
+  assertEquals(result.success, false);
+});
+
+Deno.test("ConfigSchema: storage.nip05.refreshIntervalMs rejects values beyond the setTimeout limit", () => {
+  const result = ConfigSchema.safeParse({ storage: { nip05: { refreshIntervalMs: 2_147_483_648 } } });
+
+  assertEquals(result.success, false);
+  assertEquals(result.error?.issues[0].message.includes("2147483647"), true);
+});
+
+Deno.test("ConfigSchema: nip05Domains rejects values that are not bare domains", () => {
+  for (const domain of ["https://example.org", "example.org/", "example.org/.well-known", "user:pw@example.org", "example.org?name=alice", ""]) {
+    const result = ConfigSchema.safeParse({
+      storage: { rules: [{ type: "*", expiration: "1 year", nip05Domains: ["ok.example", domain] }] },
+    });
+
+    assertEquals(result.success, false, `domain=${JSON.stringify(domain)}`);
+    const issue = result.error!.issues[0];
+    assertEquals(issue.path, ["storage", "rules", 0, "nip05Domains", 1]);
+    assertEquals(issue.message.includes("Invalid NIP-05 domain"), true, issue.message);
+  }
+});
+
+Deno.test("ConfigSchema: nip05Domains accepts IDN domains and normalizes to the URL host", () => {
+  const config = ConfigSchema.parse({
+    storage: { rules: [{ type: "*", expiration: "1 year", nip05Domains: ["bücher.example", "xn--bcher-kva.example", " Example.ORG"] }] },
+  });
+
+  assertEquals(config.storage.rules[0].nip05Domains, ["xn--bcher-kva.example", "xn--bcher-kva.example", "example.org"]);
 });

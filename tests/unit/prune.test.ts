@@ -2,12 +2,134 @@ import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import type { Client } from "@libsql/client";
 import { initDb } from "../../src/db/client.ts";
-import { getBlobsForPrune, getOwnerlessBlobCandidates } from "../../src/db/blobs.ts";
+import { getBlob, getBlobsForPrune, getMediaThumbnailsForParent, getOwnerlessBlobCandidates, insertBlob, insertMediaThumbnail } from "../../src/db/blobs.ts";
+import type { StorageRule } from "../../src/config/schema.ts";
 import { createPruneState, pruneStorage } from "../../src/prune/prune.ts";
 import type { IBlobStorage } from "../../src/storage/interface.ts";
+import { OperationMetrics } from "../../src/metrics/operations.ts";
+import { LocalStorage } from "../../src/storage/local.ts";
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
+
+for (const ownerless of [false, true]) {
+  Deno.test(`pruneStorage retains metadata on ${ownerless ? "ownerless" : "expiry"} storage failure and retries`, async () => {
+    await withDb(async (db) => {
+      await seed(db, 1, 30 * DAY);
+      if (ownerless) await db.execute("DELETE FROM owners");
+      const dir = await Deno.makeTempDir();
+      const storage = new LocalStorage(dir);
+      const path = join(dir, `${sha(0)}.png`);
+      const rules = ownerless ? [] : [{ type: "*", expiration: "1 week" }];
+      try {
+        // A non-empty directory reliably causes removal to fail, even as root.
+        await Deno.mkdir(path);
+        await Deno.writeTextFile(join(path, "child"), "bytes");
+        assertEquals(await pruneStorage(db, storage, rules, ownerless), { deleted: 0, errors: 1 });
+        assertEquals(await blobHashes(db), [sha(0)]);
+
+        await Deno.remove(path, { recursive: true });
+        await Deno.writeTextFile(path, "blob");
+        assertEquals(await pruneStorage(db, storage, rules, ownerless), { deleted: 1, errors: 0 });
+        assertEquals(await storage.has(sha(0), "png"), false);
+        assertEquals(await blobHashes(db), []);
+      } finally {
+        await Deno.remove(dir, { recursive: true });
+      }
+    });
+  });
+}
+
+Deno.test("pruneStorage preserves thumbnail links on storage failure and retries missing parent files", async () => {
+  await withDb(async (db) => {
+    await seed(db, 2, 30 * DAY);
+    await insertMediaThumbnail(db, sha(0), sha(1));
+    const dir = await Deno.makeTempDir();
+    const storage = new LocalStorage(dir);
+    const parent = join(dir, `${sha(0)}.png`);
+    const thumbnail = join(dir, `${sha(1)}.png`);
+    const rules = [{ type: "*", expiration: "1 week" }];
+    try {
+      await Deno.writeTextFile(parent, "parent");
+      await Deno.mkdir(thumbnail);
+      await Deno.writeTextFile(join(thumbnail, "child"), "bytes");
+      assertEquals(await pruneStorage(db, storage, rules, false), { deleted: 0, errors: 1 });
+      assertEquals(await storage.has(sha(0), "png"), false);
+      assertEquals(await blobHashes(db), [sha(0), sha(1)]);
+      assertEquals((await getMediaThumbnailsForParent(db, sha(0))).length, 1);
+
+      await Deno.remove(thumbnail, { recursive: true });
+      await Deno.writeTextFile(thumbnail, "thumbnail");
+      assertEquals(await pruneStorage(db, storage, rules, false), { deleted: 2, errors: 0 });
+      assertEquals(await storage.has(sha(1), "png"), false);
+      assertEquals(await blobHashes(db), []);
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  });
+});
+
+for (const basis of [undefined, "accessed", "uploaded"] as const) {
+  Deno.test(`pruneStorage respects ${basis ?? "legacy"} basis with recent access and never-accessed blobs`, async () => {
+    await withDb(async (db) => {
+      await seed(db, 3, 30 * DAY, { accessed: false });
+      const now = Math.floor(Date.now() / 1000);
+      await db.execute({ sql: "INSERT INTO accessed (blob, timestamp) VALUES (?, ?)", args: [sha(0), now] });
+      await db.execute({ sql: "UPDATE blobs SET uploaded = ? WHERE sha256 = ?", args: [now, sha(2)] });
+      const storage = recordingStorage();
+      const result = await pruneStorage(db, storage, [{ type: "*", expiration: "1 week", basis }], false);
+      assertEquals(result, { deleted: basis === "uploaded" ? 2 : 1, errors: 0 });
+      assertEquals(await blobHashes(db), basis === "uploaded" ? [sha(2)] : [sha(0), sha(2)]);
+    });
+  });
+}
+
+Deno.test("upload-based retention is not extended by repeat uploads from another owner", async () => {
+  await withDb(async (db) => {
+    await seed(db, 1, 30 * DAY);
+    const original = (await getBlob(db, sha(0)))!;
+    await insertBlob(db, { ...original, uploaded: Math.floor(Date.now() / 1000) }, "a".repeat(64));
+    assertEquals((await getBlob(db, sha(0)))!.uploaded, original.uploaded);
+    const result = await pruneStorage(db, recordingStorage(), [{ type: "*", expiration: "1 week", basis: "uploaded" }], false);
+    assertEquals(result, { deleted: 1, errors: 0 });
+    assertEquals(await blobHashes(db), []);
+  });
+});
+
+for (const basis of ["accessed", "uploaded"] as const) {
+  Deno.test(`mixed-basis rules preserve first-match ${basis} policy and advance bounded cursors`, async () => {
+    await withDb(async (db) => {
+      await seed(db, 3, 30 * DAY);
+      await db.execute({ sql: "UPDATE accessed SET timestamp = ?", args: [Math.floor(Date.now() / 1000)] });
+      await db.execute({ sql: "UPDATE blobs SET type = 'video/mp4' WHERE sha256 != ?", args: [sha(0)] });
+      const rules: StorageRule[] = [
+        { type: "image/*", expiration: "1 week", basis },
+        { type: "*", expiration: "1 week", basis: basis === "accessed" ? "uploaded" : "accessed" },
+      ];
+      const state = createPruneState();
+      const storage = recordingStorage();
+      for (let cycle = 0; cycle < 4; cycle++) {
+        const result = await pruneStorage(db, storage, rules, false, 1, state);
+        assertEquals(result.errors, 0);
+        assertEquals(result.deleted <= 1, true);
+      }
+      assertEquals(await blobHashes(db), basis === "accessed" ? [sha(0)] : [sha(1), sha(2)]);
+    });
+  });
+}
+
+Deno.test("prune metrics count logical deleted bytes for expiry and ownerless cleanup", async () => {
+  await withDb(async (db) => {
+    await seed(db, 2, 30 * DAY);
+    const metrics = new OperationMetrics();
+    const result = await pruneStorage(db, recordingStorage(), [{ type: "*", expiration: "1 day" }], false, 1, createPruneState(), metrics);
+    assertEquals(result.deleted, 1);
+    await db.execute("DELETE FROM owners");
+    const ownerless = await pruneStorage(db, recordingStorage(), [], true, 10, createPruneState(), metrics);
+    assertEquals(ownerless.deleted, 1);
+    assertEquals(metrics.render().includes("blossom_prune_deleted_bytes_total 20"), true);
+  });
+});
 
 function sha(n: number): string {
   return n.toString(16).padStart(64, "0");
@@ -247,6 +369,52 @@ Deno.test("pruneStorage preserves first-match pubkey retention semantics", async
 
     assertEquals(result, { deleted: 0, errors: 0 });
     assertEquals(Number((await db.execute("SELECT COUNT(*) FROM blobs")).rows[0][0]), 1);
+  });
+});
+
+Deno.test("pruneStorage: a nip05 rule with an empty fetched list governs nobody", async () => {
+  await withDb(async (db) => {
+    // Owner is "f"*64 (see seed). The nip05 rule has not fetched anything yet,
+    // so it must not claim the blob; the short unscoped rule governs and deletes it.
+    await seed(db, 1, 14 * DAY);
+    const storage = recordingStorage();
+
+    const result = await pruneStorage(
+      db,
+      storage,
+      [
+        { type: "*", expiration: "1 month", pubkeys: [], nip05Domains: ["example.org"] },
+        { type: "*", expiration: "1 week" },
+      ],
+      false,
+      10,
+      createPruneState(),
+    );
+
+    assertEquals(result, { deleted: 1, errors: 0 });
+    assertEquals(storage.removed, [sha(0)]);
+  });
+});
+
+Deno.test("pruneStorage: a populated nip05 rule governs its members like a static pubkey rule", async () => {
+  await withDb(async (db) => {
+    await seed(db, 1, 14 * DAY);
+    const storage = recordingStorage();
+
+    const result = await pruneStorage(
+      db,
+      storage,
+      [
+        { type: "*", expiration: "1 month", pubkeys: ["f".repeat(64)], nip05Domains: ["example.org"] },
+        { type: "*", expiration: "1 week" },
+      ],
+      false,
+      10,
+      createPruneState(),
+    );
+
+    assertEquals(result, { deleted: 0, errors: 0 });
+    assertEquals(storage.removed, []);
   });
 });
 

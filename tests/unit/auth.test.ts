@@ -95,9 +95,15 @@ Deno.test("parseAuthEvent: rejects decodable JSON that is not a valid event", ()
     true,
     42,
     "event",
+    { kind: 24242, created_at: 1700000000, tags: null },
     withoutTags,
     { ...valid, tags: null },
+    { ...valid, tags: [null] },
+    { ...valid, tags: ["t"] },
     { ...valid, tags: [["t", "upload"], [42]] },
+    { ...valid, tags: [["server", 42]] },
+    { ...valid, created_at: "not-a-number" },
+    { ...valid, created_at: null },
   ];
 
   for (const value of malformedValues) {
@@ -125,6 +131,18 @@ Deno.test("parseAuthEvent: rejects event with wrong kind", () => {
 // ---------------------------------------------------------------------------
 // parseAuthEvent — created_at check
 // ---------------------------------------------------------------------------
+
+Deno.test("parseAuthEvent: rejects fractional and unsafe created_at values with 400", () => {
+  for (const created_at of [1.5, Number.MAX_SAFE_INTEGER + 1, Number.MIN_SAFE_INTEGER - 1]) {
+    const event = makeEvent({ created_at });
+    const error = assertThrows(
+      () => parseAuthEvent(encodeEvent(event), null),
+      HTTPException,
+    );
+    assertEquals(error.status, 400, `created_at=${created_at}`);
+    assertMatch(error.message, /created_at must be a safe unix-seconds integer/);
+  }
+});
 
 Deno.test("parseAuthEvent: rejects event with created_at in the future", () => {
   const future = Math.floor(Date.now() / 1000) + 9999;

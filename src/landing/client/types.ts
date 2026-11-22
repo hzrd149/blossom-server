@@ -1,5 +1,6 @@
 export type FileStatus =
   | "pending"
+  | "queued"
   | "hashing"
   | "checking"
   | "signing"
@@ -12,6 +13,7 @@ export type FileStatus =
 
 export type MirrorStatus =
   | "pending"
+  | "queued"
   | "signing"
   | "mirroring"
   | "done"

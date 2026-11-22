@@ -2,7 +2,9 @@ import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
 import type { NostrEvent } from "nostr-tools";
 import { verifyEvent } from "nostr-tools/pure";
-import type { BlossomVariables } from "../middleware/auth.ts";
+import { type BlossomVariables, optionalAuth } from "../middleware/auth.ts";
+import type { ModerationService } from "../moderation/service.ts";
+import { rejectBannedPubkey } from "./moderation-guard.ts";
 import { errorResponse } from "../middleware/errors.ts";
 import { insertReport, REPORT_TYPES } from "../db/reports.ts";
 import type { ReportType } from "../db/reports.ts";
@@ -26,10 +28,18 @@ function isReportEvent(value: Record<string, unknown>): value is NostrEvent {
 
 export function buildReportRouter(
   db: Client,
+  moderation: Pick<ModerationService, "isPubkeyBanned">,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
   app.put("/report", async (ctx) => {
+    // Reports from banned pubkeys are not stored: reject BUD-11 auth from a banned pubkey before
+    // reading the body, and a report event signed by a banned pubkey after verification.
+    const auth = optionalAuth(ctx);
+    if (auth && moderation.isPubkeyBanned(auth.pubkey)) {
+      return rejectBannedPubkey(ctx);
+    }
+
     let body: unknown;
     try {
       body = await ctx.req.json();
@@ -59,6 +69,10 @@ export function buildReportRouter(
     }
     if (!verified) {
       return errorResponse(ctx, 400, "Report event signature is invalid");
+    }
+
+    if (moderation.isPubkeyBanned(event.pubkey)) {
+      return rejectBannedPubkey(ctx);
     }
 
     const xTags = event.tags.filter((t) => Array.isArray(t) && t[0] === "x" && typeof t[1] === "string") as [

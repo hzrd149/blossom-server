@@ -7,27 +7,23 @@
  */
 
 import type { ImageOptimizeConfig } from "../config/schema.ts";
+import { openImage } from "./image-input.ts";
 
 export type { ImageOptimizeConfig as ImageOptimizeOptions };
 
 /**
  * Optimizes a static image (JPEG/PNG/WebP) using sharp.
  * Returns the path to the optimized temp file.
- * Caller is responsible for deleting the output file on any error.
+ * Removes partial output on error.
  */
 export async function optimizeImage(
   inputPath: string,
   opts: ImageOptimizeConfig,
   tmpDir: string,
 ): Promise<string> {
-  const { default: sharp } = await import("sharp");
-  const outputPath = await Deno.makeTempFile({
-    dir: tmpDir,
-    suffix: `.${opts.outputFormat}`,
-  });
+  let pipeline = (await openImage(inputPath)).rotate();
 
   // rotate() normalizes orientation so we can safely strip EXIF
-  let pipeline = sharp(inputPath).rotate();
 
   if (opts.keepExif) {
     pipeline = pipeline.withMetadata();
@@ -60,8 +56,17 @@ export async function optimizeImage(
       break;
   }
 
-  await pipeline.toFile(outputPath);
-  return outputPath;
+  const outputPath = await Deno.makeTempFile({
+    dir: tmpDir,
+    suffix: `.${opts.outputFormat}`,
+  });
+  try {
+    await pipeline.toFile(outputPath);
+    return outputPath;
+  } catch (err) {
+    await Deno.remove(outputPath).catch(() => {});
+    throw err;
+  }
 }
 
 /**
@@ -75,15 +80,7 @@ export async function optimizeGif(
   opts: ImageOptimizeConfig,
   tmpDir: string,
 ): Promise<string> {
-  const { default: sharp } = await import("sharp");
-  const outputPath = await Deno.makeTempFile({
-    dir: tmpDir,
-    suffix: `.${opts.outputFormat}`,
-  });
-
-  // animated: true preserves all frames
-  let pipeline = sharp(inputPath, { animated: true }).rotate();
-
+  let pipeline = (await openImage(inputPath, opts.outputFormat === "webp")).rotate();
   if (opts.keepExif) {
     pipeline = pipeline.withMetadata();
   } else {
@@ -112,6 +109,15 @@ export async function optimizeGif(
     });
   }
 
-  await pipeline.toFile(outputPath);
-  return outputPath;
+  const outputPath = await Deno.makeTempFile({
+    dir: tmpDir,
+    suffix: `.${opts.outputFormat}`,
+  });
+  try {
+    await pipeline.toFile(outputPath);
+    return outputPath;
+  } catch (err) {
+    await Deno.remove(outputPath).catch(() => {});
+    throw err;
+  }
 }

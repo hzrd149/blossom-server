@@ -62,10 +62,16 @@ export async function hasBlob(db: Client, sha256: string): Promise<boolean> {
   return rs.rows.length > 0;
 }
 
+/**
+ * Insert blob metadata (ignored if it exists) and grant ownership to a pubkey.
+ * `ownerUploaded` is when this pubkey gained ownership; for dedup grants on an
+ * existing blob it must be the current time, not the blob's first upload time.
+ */
 export async function insertBlob(
   db: Client,
   blob: BlobRecord,
   uploaderPubkey: string,
+  ownerUploaded: number = Math.floor(Date.now() / 1000),
 ): Promise<void> {
   await db.batch(
     [
@@ -80,8 +86,8 @@ export async function insertBlob(
         ],
       },
       {
-        sql: `INSERT OR IGNORE INTO owners (blob, pubkey) VALUES (?, ?)`,
-        args: [blob.sha256, uploaderPubkey],
+        sql: `INSERT OR IGNORE INTO owners (blob, pubkey, uploaded) VALUES (?, ?, ?)`,
+        args: [blob.sha256, uploaderPubkey, ownerUploaded],
       },
       {
         sql: `INSERT OR REPLACE INTO accessed (blob, timestamp) VALUES (?, ?)`,
@@ -169,11 +175,24 @@ export async function touchBlob(
 export async function listBlobsByPubkey(
   db: Client,
   pubkey: string,
-  opts: { limit?: number; cursor?: string; since?: number; until?: number },
+  opts: {
+    limit?: number;
+    cursor?: string;
+    since?: number;
+    until?: number;
+    type?: string;
+  },
 ): Promise<BlobRecord[]> {
   const limit = Math.min(opts.limit ?? 100, 1000);
   const conditions: string[] = ["o.pubkey = ?"];
   const args: (string | number)[] = [pubkey];
+
+  if (opts.type) {
+    // MIME-type prefix filter (e.g. "image" -> image/*, "video/mp4" -> exact).
+    // The route validates the charset; "_" is a LIKE wildcard — escape it.
+    conditions.push("COALESCE(b.type, 'application/octet-stream') LIKE ? ESCAPE '\\'");
+    args.push(opts.type.replace(/_/g, "\\_") + "%");
+  }
 
   if (opts.cursor) {
     // cursor is the sha256 of the last blob in the previous page
@@ -410,7 +429,7 @@ const BLOB_SORT_COLUMNS = new Set(["sha256", "type", "size", "uploaded"]);
 export async function listAllBlobs(
   db: Client,
   opts: {
-    filter?: { q?: string; type?: string | string[] };
+    filter?: { q?: string; type?: string | string[]; owner?: string };
     sort?: [string, string];
     limit?: number;
     offset?: number;
@@ -422,6 +441,10 @@ export async function listAllBlobs(
   if (opts.filter?.q) {
     conditions.push("(b.sha256 LIKE ? OR b.type LIKE ?)");
     args.push(`%${opts.filter.q}%`, `%${opts.filter.q}%`);
+  }
+  if (opts.filter?.owner) {
+    conditions.push("EXISTS (SELECT 1 FROM owners ox WHERE ox.blob = b.sha256 AND ox.pubkey = ?)");
+    args.push(opts.filter.owner);
   }
   if (opts.filter?.type !== undefined) {
     const types = Array.isArray(opts.filter.type) ? opts.filter.type : [opts.filter.type];
@@ -476,7 +499,7 @@ export async function listAllBlobs(
  */
 export async function countBlobs(
   db: Client,
-  filter?: { q?: string; type?: string | string[] },
+  filter?: { q?: string; type?: string | string[]; owner?: string },
 ): Promise<number> {
   const conditions: string[] = [];
   const args: (string | number)[] = [];
@@ -484,6 +507,10 @@ export async function countBlobs(
   if (filter?.q) {
     conditions.push("(sha256 LIKE ? OR type LIKE ?)");
     args.push(`%${filter.q}%`, `%${filter.q}%`);
+  }
+  if (filter?.owner) {
+    conditions.push("EXISTS (SELECT 1 FROM owners ox WHERE ox.blob = blobs.sha256 AND ox.pubkey = ?)");
+    args.push(filter.owner);
   }
   if (filter?.type !== undefined) {
     const types = Array.isArray(filter.type) ? filter.type : [filter.type];
@@ -635,6 +662,7 @@ export async function countBlobsByPubkey(
 }
 
 export interface OwnerlessScanRecord {
+  size: number;
   sha256: string;
   type: string | null;
   prunable: boolean;
@@ -650,7 +678,8 @@ export async function getOwnerlessBlobCandidates(
     sql: `
       SELECT b.sha256, b.type,
              NOT EXISTS (SELECT 1 FROM owners o WHERE o.blob = b.sha256)
-             AND NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS prunable
+              AND NOT EXISTS (SELECT 1 FROM media_thumbnails mt WHERE mt.thumbnail_sha256 = b.sha256) AS prunable,
+              b.size
       FROM blobs b
       ${cursorCondition}
       ORDER BY b.sha256 ASC
@@ -662,5 +691,6 @@ export async function getOwnerlessBlobCandidates(
     sha256: row[0] as string,
     type: row[1] as string | null,
     prunable: Boolean(row[2]),
+    size: Number(row[3]),
   }));
 }

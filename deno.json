@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/denoland/deno/refs/heads/main/cli/schemas/config-file.v1.json",
   "name": "@hzrd149/blossom-server",
-  "version": "6.4.2",
+  "version": "6.5.0",
   "exports": "./main.ts",
   "license": "MIT",
   "compilerOptions": {
@@ -12,12 +12,18 @@
   "tasks": {
     "dev": "deno run -P --env-file=.env --watch main.ts",
     "start": "deno run -P --env-file=.env main.ts",
-    "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/ && deno task test:client",
-    "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/identity.test.ts",
+    "test": "deno test -P --env-file=.env tests/unit/ tests/e2e/ && deno task test:client && deno task check:admin",
+    "test:client": "deno test --config src/landing/client/deno.json --lock=src/landing/client/deno.lock src/landing/client/*.test.ts",
     "build": {
-      "dependencies": ["build:client", "build:styles"]
+      "dependencies": ["build:client", "build:styles", "build:admin"]
     },
     "build:client": "deno bundle --frozen --lock=src/landing/client/deno.lock --config src/landing/client/deno.json --minify --platform browser -o public/client.js src/landing/client/index.tsx",
+    "build:admin": {
+      "dependencies": ["build:admin:client", "build:admin:styles"]
+    },
+    "build:admin:client": "deno bundle --frozen --lock=src/admin/client/deno.lock --config src/admin/client/deno.json --minify --platform browser -o public/admin/client.js src/admin/client/main.tsx",
+    "build:admin:styles": "deno run --frozen --lock=src/admin/styles/deno.lock --config=src/admin/styles/deno.json -A npm:@tailwindcss/cli@4.3.5 -i src/admin/styles/input.css -o public/admin/styles.css --minify",
+    "check:admin": "deno check --config src/admin/client/deno.json --lock=src/admin/client/deno.lock src/admin/client/main.tsx src/admin/client/api/queries.ts",
     "build:styles": "deno run --frozen --lock=src/landing/styles/deno.lock --config=src/landing/styles/deno.json -A npm:tailwindcss@3.4.17 -c tailwind.config.js -i src/landing/styles/input.css -o public/styles.css --minify",
     "check:nix": "deno task nix:check",
     "update:nix-hashes": "deno task nix:update",
@@ -41,25 +47,21 @@
     "exclude": [".planning", ".gsd"]
   },
   "imports": {
-    "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.5",
-    "@hono/hono": "jsr:@hono/hono@^4.12.7",
-    "@libsql/client": "npm:@libsql/client@^0.17.0",
-    "@std/assert": "jsr:@std/assert@1",
+    "@bradenmacdonald/s3-lite-client": "jsr:@bradenmacdonald/s3-lite-client@^0.9.6",
+    "@hono/hono": "jsr:@hono/hono@^4.13.19",
+    "@libsql/client": "npm:@libsql/client@^0.17.4",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/media-types": "jsr:@std/media-types@^1.1.0",
-    "@std/crypto": "jsr:@std/crypto@^1.0.5",
-    "@std/encoding": "jsr:@std/encoding@^1.0.10",
-    "@std/path": "jsr:@std/path@^1.1.4",
+    "@std/crypto": "jsr:@std/crypto@^1.1.0",
+    "@std/encoding": "jsr:@std/encoding@^1.0.11",
+    "@std/path": "jsr:@std/path@^1.1.6",
     "@std/ulid": "jsr:@std/ulid@^1.0.0",
-    "@std/yaml": "jsr:@std/yaml@^1.0.12",
-    "applesauce-common": "npm:applesauce-common@^6.2.0",
-    "applesauce-core": "npm:applesauce-core@^6.2.0",
-    "applesauce-loaders": "npm:applesauce-loaders@^6.2.0",
-    "applesauce-relay": "npm:applesauce-relay@^6.2.0",
-    "rxjs": "npm:rxjs@^7.8.0",
-    "nostr-tools": "npm:nostr-tools@^2.23.3",
-    "sharp": "npm:sharp@^0.35.3",
-    "file-type": "npm:file-type@^19.6.0",
-    "zod": "npm:zod@^4.3.6"
+    "@std/yaml": "jsr:@std/yaml@^1.3.0",
+    "nostr-tools": "npm:nostr-tools@^2.26.1",
+    "sharp": "npm:sharp@^0.35.5",
+    "file-type": "npm:file-type@^22.3.0",
+    "yaml": "npm:yaml@^2.9.1",
+    "zod": "npm:zod@^4.6.7"
   },
-  "exclude": ["src/landing/client"]
+  "exclude": ["src/landing/client", "src/admin/client"]
 }

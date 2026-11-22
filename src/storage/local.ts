@@ -184,8 +184,9 @@ export class LocalStorage implements IBlobStorage {
     try {
       await Deno.remove(this.blobPath(hash, ext));
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      if (err instanceof Deno.errors.NotFound) return false;
+      throw err;
     }
   }
 }

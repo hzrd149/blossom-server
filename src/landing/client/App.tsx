@@ -8,12 +8,14 @@ export function App({
   requireAuth,
   mediaEnabled,
   mediaRequireAuth,
+  optimizeByDefault,
   mirrorEnabled,
   mirrorRequireAuth,
 }: {
   requireAuth: boolean;
   mediaEnabled: boolean;
   mediaRequireAuth: boolean;
+  optimizeByDefault: boolean;
   mirrorEnabled: boolean;
   mirrorRequireAuth: boolean;
 }) {
@@ -62,19 +64,22 @@ export function App({
       )}
 
       {/* Tab panels */}
-      {activeTab === "upload" && (
+      <div hidden={activeTab !== "upload"}>
         <UploadForm
           requireAuth={requireAuth}
           mediaEnabled={mediaEnabled}
           mediaRequireAuth={mediaRequireAuth}
+          optimizeByDefault={optimizeByDefault}
           onQueueChange={setUploadHasItems}
         />
-      )}
-      {activeTab === "mirror" && mirrorEnabled && (
-        <MirrorForm
-          requireAuth={mirrorRequireAuth}
-          onQueueChange={setMirrorHasItems}
-        />
+      </div>
+      {mirrorEnabled && (
+        <div hidden={activeTab !== "mirror"}>
+          <MirrorForm
+            requireAuth={mirrorRequireAuth}
+            onQueueChange={setMirrorHasItems}
+          />
+        </div>
       )}
     </div>
   );

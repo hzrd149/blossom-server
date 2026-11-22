@@ -3,10 +3,11 @@
  *
  * Pipeline (main thread unless noted):
  *   1.  config.mirror.enabled check → 403
- *   2.  BUD-11 auth check (t="upload") → 401/403
+ *   2.  BUD-11 auth check (t="upload") → 401/403; banned pubkey → 403
  *   3.  Parse JSON body { url } → 400
  *   4.  Validate URL scheme (http/https only) → 400
- *   5.  Pre-fetch pubkey allowlist and worker-capacity checks
+ *   5.  Pre-fetch pubkey allowlist and worker-capacity checks; requested hash
+ *       (URL path or single auth x tag) banned → 403
  *   6.  SSRF guard per fetch hop: literal-IP check (full IPv4/IPv6 incl.
  *       IPv4-mapped/NAT64/6to4/ULA/link-local) + resolve-then-validate of
  *       A/AAAA records; redirects followed manually (≤ 3 hops, re-validated
@@ -21,6 +22,7 @@
  *  13.  BUD-11 x-tag verification (post-hash, strict):
  *         - Auth present + 0 x tags → 403 (x tag is REQUIRED for PUT /mirror)
  *         - Auth present + x tags present but none matches hash → 403
+ *  13b. Downloaded hash banned → 403
  *  14.  Dedup guard: if blob already exists, skip rename, add owner, return descriptor
  *  15.  Atomic Deno.rename(tmpPath → <storageDir>/<hash>[.<ext>])
  *  16.  insertBlob() — metadata write
@@ -47,12 +49,27 @@ import type { IBlobStorage, WriteSession } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import { byteCapGuard } from "../utils/streams.ts";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule, pubkeyAllowedByRules } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
 import { checkLiteralHost, parseIPv4, parseIPv6, validateResolvedRecords } from "../utils/ip-guard.ts";
+import { BLOB_BLOCKED_REASON, isAuthPubkeyBanned, rejectBannedPubkey, rejectBlockedBlob } from "./moderation-guard.ts";
+
+const SHA256_IN_PATH_RE = /([0-9a-f]{64})(?:\.[a-z0-9]{1,10})?\/?$/i;
+
+/**
+ * The hash a mirror request asks for, known before fetching: the hash at the end of the URL
+ * path (Blossom blob URLs), otherwise the single x tag of the auth event. Null when unknown.
+ */
+export function requestedMirrorHash(url: URL, auth: { tags: string[][] } | undefined): string | null {
+  const fromPath = SHA256_IN_PATH_RE.exec(url.pathname)?.[1]?.toLowerCase();
+  if (fromPath) return fromPath;
+  const xTags = auth?.tags.filter((t) => t[0] === "x" && /^[0-9a-f]{64}$/.test(t[1] ?? "")) ?? [];
+  return xTags.length === 1 ? xTags[0][1] : null;
+}
 
 /** BUD-02 Blob Descriptor (same shape as upload route) */
 interface BlobDescriptor {
@@ -212,6 +229,7 @@ export function buildMirrorRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -239,6 +257,11 @@ export function buildMirrorRouter(
     } else {
       // Auth is optional — capture it if present for owner registration
       auth = ctx.get("auth");
+    }
+
+    if (isAuthPubkeyBanned(ctx, runtime.moderation)) {
+      debug(debugPrefix, "rejected: pubkey is banned");
+      return rejectBannedPubkey(ctx);
     }
 
     let mirrorUrl: URL;
@@ -284,7 +307,7 @@ export function buildMirrorRouter(
     // make the server issue outbound requests it would never store for them.
     if (
       config.upload.requirePubkeyInRule &&
-      !pubkeyAllowedByRules(auth?.pubkey, config.storage.rules, true)
+      !pubkeyAllowedByRules(auth?.pubkey, runtime.rules.current(), true)
     ) {
       debug(
         debugPrefix,
@@ -295,6 +318,13 @@ export function buildMirrorRouter(
         401,
         "Pubkey not authorized by any storage rule",
       );
+    }
+
+    // Moderation: refuse a requested hash that is banned before any outbound fetch.
+    const requestedHash = requestedMirrorHash(mirrorUrl, auth);
+    if (requestedHash && (await runtime.moderation.isHashBanned(requestedHash))) {
+      debug(debugPrefix, `rejected: requested blob is blocked — ${requestedHash.slice(0, 8)} (pre-fetch)`);
+      return rejectBlockedBlob(ctx);
     }
 
     if (getPool().available === 0) {
@@ -376,7 +406,7 @@ export function buildMirrorRouter(
 
     const mimeRule = getFileRule(
       { mimeType, pubkey: auth?.pubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!mimeRule) {
@@ -536,6 +566,13 @@ export function buildMirrorRouter(
           `Auth token does not authorize mirroring blob ${hash}`,
         );
       }
+    }
+
+    // Moderation: the downloaded content is checked again (the origin may serve other bytes).
+    if (await runtime.moderation.isHashBanned(hash)) {
+      await storage.abortWrite(session).catch(() => {});
+      debug(debugPrefix, `rejected: blob is banned — ${hash.slice(0, 8)}`);
+      return errorResponse(ctx, 403, BLOB_BLOCKED_REASON);
     }
 
     const ext = mimeToExt(mimeType);

@@ -7,13 +7,13 @@
  *   2. Content-Length required → 411 if absent
  *   3. Content-Length > maxSize → 413 (body never read)
  *   4. MIME type allowlist check → 415
- *   5. X-SHA-256 format + auth x-tag validation
+ *   5. X-SHA-256 format + auth x-tag validation; banned pubkey / banned X-SHA-256 → 403
  *   6. Dedup check (hasBlob) → fast return if already stored
  *   7. Pool worker available? → 503 if pool full (body never read)
  *   8. Generate tmpPath, dispatch stream to worker (zero-copy transfer)
  *   9. Await { hash, size } from worker
  *  10. Verify computed hash === X-SHA-256 header (if provided) — worker also checks,
- *      but we re-verify here before committing
+ *      but we re-verify here before committing. Banned hash → 403
  *  11. Deno.rename(tmpPath → <storageDir>/<hash>.<ext>) — atomic commit, main thread
  *  12. db.insertBlob() — metadata write, main thread
  *  13. Return BlobDescriptor JSON
@@ -36,12 +36,14 @@ import { errorResponse } from "../middleware/errors.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import { getPool, WorkerJobError } from "../workers/pool.ts";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 import { mimeToExt } from "../utils/mime.ts";
 import { type Nip94Tag, nip94Tags, optionalNip94Tags } from "../utils/nip94.ts";
 import { byteCapGuard, drainBody } from "../utils/streams.ts";
 import { getBaseUrl, getBlobUrl } from "../utils/url.ts";
 import { getFileRule } from "../prune/rules.ts";
 import { extractDimensions } from "../optimize/dimensions.ts";
+import { BLOB_BLOCKED_REASON, isAuthPubkeyBanned, rejectBannedPubkey, rejectBlockedBlob } from "./moderation-guard.ts";
 
 /** BUD-02 Blob Descriptor */
 interface BlobDescriptor {
@@ -58,6 +60,7 @@ export function buildUploadRouter(
   db: Client,
   storage: IBlobStorage,
   config: Config,
+  runtime: ServerRuntime,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -81,9 +84,16 @@ export function buildUploadRouter(
       }
     }
 
+    if (isAuthPubkeyBanned(ctx, runtime.moderation)) {
+      return rejectBannedPubkey(ctx);
+    }
+
     const xSha256 = ctx.req.header("x-sha-256")?.toLowerCase() ?? null;
     if (xSha256 && !/^[0-9a-f]{64}$/.test(xSha256)) {
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
+    }
+    if (xSha256 && (await runtime.moderation.isHashBanned(xSha256))) {
+      return rejectBlockedBlob(ctx);
     }
     if (auth && xSha256) {
       try {
@@ -122,7 +132,7 @@ export function buildUploadRouter(
     const preflightPubkey = ctx.get("auth")?.pubkey;
     const rule = getFileRule(
       { mimeType: xContentType, pubkey: preflightPubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!rule) {
@@ -180,6 +190,11 @@ export function buildUploadRouter(
       `PUT /upload — pubkey=${auth?.pubkey?.slice(0, 8) ?? "anon"}`,
     );
 
+    if (isAuthPubkeyBanned(ctx, runtime.moderation)) {
+      debug(debugPrefix, "rejected: pubkey is banned");
+      return rejectBannedPubkey(ctx);
+    }
+
     const contentLengthHeader = ctx.req.header("content-length");
     if (!contentLengthHeader) {
       await ctx.req.raw.body?.cancel();
@@ -216,7 +231,7 @@ export function buildUploadRouter(
 
     const mimeRule = getFileRule(
       { mimeType, pubkey: auth?.pubkey },
-      config.storage.rules,
+      runtime.rules.current(),
       config.upload.requirePubkeyInRule,
     );
     if (!mimeRule) {
@@ -244,6 +259,12 @@ export function buildUploadRouter(
       await ctx.req.raw.body?.cancel();
       debug(debugPrefix, `rejected: invalid X-SHA-256 format — "${xSha256}"`);
       return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
+    }
+
+    // A declared hash with a local ban is rejected before any body bytes are read.
+    if (xSha256 && (await runtime.moderation.isHashBanned(xSha256))) {
+      debug(debugPrefix, `rejected: declared hash is banned — ${xSha256.slice(0, 8)}`);
+      return rejectBlockedBlob(ctx);
     }
 
     // BUD-11: if the client provided X-SHA-256, validate its required x scope
@@ -413,6 +434,19 @@ export function buildUploadRouter(
         }
         throw err;
       }
+    }
+
+    // Moderation: banned content is discarded before it is committed.
+    if (await runtime.moderation.isHashBanned(hash)) {
+      debug(debugPrefix, `rejected: blob is banned — ${hash.slice(0, 8)}`);
+      try {
+        await storage.abortWrite(session);
+      } catch (cleanupErr) {
+        const cleanupMsg = cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+        console.error(`${debugPrefix} failed to remove blocked staged upload ${session.tmpPath}: ${cleanupMsg}`);
+        throw cleanupErr;
+      }
+      return errorResponse(ctx, 403, BLOB_BLOCKED_REASON);
     }
 
     const blobType = mimeType !== "application/octet-stream" ? mimeType : null;

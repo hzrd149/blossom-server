@@ -6,6 +6,27 @@
 let
   inherit (pkgs) lib;
 
+  adminBundleHash = "sha256-SAew3Ihq8QFLjYE4tCr3oRrerjqntZoSlS1Yd7OjpNg=";
+  adminBundle = (pkgs.buildDenoBundle {
+    pname = "blossom-server-admin";
+    inherit version src;
+    configFile = "src/admin/client/deno.json";
+    lockFile = "src/admin/client/deno.lock";
+    entrypoint = "src/admin/client/main.tsx";
+    bundleName = "client.js";
+    bundleFlags = [
+      "--minify"
+      "--platform=browser"
+    ];
+    hash = adminBundleHash;
+  }).overrideAttrs {
+    postBuild = ''
+      deno run --frozen --lock=src/admin/styles/deno.lock \
+        --config=src/admin/styles/deno.json -A npm:@tailwindcss/cli@4.3.5 \
+        -i src/admin/styles/input.css -o "$out/styles.css" --minify
+    '';
+  };
+
   clientBundle = pkgs.buildDenoBundle {
     pname = "blossom-server-client";
     inherit version src;
@@ -20,7 +41,7 @@ let
       "--platform=browser"
     ];
 
-    hash = "sha256-/nxNuxegMsOwKR0RmlKCeoOayUgqozyA4juPPQoZESs=";
+    hash = "sha256-84w1GSRTwuYIcZqufM3Mxk8j1uEmT1y88xOuK4AWaMo=";
   };
 
   styles = pkgs.runCommand "blossom-server-styles-${version}.css" {
@@ -39,7 +60,7 @@ let
     inherit version src;
 
     entrypoint = "main.ts";
-    denoDepsHash = "sha256-LaV+xImSqlEx0YZKOEIse0/LHHDdNauLGgR9VtTpzzs=";
+    denoDepsHash = "sha256-VwV+WagVXen5iTNSWpJ3It0Owpd5lp2w4BPY1OUYgvE=";
     runtimeInputs = [ pkgs.ffmpeg ];
     runFlags = [
       "-P"
@@ -48,6 +69,9 @@ let
     ];
 
     postPatch = ''
+      mkdir -p public/admin
+      cp ${adminBundle}/client.js public/admin/client.js
+      cp ${adminBundle}/styles.css public/admin/styles.css
       cp ${clientBundle}/client.js public/client.js
       cp ${styles} public/styles.css
     '';
@@ -61,6 +85,6 @@ let
 in
 {
   default = blossom-server;
-  inherit blossom-server clientBundle styles;
+  inherit blossom-server clientBundle adminBundle styles;
   denoDeps = blossom-server.denoDeps;
 }

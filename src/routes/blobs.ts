@@ -46,7 +46,7 @@ export function ifNoneMatchMatches(headerValue: string | undefined, etag: string
 export function buildBlobsRouter(
   db: Client,
   storage: IBlobStorage,
-  _config: Config,
+  config: Config,
 ): Hono<{ Variables: BlossomVariables }> {
   const app = new Hono<{ Variables: BlossomVariables }>();
 
@@ -119,6 +119,14 @@ export function buildBlobsRouter(
 
     if (ctx.req.method === "HEAD") {
       return ctx.body(null, 200, headers);
+    }
+
+    // S3 public downloads are served by the CDN, including Range requests.
+    // Use the stored extension, not the cosmetic extension in the request URL.
+    const publicURL = config.storage.backend === "s3" ? config.storage.s3?.publicURL : undefined;
+    if (publicURL) {
+      const key = ext ? `${hash}.${ext}` : hash;
+      return ctx.redirect(`${publicURL.replace(/\/$/, "")}/${key}`, 302);
     }
 
     // Range request support (BUD-01)
@@ -209,7 +217,7 @@ export function parseRange(
  * Falls back to stream-slicing over the full read() stream when readRange()
  * is not implemented (e.g. a custom IBlobStorage that only provides the base interface).
  */
-async function readRange(
+export async function readRange(
   storage: IBlobStorage,
   hash: string,
   ext: string,
@@ -228,14 +236,20 @@ async function readRange(
   let bytesSkipped = 0;
   let bytesRead = 0;
   const length = end - start + 1;
+  const reader = fullStream.getReader();
+  let cancelled = false;
 
   return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = fullStream.getReader();
+    async pull(controller) {
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (cancelled) return;
+          if (done) {
+            reader.releaseLock();
+            controller.close();
+            return;
+          }
           if (!value) continue;
 
           // Skip bytes before start
@@ -257,12 +271,26 @@ async function readRange(
             bytesRead += toRead;
           }
 
-          if (bytesRead >= length) break;
+          if (bytesRead >= length) {
+            controller.close();
+            await reader.cancel();
+            reader.releaseLock();
+          }
+          return;
         }
-      } finally {
-        reader.cancel().catch(() => {});
-        controller.close();
+      } catch (error) {
+        if (!cancelled) controller.error(error);
+        await reader.cancel(error).catch(() => {});
+        reader.releaseLock();
       }
     },
-  });
+    async cancel(reason) {
+      cancelled = true;
+      try {
+        await reader.cancel(reason);
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  }, { highWaterMark: 0 });
 }

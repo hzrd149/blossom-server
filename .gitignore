@@ -8,6 +8,7 @@ dist
 .netrc
 public/client.js
 public/styles.css
+public/admin/
 result
 .claude
 vendor

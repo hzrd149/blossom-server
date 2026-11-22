@@ -1,370 +1,83 @@
-# AGENTS.md — Blossom Server
-
-Guidance for AI coding agents working in this repository.
-
----
-
-## Project Overview
-
-Blossom Server is a **Deno 2**-based HTTP server implementing the [Blossom](https://github.com/hzrd149/blossom) blob-storage protocol (BUDs
-01/02/04/05/06/09/11). It uses **Hono** for routing, **LibSQL** (embedded SQLite) for metadata, and supports local-disk and S3 storage. Authentication is via
-BUD-11 Nostr signed events (kind 24242). The admin dashboard is server-side rendered Hono JSX, runs on the main thread, and is protected by HTTP Basic Auth.
-
----
-
-## Commands
-
-All commands use the **Deno** toolchain. There is no `package.json`.
-
-```sh
-# Development (file-watching)
-deno task dev
-
-# Production start
-deno task start
-
-# Run the full test suite
-deno task test
-
-# Run a single test file
-deno test --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/e2e/upload.test.ts
-
-# Run a single test case by name
-deno test --filter "PUT /upload returns 200" --env-file=.env --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-sys tests/
-
-# Lint (Deno built-in)
-deno lint
-
-# Format check
-deno fmt --check
-
-# Format (auto-fix)
-deno fmt
-
-# Pre-build the landing page assets (outputs: public/client.js and public/styles.css)
-# Recommended when the landing page or dashboard is enabled. Missing assets
-# produce startup warnings, while blob API routes remain available.
-deno task build
-
-# Rebuild all Nix artifacts in sandboxes, bypass cached outputs, and check the flake.
-deno task check:nix
-
-# Refresh stale fixed-output hashes, then run the full Nix check
-deno task update:nix-hashes
-
-# Individual fixed-output checks, useful when updating a reported hash.
-nix build path:.#denoDeps --rebuild --print-build-logs
-nix build path:.#clientBundle --rebuild --print-build-logs
-nix build path:.#styles --rebuild --print-build-logs
-```
-
-> **Before every commit:** run `deno fmt` to auto-format all changed files. Unformatted code will fail CI. Run `deno fmt --check` to verify without modifying
-> files.
-
-> **Changelog:** Add every unreleased user-facing change to the `Unreleased` section of `CHANGELOG.md` as part of the same change. Categorize entries under
-> `Major Changes`, `Minor Changes`, or `Patch Changes`, and do not create a new version heading until cutting a release. When releasing, move the accumulated
-> entries into the new version section.
-
-> **Read before writing tests:** `TESTING.md` contains the full planned test matrix and helper patterns. Tests go in `tests/unit/` (pure logic) or `tests/e2e/`
-> (full Hono app via `app.fetch()` — no real HTTP port needed).
-
-> **Nix deterministic validation:** Run `deno task check:nix` after changing Nix inputs, dependencies, or bundled client code. It realizes all outputs and then
-> force-rebuilds `denoDeps`, `clientBundle`, `styles`, and the final package, so old store paths cannot hide stale outputs or fixed-output hashes. If Nix
-> reports a hash mismatch, run `deno task update:nix-hashes` to refresh `denoDepsHash` and `clientBundle.hash` in `nix/package.nix` and verify all outputs.
-
-### Release development workflow
-
-- Develop each release milestone on a dedicated `v<version>` release-candidate branch, such as `v6.4.1`. Do not implement milestone work directly on `master`.
-- Base the release-candidate branch on the current `master`. Every pull request selected for the release must target and merge into that branch, including
-  adapted upstream contributions and locally authored milestone work.
-- For an existing contribution PR, change its base to `v<version>`, work with the contributor to put any agreed adaptations on that PR's head branch, and merge
-  the PR through GitHub. Verify that GitHub marks it **Merged**; copying or cherry-picking its changes into the release branch does not merge the PR. If the
-  original PR cannot be updated, open and merge a separate adaptation PR, link the original, and close the original with an explanation after release.
-- Use **Create a merge commit** for contribution PRs and the release PR when preserving the contributors' original commit SHAs and authorship in `master` is
-  required. Squash merging combines their commits into a new commit, so the individual commits are not retained in `master` history.
-- Open a GitHub release pull request from `v<version>` into `master` after the candidate is complete. Use that PR to run the full CI suite and resolve every
-  required failure before merge.
-- Do not merge the release pull request while required CI checks are failing or pending.
-- After the release pull request merges, update local `master`, confirm the merge contains the intended version and changelog, then create and push the
-  `v<version>` tag from `master`.
-- Publish the Deno package only from the tagged, merged `master` state. Never publish from a release-candidate or contribution branch.
-- Preserve traceability from each selected contribution PR to the release-candidate branch, its verification evidence, the release PR, the tag, and the
-  published package.
-
----
-
-## Project Structure
-
-```
-blossom-server/
-├── main.ts                   # Entry: load config → init DB → init pool → buildApp → Deno.serve
-├── deno.json                 # Tasks, import map, compiler options
-├── config.example.yml        # Annotated reference config (copy to config.yml to run)
-├── ARCHITECTURE.md           # Architecture docs — read before structural changes
-├── TESTING.md                # Planned test suite — read before writing tests
-├── public/
-│   ├── favicon.ico
-│   ├── client.js             # Landing page bundle — generated by deno task build
-│   └── styles.css            # Compiled Tailwind CSS — generated by deno task build
-└── src/
-    ├── server.ts             # Hono app assembly: middleware + route routers
-    ├── config/
-    │   ├── schema.ts         # Zod config schema (all defaults live here)
-    │   └── loader.ts         # YAML load + ${ENV_VAR} interpolation + Zod safeParse
-    ├── middleware/
-    │   ├── auth.ts           # BUD-11 parse, requireAuth(), optionalAuth(), requireXTag()
-    │   ├── cors.ts           # BUD-01 CORS
-    │   ├── errors.ts         # errorResponse() + global onError handler
-    │   ├── debug.ts          # debug() logging helper
-    │   └── logger.ts         # requestLogger middleware
-    ├── routes/
-    │   ├── blobs.ts          # GET/HEAD /:sha256[.ext] (BUD-01)
-    │   ├── upload.ts         # PUT /upload, HEAD /upload (BUD-02/06)
-    │   ├── delete.ts         # DELETE /:sha256 (BUD-02)
-    │   ├── list.ts           # GET /list/:pubkey (BUD-02)
-    │   ├── mirror.ts         # PUT /mirror (BUD-04)
-    │   ├── media.ts          # PUT /media, HEAD /media (BUD-05)
-    │   ├── report.ts         # PUT /report (BUD-09)
-    │   ├── admin-router.tsx  # /admin/* SSR pages + action endpoints (main thread)
-    │   └── landing.tsx       # GET /, GET /client.js
-    ├── admin/                # Admin dashboard SSR components (hono/jsx)
-    ├── landing/
-    │   ├── client/           # Client-side island (hono/jsx/dom, bundled to public/client.js)
-    │   │   ├── index.tsx     # Entry point — hydrates #upload-root
-    │   │   ├── App.tsx
-    │   │   ├── UploadForm.tsx
-    │   │   ├── MirrorForm.tsx
-    │   │   └── ...
-    │   ├── styles/           # Tailwind input and isolated CLI dependency lock
-    │   ├── layout.tsx        # HTML shell + compiled stylesheet link
-    │   ├── page.tsx          # LandingPage async SSR component
-    │   ├── upload-island.tsx # Island mount point (data-* attrs → client hydration)
-    │   ├── server-info.tsx
-    │   └── stats-bar.tsx
-    ├── storage/
-    │   ├── interface.ts      # IBlobStorage + WriteSession interfaces
-    │   ├── local.ts          # LocalStorage implementation (Deno FS)
-    │   └── s3.ts             # S3Storage implementation
-    ├── db/
-    │   ├── client.ts         # initDb() / getDb() singleton
-    │   ├── blobs.ts          # All SQL query functions
-    │   ├── handle.ts         # IDbHandle interface
-    │   ├── direct.ts         # DirectDbHandle — wraps @libsql/client Client
-    │   ├── bridge.ts         # MessageChannel bridge (upload workers → main thread DB)
-    │   └── proxy.ts          # Worker-side DbProxy
-    ├── optimize/
-    │   ├── index.ts          # optimizeMedia() dispatcher
-    │   ├── image.ts          # sharp-based image optimization
-    │   └── video.ts          # fluent-ffmpeg video transcoding
-    ├── prune/
-    │   ├── prune.ts          # Prune loop (removeWhenNoOwners / storage rules)
-    │   └── rules.ts          # getFileRule() — per-blob rule evaluation
-    ├── utils/
-    │   ├── mime.ts           # mimeToExt()
-    │   ├── streams.ts        # Stream helpers
-    │   └── url.ts            # getBaseUrl(), getBlobUrl()
-    └── workers/
-        ├── pool.ts           # UploadWorkerPool, initPool(), getPool()
-        └── upload-worker.ts  # Single-pass stream → file write + SHA-256
-```
-
-> **Route registration order in `server.ts` matters.** `/upload`, `/mirror`, `/media`, `/report`, `/list/:pubkey`, and `/api/*` must be mounted before
-> `/:sha256[.ext]` (the blob catch-all). `/admin/*` must be mounted before blob routes too.
-
----
-
-## Code Style
-
-### TypeScript
-
-- **Strict mode** is on by default in Deno 2 — no explicit `strict: true` needed.
-- **ESM only.** All local imports must carry explicit `.ts` / `.tsx` extensions:
-  ```ts
-  import { requireAuth } from "../middleware/auth.ts"; // correct
-  import { requireAuth } from "../middleware/auth"; // wrong — Deno will error
-  ```
-- **`import type`** for type-only imports:
-  ```ts
-  import type { Context } from "@hono/hono";
-  ```
-
-### Import Map
-
-Bare specifiers are declared in `deno.json`. Use them — do not inline full JSR/npm URLs:
-
-```ts
-import { Hono, HTTPException } from "@hono/hono";
-import { z } from "zod";
-import { verifyEvent } from "nostr-tools/pure";
-import { encodeHex } from "@std/encoding/hex";
-import { S3Client } from "@bradenmacdonald/s3-lite-client";
-```
-
-### Formatting (enforced by `deno fmt`)
-
-- Line width: **120 characters**
-- Indentation: **2 spaces** (no tabs)
-- Quotes: **double quotes**
-
-### Naming Conventions
-
-| Element                 | Convention                     | Example                               |
-| ----------------------- | ------------------------------ | ------------------------------------- |
-| Files                   | `kebab-case.ts`                | `upload-worker.ts`                    |
-| Exported functions      | `camelCase`                    | `buildUploadRouter`, `requireAuth`    |
-| Classes                 | `PascalCase`                   | `LocalStorage`, `S3Storage`           |
-| Interfaces              | `PascalCase`                   | `IBlobStorage`, `WriteSession`        |
-| Storage interfaces      | `I` prefix                     | `IBlobStorage`                        |
-| Zod schemas             | `PascalCase` + `Schema` suffix | `ConfigSchema`, `VideoOptimizeSchema` |
-| Constants / regex       | `SCREAMING_SNAKE_CASE`         | `SHA256_RE`, `HEX_PUBKEY_RE`          |
-| Module-level singletons | `_underscore` prefix           | `let _pool`, `let _client`            |
-
-### Types and Interfaces
-
-- Prefer **interfaces** for domain shapes (`BlobRecord`, `WriteSession`, `AuthState`).
-- **Zod schemas** are the source of truth for config/input types; derive TS types with `z.infer<typeof MySchema>`.
-- Use **discriminated unions** for MessageChannel wire types (see `src/db/bridge.ts`).
-- Extend Hono context variables via module augmentation (see `src/middleware/auth.ts`).
-- Use the **`satisfies`** operator on `postMessage` payloads:
-  ```ts
-  worker.postMessage({ id, hash, size } satisfies JobRequest);
-  ```
-
----
-
-## Hono JSX (Admin Dashboard Pages)
-
-All admin dashboard pages live in `src/admin/` and are `.tsx` files rendered server-side using `hono/jsx`.
-
-### Required pragma
-
-Every `.tsx` file must have this pragma as the **first line**:
-
-```tsx
-/** @jsxImportSource hono/jsx */
-```
-
-This overrides the `deno.json` global `jsxImportSource` at the file level. Do not omit it — without it, JSX will not compile in worker contexts or may resolve
-to the wrong runtime.
-
-### Component typing
-
-Use `FC` from `@hono/hono/jsx` for all function components:
-
-```tsx
-import type { FC } from "@hono/hono/jsx";
-
-interface MyProps {
-  title: string;
-}
-
-export const MyComponent: FC<MyProps> = ({ title }) => <div>{title}</div>;
-```
-
-### Async components
-
-`hono/jsx` supports async components natively — no wrappers needed. `c.html()` awaits them automatically:
-
-```tsx
-export const MyPage: FC<Props> = async ({ db, id }) => {
-  const record = await db.getRecord(id);
-  return <div>{record.name}</div>;
-};
-
-// In the route handler:
-app.get("/admin/foo/:id", (c) => {
-  return c.html(<MyPage db={dbHandle} id={c.req.param("id")} />);
-});
-```
-
-### Fragments
-
-Use `<></>` shorthand (configured via `deno.json`):
-
-```tsx
-const List = () => (
-  <>
-    <p>first</p>
-    <p>second</p>
-  </>
-);
-```
-
-### Admin page conventions
-
-- All pages import shared UI primitives from `./layout.tsx` (`AdminLayout`, `Table`, `Badge`, `PageHeader`, `Pagination`, etc.)
-- `AdminLayout` takes `section: "blobs" | "users" | "rules" | "reports"` to highlight the active nav item
-- DB access is via `IDbHandle` (passed as a prop); the router builds a `DirectDbHandle` wrapping the raw `Client`
-- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client` Client and implements every `IDbHandle` method
-- New admin DB operations must be added to: `src/db/blobs.ts` (SQL), `src/db/handle.ts` (interface), `src/db/direct.ts` (direct impl), `src/db/proxy.ts` (proxy
-  for upload workers), and `src/db/bridge.ts` (bridge discriminated union + switch case)
-- `DirectDbHandle` is in `src/db/direct.ts` — it wraps the real `@libsql/client` Client and implements every `IDbHandle` method
-
----
-
-## Error Handling
-
-- **HTTP errors from route handlers:** `throw new HTTPException(status, { message })` — caught by `onError` in `server.ts`.
-- **Route error responses:** `return errorResponse(ctx, status, reason)` — routes always return, never throw.
-- **Auth middleware is parse-only** — never throws, always calls `next()`. **Every route must explicitly call `requireAuth()` or `optionalAuth()`** — omitting
-  this leaves a route silently unprotected.
-- **Body cancellation:** Routes that reject a streaming upload must cancel the body first:
-  ```ts
-  await ctx.req.raw.body?.cancel();
-  return errorResponse(ctx, 400, "reason");
-  ```
-- **Fire-and-forget async:** use `.catch(() => {})` or `.catch((err) => console.error(...))` for non-critical side effects.
-- **Worker errors:** normalize with `err instanceof Error ? err.message : String(err)`.
-- **Exhaustive switch:** `const _exhaustive: never = value` in the default branch.
-
----
-
-## Async Patterns
-
-- **`async/await` throughout** — no raw `.then()` chains except fire-and-forget.
-- **Web Streams** (`ReadableStream`, `WritableStream`, `tee()`, `pipeTo()`) for upload handling — never buffer large request bodies.
-- **Worker pool:** `pool.dispatch()` returns `null` when all workers are busy → respond 503 immediately.
-- **DB singleton:** `getDb()` and `getPool()` throw if called before `initDb()` / `initPool()`. Both are initialized in `main.ts`.
-
----
-
-## Architecture Constraints
-
-1. **No body buffering on rejection.** Cancel the request body before returning any error if streaming may have started.
-2. **Worker pool has no queue.** Handle `null` from `dispatch()` as a 503.
-3. **Auth middleware never blocks.** Add explicit enforcement in every new route handler.
-4. **JSX files** require `.tsx` extension and the `hono/jsx` import source (set globally in `deno.json`).
-5. **Config uses YAML + Zod**, not `.env`. Env vars inject via `${VAR_NAME}` syntax in `config.yml`.
-6. **S3 storage** buffers to a local `tmpDir` before committing — the S3 bucket only ever receives hash-verified blobs.
-7. **`fluent-ffmpeg` requires a host `ffmpeg` binary** — not bundled. Video optimization silently fails without it.
-
----
-
-## Testing Guidelines
-
-```ts
-// Unit test skeleton
-import { assertEquals } from "@std/assert";
-import { myFunction } from "../../src/module.ts";
-
-Deno.test("myFunction does X", () => {
-  assertEquals(myFunction(input), expected);
-});
-
-// E2E test skeleton — no real HTTP port needed
-import { buildApp } from "../../src/server.ts";
-
-Deno.test("PUT /upload returns 200", async () => {
-  const app = await buildApp(db, storage, config);
-  const res = await app.fetch(
-    new Request("http://localhost/upload", { method: "PUT" }),
-  );
-  assertEquals(res.status, 200);
-});
-```
-
-- Use `createClient({ url: ":memory:" })` for in-memory DB in unit/e2e tests.
-- Use `Deno.makeTempDir()` for filesystem tests; clean up in a `finally` block.
-- Generate real Nostr signed events with `generateSecretKey` + `finalizeEvent` from `nostr-tools/pure`.
-- Disable `sanitizeOps`/`sanitizeResources` for tests that use the worker pool (ports outlive individual tests by design).
-- See `TESTING.md` for the full planned test matrix and helper patterns.
+# Blossom Server — agent guidance
+
+## Commands and verification
+
+- Use Deno 2; `deno.json` owns tasks, permissions, and server imports. There is no npm workspace.
+- `deno task dev` / `deno task start` load `.env`; configuration is YAML with `${VAR}` interpolation, not environment-only config. Copy `config.example.yml`
+  when setting up; pass a custom path with `deno task start /path/config.yml`.
+- CI runs `deno task build` **before** `deno task test`. The test task runs server unit/E2E tests, landing client tests, then the admin typecheck.
+- Focused server tests: `deno test -P --env-file=.env tests/unit/auth.test.ts` (or a file under `tests/e2e/`). `-P` selects the root permission set, including
+  subprocess and FFI access.
+- For self-contained tests, add `--filter "name substring"`. Some E2E files (notably `upload.test.ts`) initialize shared state in a separate setup test: run the
+  whole file or include setup/cleanup in the filter.
+- Landing-only checks: `deno task test:client`; admin changes: `deno task check:admin` and `deno task build:admin`.
+- Run `deno lint` and format changed files with `deno fmt <paths>` before committing; verify with `deno fmt --check <paths>`. Deno's configured line width is
+  **160**, not the older prose/Prettier convention.
+- Root config excludes both browser client directories; root-only checks do not cover them. Each client and each styles directory has its own `deno.json` and
+  lockfile. Builds use frozen locks; update the lock belonging to the changed dependency.
+- `deno task build` generates ignored `public/client.js`, `public/styles.css`, and `public/admin/`; edit source, not these outputs. Missing assets warn at
+  startup while blob APIs remain available. `build:admin:styles` rebuilds only admin CSS.
+- Video processing invokes host `ffmpeg` and `ffprobe` directly and needs subprocess permission. `nix develop` provides the binaries; see
+  `docs/media-security.md` before changing media admission or processing limits.
+
+## Server boundaries and traps
+
+- `main.ts` owns startup and background work; tests normally use `buildApp()` from `src/server.ts` with `app.fetch()`, without a listening port. Existing E2E
+  files demonstrate temporary storage, real signed Nostr events, and DB/pool setup.
+- Upload tests share a pool singleton and disable `sanitizeOps`/`sanitizeResources` because MessagePorts outlive individual tests. `createServerRuntime()`
+  creates stopped schedulers; use `stopServerRuntime()` when cleaning up runtime-owned work.
+- Local SQLite worker access goes through the main-thread MessageChannel DB bridge; remote libSQL workers open direct connections. Admin-only SQL belongs in
+  `src/db/` and `src/admin/services/database.ts`, not the upload-worker RPC interface.
+- Keep `/admin` mounted before public static files and Blossom middleware in `src/server.ts`. In `src/routes/blossom-router.ts`, named protocol routes must
+  precede the blob catch-all.
+- Blossom errors are `text/plain` with `X-Reason`, scoped to the Blossom sub-app. Preserve admin JSON errors and HTTP Basic Auth challenge headers; do not apply
+  Blossom error formatting globally.
+- Nostr auth middleware rejects invalid supplied credentials but lets missing credentials through. Protected handlers must still call `requireAuth()` and
+  enforce hash scope with `requireXTag()` where applicable; `optionalAuth()` only reads parsed credentials.
+- Cancel streaming request bodies before rejecting them; never buffer rejected uploads. The upload pool has no queue: `dispatch()` returning `null` means
+  immediate 503. S3 uploads stage locally and commit only hash-verified blobs.
+- Live rules come from `runtime.rules.current()`, not `config.storage.rules` (which includes disabled rules and is not the live snapshot). Rule changes reset
+  prune cursors. NIP-05 fetched members are in-memory additions, not persisted pubkeys.
+- Storage rules live in YAML, not the DB. `src/config/editor.ts` edits raw YAML, preserving comments and `${VAR}` placeholders, with atomic writes and
+  hash-based conflict detection; read-only configurations support copying rendered output.
+- Browser-safe policy schemas live in `src/policy/`; server config defaults live in `src/config/schema.ts`.
+- Migrations in `src/db/migrations/` run alphabetically and are recorded by filename in `schema_migrations`. Add new migrations rather than changing applied
+  ones. The runner splits on `;` without SQL parsing: no semicolons in comments or trigger bodies.
+- Legacy admin user-content deletion force-deletes shared blobs for **all owners**, capped at 10,000 records. Do not accidentally turn it into ownership-only
+  deletion while refactoring.
+
+## Admin and browser code
+
+- Server rendering uses Hono JSX; landing client uses Hono JSX DOM; `src/admin/client/` uses React with an independent JSX config. Do not mix runtimes. Admin
+  uses Tailwind 4/daisyUI 5; landing styles use Tailwind 3.
+- `src/admin/server/` validates HTTP input, `src/admin/services/` coordinates operations, and `src/admin/contracts/` carries browser-safe DTOs. Contracts must
+  not import filesystem, worker, DB, or runtime config modules or expose resolved credentials.
+- Register console pages in `src/admin/contracts/pages.ts` as well as the client router. Only registered paths receive the HTML shell; `/admin/api` misses stay
+  JSON 404s. Resolve client API URLs against `location.origin` to support credentials in the console URL.
+- Use standard daisyUI control sizes and semantic colors; small sizes are for dense rows/inline utilities. Success notifications are bottom-right toasts, not
+  page-top banners.
+- TanStack Query owns HTTP API data (`src/admin/client/api/queries.ts`). Nostr data uses the shared Applesauce instances in `src/admin/client/nostr/`; read
+  relevant Applesauce examples before adding Nostr features.
+- Use native Applesauce stores, loaders, account classes, providers, and hooks; use casts with `use$` directly (e.g.
+  `use$(() => castUser(pubkey, eventStore).profile$, [pubkey])`). Do not add a custom runtime/profile-hook facade, backend profile fetching, or another app-wide
+  EventStore/pool.
+- Incoming relay events enter the shared EventStore. Accounts are session-only and independent of HTTP Basic Auth; signer requests require explicit user action.
+  Do not write tests that merely retest Applesauce behavior.
+
+## Change and release conventions
+
+- Read `docs/moderation/local-bans.md` before changing pubkey or blob bans; keep behavior and status headers synchronized, following
+  `docs/moderation/README.md`. Bans live in the database (`src/db/moderation/`, via `ModerationDatabase`) and are enforced through `runtime.moderation`; domain
+  code never holds the libsql `Client`.
+- For customer-facing changes, read `CHANGELOG.md`'s `Unreleased` section first. Extend an existing entry for an unreleased feature rather than adding another
+  fix/polish entry. Use `Major Changes`, `Minor Changes`, or `Patch Changes`; describe operator/user impact in one short sentence, naming relevant config
+  keys/endpoints. Skip internal refactors, tests, tooling, and UI polish. Add a version heading only when releasing.
+- **Nix checks are pre-commit work:** after all Nix-input, dependency, or bundled-client edits are complete, run `deno task check:nix`. On a hash mismatch, run
+  `deno task update:nix-hashes` to update `nix/package.nix` and recheck. Do not refresh hashes after individual edits. The check realizes and force-rebuilds
+  dependencies, both client bundles, styles, and the final package.
+- Develop release milestones on `v<version>` branched from current `master`; selected contribution and local PRs target that candidate branch. Retarget and
+  merge original contribution PRs through GitHub, verifying **Merged** status; copying/cherry-picking does not merge a PR. If adaptation requires a separate PR,
+  link the original and close it with an explanation after release.
+- Use merge commits when retaining contributor SHAs/authorship is required. Release via a `v<version>` → `master` PR only after required CI passes. Then update
+  local `master`, verify version/changelog, and tag/push `v<version>` from that merged state. Publish the Deno package only from tagged, merged `master`; retain
+  links from contribution PRs through release PR, verification, tag, and package.

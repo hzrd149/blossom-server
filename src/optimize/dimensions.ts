@@ -15,6 +15,9 @@
  * treated as "dimensions unknown", not an error.
  */
 
+import { MAX_INPUT_PIXELS, metadataGate } from "./limits.ts";
+import { probeVideo } from "./process.ts";
+
 /** Format a width/height pair as the BUD `dim` string, or null if invalid. */
 function formatDim(
   width?: number | null,
@@ -34,7 +37,7 @@ function formatDim(
 async function probeImageDim(filePath: string): Promise<string | null> {
   try {
     const { default: sharp } = await import("sharp");
-    const meta = await sharp(filePath).metadata();
+    const meta = await sharp(filePath, { limitInputPixels: MAX_INPUT_PIXELS }).timeout({ seconds: 5 }).metadata();
     // For multi-frame inputs sharp reports the single-frame height in `pageHeight`
     // when `animated` is not set; metadata().height is the full canvas height
     // for a single page, which is what we want for the descriptor.
@@ -44,41 +47,11 @@ async function probeImageDim(filePath: string): Promise<string | null> {
   }
 }
 
-/** Minimal shape of the ffprobe JSON output we use for dimensions. */
-interface FfprobeDimStream {
-  codec_type?: string;
-  width?: number;
-  height?: number;
-}
-
-interface FfprobeDimOutput {
-  streams: FfprobeDimStream[];
-}
-
 /** Probe video dimensions with ffprobe. Returns null on any failure. */
 async function probeVideoDim(filePath: string): Promise<string | null> {
   try {
-    const cmd = new Deno.Command("ffprobe", {
-      args: [
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_streams",
-        filePath,
-      ],
-      stdout: "piped",
-      stderr: "null",
-    });
-
-    const { success, stdout } = await cmd.output();
-    if (!success) return null;
-
-    const json: FfprobeDimOutput = JSON.parse(new TextDecoder().decode(stdout));
-    const videoStream = json.streams.find((s) => s.codec_type === "video");
-    if (!videoStream) return null;
-
-    return formatDim(videoStream.width, videoStream.height);
+    const { video } = await probeVideo(filePath);
+    return formatDim(video.width, video.height);
   } catch {
     return null;
   }
@@ -93,7 +66,13 @@ export async function extractDimensions(
   mimeType: string | null,
 ): Promise<string | null> {
   if (!mimeType) return null;
-  if (mimeType.startsWith("image/")) return await probeImageDim(filePath);
-  if (mimeType.startsWith("video/")) return await probeVideoDim(filePath);
-  return null;
+  const release = metadataGate.tryAcquire();
+  if (!release) return null;
+  try {
+    if (mimeType.startsWith("image/")) return await probeImageDim(filePath);
+    if (mimeType.startsWith("video/")) return await probeVideoDim(filePath);
+    return null;
+  } finally {
+    release();
+  }
 }

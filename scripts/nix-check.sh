@@ -6,6 +6,7 @@ flake_ref="path:."
 targets=(
   "$flake_ref#denoDeps"
   "$flake_ref#clientBundle"
+  "$flake_ref#adminBundle"
   "$flake_ref#styles"
   "$flake_ref#blossom-server"
 )

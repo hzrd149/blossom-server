@@ -2,9 +2,8 @@
  * Prune engine — deletes expired and ownerless blobs on a schedule.
  *
  * Two phases per run:
- *   Phase 1 — Rule-based expiry: for each storage rule, find blobs whose last
- *             access time (or upload time if never accessed) is older than the
- *             rule's expiration window, and delete them.
+ *   Phase 1 — Rule-based expiry: use last access (falling back to upload time)
+ *             by default, or first upload time for rules with basis: uploaded.
  *   Phase 2 — Ownerless cleanup (optional): delete blobs with no owner rows.
  *
  * Fixes vs the legacy Node.js implementation:
@@ -16,7 +15,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import type { StorageRule } from "../config/schema.ts";
+import type { StorageRule } from "../policy/rule-schema.ts";
 import type { IBlobStorage } from "../storage/interface.ts";
 import {
   type BlobPruneRecord,
@@ -29,12 +28,13 @@ import {
   type PruneSource,
 } from "../db/blobs.ts";
 import { mimeToExt } from "../utils/mime.ts";
-import { mimeMatchesRule, parseDuration } from "./rules.ts";
+import { getGoverningRuleIndex, parseDuration } from "./rules.ts";
+import type { OperationMetrics } from "../metrics/operations.ts";
 
 export interface PruneResult {
   /** Total blobs removed (DB row + physical file) this run. */
   deleted: number;
-  /** Number of individual blob deletions that failed with an error. */
+  /** Query, rule-validation, and deletion errors in this run. */
   errors: number;
 }
 
@@ -49,6 +49,26 @@ export interface PruneState {
   ownerless?: string;
 }
 
+/** Why a blob was (or, in a dry run, would be) deleted. */
+export type PruneReason =
+  | { kind: "rule"; ruleIndex: number; basis: PruneSource; basisTimestamp: number }
+  | { kind: "ownerless" }
+  | { kind: "thumbnail"; parent: string };
+
+export interface PruneCandidate {
+  sha256: string;
+  size: number;
+  type: string | null;
+  reason: PruneReason;
+}
+
+export interface PruneHooks {
+  /** When true, nothing is deleted; candidates are reported through onCandidate/onDeleted only. */
+  dryRun?: boolean;
+  /** Called after each successful deletion (or for each candidate in a dry run). Must not throw. */
+  onDeleted?: (candidate: PruneCandidate) => void;
+}
+
 export function createPruneState(): PruneState {
   return { rules: [] };
 }
@@ -57,27 +77,17 @@ function getRuleState(state: PruneState, index: number): RulePruneState {
   return state.rules[index] ??= { nextSource: "accessed" };
 }
 
-function getGoverningRuleIndex(row: BlobPruneRecord, rules: StorageRule[]): number {
-  for (let index = 0; index < rules.length; index++) {
-    const rule = rules[index];
-    if (!mimeMatchesRule(row.type, rule.type)) continue;
-    const pubkeys = rule.pubkeys;
-    if (pubkeys?.length && !row.owners.some((owner) => pubkeys.includes(owner))) continue;
-    return index;
-  }
-  return -1;
-}
-
 async function getRuleCandidates(
   db: Client,
   rule: StorageRule,
   cutoff: number,
   batchSize: number,
   state: RulePruneState,
+  onError: () => void,
 ): Promise<BlobPruneRecord[]> {
   const first = state.nextSource;
-  const sources: PruneSource[] = [first, first === "accessed" ? "uploaded" : "accessed"];
-  state.nextSource = sources[1];
+  const sources: PruneSource[] = rule.basis === "uploaded" ? ["uploaded"] : [first, first === "accessed" ? "uploaded" : "accessed"];
+  if (rule.basis !== "uploaded") state.nextSource = sources[1];
 
   const rows: BlobPruneRecord[] = [];
   for (const source of sources) {
@@ -89,6 +99,7 @@ async function getRuleCandidates(
       page = await getBlobsForPrune(db, cutoff, remaining, source, state[source]);
     } catch (err) {
       console.warn(`[prune] Failed to query ${source} blobs for rule type="${rule.type}":`, err);
+      onError();
       continue;
     }
     rows.push(...page);
@@ -125,9 +136,44 @@ export async function pruneStorage(
   removeWhenNoOwners: boolean,
   batchSize = 1000,
   state = createPruneState(),
+  metrics?: OperationMetrics,
+  hooks: PruneHooks = {},
 ): Promise<PruneResult> {
   let deleted = 0;
   let errors = 0;
+  const dryRun = hooks.dryRun === true;
+  const report = (candidate: PruneCandidate) => {
+    try {
+      hooks.onDeleted?.(candidate);
+    } catch (err) {
+      console.warn("[prune] onDeleted hook failed:", err);
+    }
+  };
+
+  /** Delete a blob plus its generated thumbnails (or only report them in a dry run). */
+  const removeBlob = async (row: { sha256: string; size: number; type: string | null }, reason: PruneReason) => {
+    const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
+    if (!dryRun) {
+      // Keep all metadata (including thumbnail links) until storage cleanup succeeds,
+      // so a later cycle can retry failures. Already-missing files are safe to retry.
+      await storage.remove(row.sha256, mimeToExt(row.type));
+      for (const thumbnail of thumbnails) {
+        await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
+      }
+      await deleteBlob(db, row.sha256); // FK cascade removes owners + accessed rows
+      metrics?.add("blossom_prune_deleted_bytes_total", "", row.size, "Logical bytes removed by pruning; not physical backend usage.");
+    }
+    deleted++;
+    report({ sha256: row.sha256, size: row.size, type: row.type, reason });
+    for (const thumbnail of thumbnails) {
+      if (!dryRun) {
+        await deleteBlob(db, thumbnail.sha256);
+        metrics?.add("blossom_prune_deleted_bytes_total", "", thumbnail.size, "Logical bytes removed by pruning; not physical backend usage.");
+      }
+      deleted++;
+      report({ ...thumbnail, reason: { kind: "thumbnail", parent: row.sha256 } });
+    }
+  };
 
   // Tracks sha256 hashes processed in this run to avoid double-deletion when
   // multiple rules overlap (e.g. "image/*" and "*" could match the same blob).
@@ -141,6 +187,7 @@ export async function pruneStorage(
     try {
       cutoffSeconds = now - parseDuration(rule.expiration);
     } catch (err) {
+      errors++;
       console.warn(
         `[prune] Skipping rule (invalid expiration "${rule.expiration}"):`,
         err,
@@ -150,18 +197,21 @@ export async function pruneStorage(
 
     let rows;
     try {
-      rows = await getRuleCandidates(db, rule, cutoffSeconds, batchSize, getRuleState(state, ruleIndex));
+      rows = await getRuleCandidates(db, rule, cutoffSeconds, batchSize, getRuleState(state, ruleIndex), () => {
+        errors++;
+      });
     } catch (err) {
       console.warn(
         `[prune] Failed to query blobs for rule type="${rule.type}":`,
         err,
       );
+      errors++;
       continue;
     }
 
     for (const row of rows) {
       if (row.thumbnail) continue;
-      if (row.pruneSource === "uploaded" && row.accessed !== null) continue;
+      if (rule.basis !== "uploaded" && row.pruneSource === "uploaded" && row.accessed !== null) continue;
 
       // SQL finds candidates for this rule, but ordered rules are a first-match
       // policy. A candidate governed by an earlier rule must never be deleted by
@@ -173,20 +223,16 @@ export async function pruneStorage(
       // Expiry is decided in SQL now, so this is a guard rather than a filter:
       // it should never reject a row. Kept because the failure it protects
       // against — a query change that widens the match — deletes user data.
-      const lastSeen = row.accessed ?? row.uploaded;
+      const basisTimestamp = rule.basis === "uploaded" ? row.uploaded : row.accessed ?? row.uploaded;
 
-      if (lastSeen < cutoffSeconds) {
+      if (basisTimestamp < cutoffSeconds) {
         try {
-          const ext = mimeToExt(row.type);
-          const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
-          await deleteBlob(db, row.sha256); // FK cascade removes owners + accessed rows
-          await storage.remove(row.sha256, ext);
-          for (const thumbnail of thumbnails) {
-            await deleteBlob(db, thumbnail.sha256);
-            await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
-            deleted++;
-          }
-          deleted++;
+          await removeBlob(row, {
+            kind: "rule",
+            ruleIndex,
+            basis: rule.basis === "uploaded" || row.accessed === null ? "uploaded" : "accessed",
+            basisTimestamp,
+          });
         } catch (err) {
           console.warn(`[prune] Failed to delete blob ${row.sha256}:`, err);
           errors++;
@@ -202,6 +248,7 @@ export async function pruneStorage(
       state.ownerless = candidates.length < batchSize ? undefined : candidates.at(-1)!.sha256;
     } catch (err) {
       console.warn("[prune] Failed to query ownerless blobs:", err);
+      errors++;
       candidates = [];
     }
 
@@ -211,16 +258,8 @@ export async function pruneStorage(
       checked.add(row.sha256);
 
       try {
-        const ext = mimeToExt(row.type);
-        const thumbnails = await getMediaThumbnailsForParent(db, row.sha256);
-        await deleteBlob(db, row.sha256);
-        await storage.remove(row.sha256, ext); // fixes legacy bug: file was never removed
-        for (const thumbnail of thumbnails) {
-          await deleteBlob(db, thumbnail.sha256);
-          await storage.remove(thumbnail.sha256, mimeToExt(thumbnail.type));
-          deleted++;
-        }
-        deleted++;
+        // Ownerless cleanup also removes the physical file (legacy bug: it never did).
+        await removeBlob(row, { kind: "ownerless" });
       } catch (err) {
         console.warn(
           `[prune] Failed to delete ownerless blob ${row.sha256}:`,

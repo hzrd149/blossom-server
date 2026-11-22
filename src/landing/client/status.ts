@@ -2,6 +2,7 @@ import type { FileStatus, MirrorStatus } from "./types.ts";
 
 export const FILE_STATUS_LABEL: Record<FileStatus, string> = {
   pending: "Pending",
+  queued: "Queued",
   hashing: "Hashing...",
   checking: "Checking...",
   signing: "Signing...",
@@ -15,6 +16,7 @@ export const FILE_STATUS_LABEL: Record<FileStatus, string> = {
 
 export const MIRROR_STATUS_LABEL: Record<MirrorStatus, string> = {
   pending: "Pending",
+  queued: "Queued",
   signing: "Signing...",
   mirroring: "Mirroring...",
   done: "Mirrored",
@@ -25,6 +27,7 @@ export const MIRROR_STATUS_LABEL: Record<MirrorStatus, string> = {
 
 export const STATUS_COLOR: Record<string, string> = {
   pending: "bg-gray-700 text-gray-300",
+  queued: "bg-gray-700 text-gray-300",
   hashing: "bg-blue-900 text-blue-300",
   checking: "bg-blue-900 text-blue-300",
   signing: "bg-purple-900 text-purple-300",

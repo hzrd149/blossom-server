@@ -11,6 +11,7 @@ import { Hono } from "@hono/hono";
 import type { Client } from "@libsql/client";
 import { fromFileUrl, join } from "@std/path";
 import type { Config } from "../config/schema.ts";
+import type { ServerRuntime } from "../runtime.ts";
 import { DirectDbHandle } from "../db/direct.ts";
 import { LandingPage } from "../landing/page.tsx";
 
@@ -67,6 +68,7 @@ async function warnIfClientBundleMissing(): Promise<void> {
 export async function buildLandingRouter(
   db: Client,
   config: Config,
+  runtime: ServerRuntime,
 ): Promise<Hono> {
   const handle = new DirectDbHandle(db);
 
@@ -75,7 +77,9 @@ export async function buildLandingRouter(
   const app = new Hono();
 
   app.get("/", (c) => {
-    return c.html(<LandingPage db={handle} config={config} />);
+    // Render current server configuration and statistics on every visit.
+    c.header("Cache-Control", "no-cache");
+    return c.html(<LandingPage db={handle} config={config} rules={runtime.rules.current()} />);
   });
 
   return app;

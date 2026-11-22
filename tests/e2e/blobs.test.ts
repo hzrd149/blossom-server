@@ -19,8 +19,12 @@ import { serveStatic } from "@hono/hono/deno";
 import type { NostrEvent } from "nostr-tools";
 import { initDb } from "../../src/db/client.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
+import { S3Storage } from "../../src/storage/s3.ts";
+import { buildBlobsRouter } from "../../src/routes/blobs.ts";
 import { initPool } from "../../src/workers/pool.ts";
 import { buildApp } from "../../src/server.ts";
+import { HttpMetrics } from "../../src/metrics/http.ts";
+import { instrumentStorage } from "../../src/metrics/storage.ts";
 import { ConfigSchema } from "../../src/config/schema.ts";
 import type { Hono } from "@hono/hono";
 import type { MiddlewareHandler } from "@hono/hono";
@@ -134,7 +138,8 @@ Deno.test({
       upload: { requireAuth: false, enabled: true },
     });
 
-    app = await buildApp(db, storage, config);
+    const metrics = new HttpMetrics("test");
+    app = await buildApp(db, instrumentStorage(storage, metrics.operations, "local"), config, { metrics });
 
     // Upload the test blob
     blobHash = await sha256Hex(BLOB_DATA);
@@ -161,6 +166,92 @@ Deno.test({
       db.close();
       await Deno.remove(tmpDir, { recursive: true });
     };
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "public blob GET and HEAD reject malformed auth with 400, not 500",
+  async fn() {
+    const valid = makeUploadAuth(blobHash);
+    const malformedValues: unknown[] = [
+      { kind: 24242, created_at: 1700000000, tags: null },
+      { ...valid, tags: null },
+      { ...valid, tags: [null] },
+      { ...valid, tags: ["t"] },
+      { ...valid, tags: [["server", 42]] },
+      { ...valid, created_at: "not-a-number" },
+      { ...valid, created_at: 1.5 },
+      { ...valid, created_at: Number.MIN_SAFE_INTEGER - 1 },
+    ];
+    for (const method of ["GET", "HEAD"]) {
+      for (const value of malformedValues) {
+        const response = await app.request(blobUrl, {
+          method,
+          headers: {
+            Authorization: `Nostr ${encodeBase64Url(new TextEncoder().encode(JSON.stringify(value)))}`,
+          },
+        });
+        assertEquals(response.status, 400, `${method}: ${JSON.stringify(value)}`);
+        await response.body?.cancel();
+      }
+      const response = await app.request(blobUrl, { method });
+      assertEquals(response.status, 200, `${method} without credentials remains public`);
+      await response.body?.cancel();
+    }
+  },
+  ...testOpts,
+});
+
+Deno.test({
+  name: "S3 publicURL redirects full and range GETs while preserving HEAD, validators, and missing checks",
+  async fn() {
+    for (const publicURL of ["https://cdn.example.com/blobs", "https://cdn.example.com/blobs/"]) {
+      const s3Config = {
+        endpoint: "http://localhost:9000",
+        bucket: "blossom",
+        accessKey: "test",
+        secretKey: "test",
+        tmpDir: "/unused",
+        publicURL,
+      };
+      const s3 = new S3Storage(s3Config);
+      let exists = true;
+      s3.has = (hash, ext) => {
+        assertEquals(hash, blobHash);
+        assertEquals(ext, "");
+        return Promise.resolve(exists);
+      };
+      s3.read = s3.readRange = () => {
+        throw new Error("Public downloads must not read S3 object bodies");
+      };
+      const router = buildBlobsRouter(db, s3, {
+        ...config,
+        storage: { ...config.storage, backend: "s3", s3: s3Config },
+      });
+      for (const path of [`/${blobHash}`, `/${blobHash}.jpg`]) {
+        for (const headers of [undefined, { Range: "bytes=0-3" }]) {
+          const response = await router.request(path, { headers });
+          assertEquals(response.status, 302);
+          assertEquals(response.headers.get("location"), `https://cdn.example.com/blobs/${blobHash}`);
+          assertEquals(response.headers.get("content-range"), null);
+          assertEquals(response.headers.get("content-length"), null);
+          await response.body?.cancel();
+        }
+      }
+      const head = await router.request(`/${blobHash}`, { method: "HEAD" });
+      assertEquals(head.status, 200);
+      assertEquals(head.headers.get("content-length"), String(BLOB_SIZE));
+      assertEquals(head.headers.get("location"), null);
+      const conditional = await router.request(`/${blobHash}`, { headers: { "If-None-Match": `"${blobHash}"` } });
+      assertEquals(conditional.status, 304);
+      assertEquals(conditional.headers.get("location"), null);
+      exists = false;
+      const missing = await router.request(`/${blobHash}`);
+      assertEquals(missing.status, 404);
+      assertEquals(missing.headers.get("location"), null);
+      await missing.body?.cancel();
+    }
   },
   ...testOpts,
 });

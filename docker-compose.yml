@@ -1,7 +1,25 @@
 volumes:
   data: {}
+  prometheus-data: {}
 
 services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=512MB
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - blossom
+    restart: unless-stopped
+
   blossom:
     build: .
     environment:
@@ -9,6 +27,8 @@ services:
       BLOSSOM_REQUIRE_CONFIG: "1"
     ports:
       - "3000:3000"
+      # Local-only metrics access; config.yml must enable metrics on 0.0.0.0:3001.
+      - "127.0.0.1:3001:3001"
     volumes:
       # Named volume for SQLite DB and blob storage
       - data:/app/data

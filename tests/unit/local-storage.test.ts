@@ -26,6 +26,24 @@ function fakeSession(tmpPath: string): WriteSession {
   };
 }
 
+Deno.test("LocalStorage.remove deletes files, tolerates missing files, and propagates other failures", async () => {
+  const dir = await Deno.makeTempDir();
+  const storage = new LocalStorage(dir);
+  const hash = "a".repeat(64);
+  const path = join(dir, `${hash}.txt`);
+  try {
+    await Deno.writeTextFile(path, "blob");
+    assertEquals(await storage.remove(hash, "txt"), true);
+    assertEquals(await exists(path), false);
+    assertEquals(await storage.remove(hash, "txt"), false);
+    await Deno.mkdir(path);
+    await Deno.writeTextFile(join(path, "child"), "bytes");
+    await assertRejects(() => storage.remove(hash, "txt"));
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
 Deno.test("LocalStorage.commitFile stores an external temp file", async () => {
   const dir = await Deno.makeTempDir();
   const srcPath = await Deno.makeTempFile();

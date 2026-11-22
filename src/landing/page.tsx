@@ -1,13 +1,13 @@
 import type { FC } from "@hono/hono/jsx";
-import type { Config } from "../config/schema.ts";
+import type { Config, StorageRule } from "../config/schema.ts";
 import type { IDbHandle } from "../db/handle.ts";
 import { Layout } from "./layout.tsx";
 import { StatsBar } from "./stats-bar.tsx";
 import { ServerInfo } from "./server-info.tsx";
 import { UploadIsland } from "./upload-island.tsx";
 
-export const LandingPage: FC<{ db: IDbHandle; config: Config }> = async (
-  { db, config },
+export const LandingPage: FC<{ db: IDbHandle; config: Config; rules: StorageRule[] }> = async (
+  { db, config, rules },
 ) => {
   const stats = config.landing.showStats ? await db.getStats() : null;
   return (
@@ -28,12 +28,13 @@ export const LandingPage: FC<{ db: IDbHandle; config: Config }> = async (
         </p>
       </header>
       {stats && <StatsBar stats={stats} />}
-      <ServerInfo config={config} />
+      <ServerInfo config={config} rules={rules} />
       <UploadIsland
         requireAuth={config.upload.requireAuth}
         uploadEnabled={config.upload.enabled}
         mediaEnabled={config.media.enabled}
         mediaRequireAuth={config.media.requireAuth}
+        optimizeByDefault={config.media.enabled && config.media.optimizeByDefault}
         mirrorEnabled={config.mirror.enabled}
         mirrorRequireAuth={config.mirror.requireAuth}
       />

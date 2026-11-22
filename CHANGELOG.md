@@ -1,6 +1,32 @@
 # blossom-server
 
-## Unreleased
+## 6.5.0 - 2026-11-21
+
+### Minor Changes
+
+- Strip source metadata and chapters from new `/media` video transcodes unless `media.video.keepMetadata` is enabled.
+- Add `media.optimizeByDefault` to pre-select optimization in the landing uploader.
+- Add MIME-prefix filtering with `?type=` on `GET /list/:pubkey`, treating untyped uploads as `application/octet-stream`.
+- Replace `/admin` with a console featuring content previews, bulk deletion, Nostr profiles, report moderation, and global search.
+- Add an admin rule builder with upload checks and pruning controls, preserving YAML comments and hot-reloading `storage.rules`, with config export for
+  read-only files.
+- Add optional `enabled` and `note` fields to storage rules.
+- Add admin pubkey and blob bans to block uploads, mirrors, and reports from banned users and delete and prevent re-uploading banned blobs.
+- Add `nip05Domains` storage allowlists, refreshed from domain Nostr directories every `storage.nip05.refreshIntervalMs`.
+- Add storage rule `basis: uploaded` to expire blobs a fixed time after upload instead of after last access.
+- Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IPs behind reverse proxies.
+- Add opt-in Prometheus `metrics` for HTTP, storage, workers, and pruning, plus a Docker Compose `monitoring` profile.
+
+### Patch Changes
+
+- Improve landing upload and mirror throughput with bounded concurrency, batched authorization, and progress preserved across uploader tabs.
+- Bound media processing resources and video subprocess execution on `/media`, `/upload`, and `/mirror` (#75).
+- Fix MIME detection hangs on malformed ASF uploads by upgrading `file-type` to v22 (GHSA-5v7r-6r5c-r473).
+- Reject fractional and unsafe BUD-11 `created_at` timestamps with HTTP 400 (#73).
+- Restore S3 `publicURL` redirects for blob downloads, including Range requests, instead of returning 404 (#68).
+- Keep blob records until storage deletion succeeds so failed prune deletions are retried (#33).
+- Reject cross-site admin mutations and throttle failed `/admin` logins per IP with exponential backoff (#74).
+- Revalidate the landing page and public assets so browsers receive updates after deployment.
 
 ## 6.4.2 - 2026-11-06
 

@@ -1,5 +1,5 @@
-import type { FileStatus, NostrProvider, Signer, UploadFile } from "./types.ts";
-import { sha256Hex } from "./helpers.ts";
+import type { NostrProvider, Signer } from "./types.ts";
+import { createLimiter } from "./scheduler.ts";
 
 export const MAX_X_TAGS_PER_EVENT = 60;
 
@@ -7,21 +7,31 @@ export function getNostrProvider(): NostrProvider | undefined {
   return globalThis.nostr;
 }
 
-/**
- * Hash all files in the batch sequentially, reporting status as each starts.
- * Returns a map of upload-file id → hex sha256.
- */
-export async function hashBatch(
-  files: UploadFile[],
-  onFileStatus: (id: string, status: FileStatus) => void,
-): Promise<Map<string, string>> {
-  const results = new Map<string, string>();
-  for (const uf of files) {
-    onFileStatus(uf.id, "hashing");
-    const hash = await sha256Hex(uf.file);
-    results.set(uf.id, hash);
-  }
-  return results;
+// Shared across both panels so an extension never receives overlapping prompts.
+const signSerially = createLimiter(1);
+
+/** Reuse a batch token, refreshing only when queued work outlives its lifetime. */
+export function batchAuthorization(
+  signer: Signer,
+  hashes: string[],
+  verb: string,
+  content: string,
+): () => Promise<string> {
+  let header: string | undefined;
+  let refreshAt = 0;
+  let signing: Promise<string> | undefined;
+  return () => {
+    if (header && Date.now() < refreshAt) return Promise.resolve(header);
+    if (!signing) {
+      signing = signSerially(async () => {
+        const started = Date.now();
+        header = await signBatch(signer, [...new Set(hashes)], verb, content);
+        refreshAt = started + 240_000;
+        return header;
+      }).finally(() => signing = undefined);
+    }
+    return signing;
+  };
 }
 
 /** Build a BUD-11 kind 24242 auth event covering a batch of hashes. */
