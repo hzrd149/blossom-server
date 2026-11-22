@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
 import type { MirrorItem, MirrorStatus } from "./types.ts";
 import { HttpError, mirrorPut } from "./api.ts";
-import { MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
+import { batchAuthorization, MAX_X_TAGS_PER_EVENT } from "./auth.ts";
+import { authorizationBatches, createLimiter } from "./scheduler.ts";
 import { ensureIdentity } from "./identity.ts";
 import { createClientId, parseBlossomRef } from "./helpers.ts";
 import { MirrorRow } from "./MirrorRow.tsx";
@@ -10,6 +11,7 @@ type MirrorPhase = "input" | "list";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 2000;
+const MIRROR_CONCURRENCY = 3;
 
 function isRetryable(status: number): boolean {
   return status === 429 || status === 503;
@@ -32,6 +34,8 @@ export function MirrorForm({
   const [parseError, setParseError] = useState<string | null>(null);
   const [items, setItems] = useState<MirrorItem[]>([]);
   const itemsRef = useRef<MirrorItem[]>([]);
+  const running = useRef(false);
+  const [isRunning, setIsRunning] = useState(false);
   itemsRef.current = items;
 
   useEffect(() => {
@@ -99,7 +103,7 @@ export function MirrorForm({
 
   /** Mirror a single item with auto-retry for 429/503. */
   const mirrorOne = useCallback(
-    async (item: MirrorItem, authHeader?: string) => {
+    async (item: MirrorItem, getAuth?: () => Promise<string>) => {
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
           patchItem(item.id, {
@@ -107,7 +111,7 @@ export function MirrorForm({
           });
           const { descriptor, status } = await mirrorPut(
             item.mirrorUrl,
-            authHeader,
+            await getAuth?.(),
           );
           patchItem(item.id, {
             status: status === 200 ? "exists" : "done",
@@ -137,42 +141,70 @@ export function MirrorForm({
   );
 
   const runMirror = useCallback(async () => {
+    if (running.current) return;
     const current = itemsRef.current;
     const pending = current?.filter((it) => it.status === "pending") ?? [];
     if (pending.length === 0) return;
 
-    if (!requireAuth) {
-      await Promise.all(pending.map((item) => mirrorOne(item)));
-      return;
-    }
-
-    const signer = ensureIdentity();
-
-    for (let i = 0; i < pending.length; i += MAX_X_TAGS_PER_EVENT) {
-      const batch = pending.slice(i, i + MAX_X_TAGS_PER_EVENT);
-      const hashes = [...new Set(batch.flatMap((it) => it.allHashes))];
-
-      for (const it of batch) patchItem(it.id, { status: "signing" });
-
-      let authHeader: string;
-      try {
-        authHeader = await signBatch(signer, hashes, "upload", "Mirror blobs");
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        for (const it of batch) {
-          patchItem(it.id, { status: "error", error: msg });
+    running.current = true;
+    setIsRunning(true);
+    for (const item of pending) patchItem(item.id, { status: "queued" });
+    const transfer = createLimiter(MIRROR_CONCURRENCY);
+    const jobs: Promise<void>[] = [];
+    try {
+      if (!requireAuth) {
+        for (const item of pending) jobs.push(transfer(() => mirrorOne(item)));
+      } else {
+        const eligible = pending.filter((item) => {
+          if (new Set(item.allHashes).size <= MAX_X_TAGS_PER_EVENT) return true;
+          patchItem(item.id, {
+            status: "error",
+            error: "Too many hashes in one mirror URL",
+          });
+          return false;
+        });
+        for (
+          const batch of authorizationBatches(
+            eligible,
+            (item) => item.allHashes,
+            MAX_X_TAGS_PER_EVENT,
+          )
+        ) {
+          for (const item of batch) patchItem(item.id, { status: "signing" });
+          try {
+            const getAuth = batchAuthorization(
+              ensureIdentity(),
+              batch.flatMap((item) => item.allHashes),
+              "upload",
+              "Mirror blobs",
+            );
+            await getAuth();
+            for (const item of batch) {
+              patchItem(item.id, { status: "queued" });
+              jobs.push(transfer(() => mirrorOne(item, getAuth)));
+            }
+          } catch (err) {
+            for (const item of batch) {
+              patchItem(item.id, {
+                status: "error",
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
         }
-        continue;
       }
-
-      await Promise.all(batch.map((item) => mirrorOne(item, authHeader)));
+    } finally {
+      await Promise.all(jobs);
+      running.current = false;
+      setIsRunning(false);
     }
   }, [requireAuth, patchItem, mirrorOne]);
 
   const TERMINAL_STATUSES: MirrorStatus[] = ["done", "exists", "error"];
   const WORKING_STATUSES: MirrorStatus[] = ["signing", "mirroring", "retrying"];
 
-  const isWorking = items.some((it) => WORKING_STATUSES.includes(it.status));
+  const isWorking = isRunning ||
+    items.some((it) => WORKING_STATUSES.includes(it.status));
   const hasPending = items.some((it) => it.status === "pending");
   const hasDoneOrError = items.some((it) =>
     TERMINAL_STATUSES.includes(it.status)

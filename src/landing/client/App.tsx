@@ -64,7 +64,7 @@ export function App({
       )}
 
       {/* Tab panels */}
-      {activeTab === "upload" && (
+      <div hidden={activeTab !== "upload"}>
         <UploadForm
           requireAuth={requireAuth}
           mediaEnabled={mediaEnabled}
@@ -72,12 +72,14 @@ export function App({
           optimizeByDefault={optimizeByDefault}
           onQueueChange={setUploadHasItems}
         />
-      )}
-      {activeTab === "mirror" && mirrorEnabled && (
-        <MirrorForm
-          requireAuth={mirrorRequireAuth}
-          onQueueChange={setMirrorHasItems}
-        />
+      </div>
+      {mirrorEnabled && (
+        <div hidden={activeTab !== "mirror"}>
+          <MirrorForm
+            requireAuth={mirrorRequireAuth}
+            onQueueChange={setMirrorHasItems}
+          />
+        </div>
       )}
     </div>
   );

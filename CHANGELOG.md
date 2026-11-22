@@ -26,6 +26,8 @@
 
 ### Patch Changes
 
+- Keep landing-page uploads and mirrors flowing through bounded concurrent queues while batching authorization signatures and preserving progress across tabs.
+
 - Bound media processing concurrency, image pixels and animation frames, and video duration; restrict and time out video probes/transcodes on `/media`,
   `/upload`, and `/mirror` (#75).
 - Upgrade `file-type` to v22 so a malformed ASF upload can no longer hang media MIME detection (GHSA-5v7r-6r5c-r473).

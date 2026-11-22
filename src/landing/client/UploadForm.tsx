@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "@hono/hono/jsx/dom";
 import type { BlobDescriptor, FileStatus, UploadFile } from "./types.ts";
 import { blobExists, HttpError, preflightUpload, xhrUpload } from "./api.ts";
-import { hashBatch, MAX_X_TAGS_PER_EVENT, signBatch } from "./auth.ts";
+import { batchAuthorization, MAX_X_TAGS_PER_EVENT } from "./auth.ts";
+import { createLimiter } from "./scheduler.ts";
 import { ensureIdentity } from "./identity.ts";
 import {
   createClientId,
   friendlyErrorMessage,
   isMediaFile,
+  sha256Hex,
 } from "./helpers.ts";
 import { FileRow } from "./FileRow.tsx";
 
@@ -42,7 +44,8 @@ export function UploadForm({
     mediaEnabled && optimizeByDefault,
   );
   const [concurrency, setConcurrency] = useState(3);
-  const activeCount = useRef<number>(0);
+  const running = useRef(false);
+  const [isRunning, setIsRunning] = useState(false);
   const queueRef = useRef<UploadFile[]>([]);
   queueRef.current = queue;
 
@@ -182,15 +185,15 @@ export function UploadForm({
 
   /** Upload a single file with auto-retry for 429/503. */
   const uploadOne = useCallback(
-    async (uf: UploadFile, authHeader: string | undefined) => {
+    async (uf: UploadFile, getAuth?: () => Promise<string>) => {
       const endpoint = uf.optimize ? "/media" : "/upload";
       const headers: Record<string, string> = {
         "Content-Type": uf.file.type || "application/octet-stream",
       };
-      if (authHeader) headers["Authorization"] = authHeader;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
+          if (getAuth) headers["Authorization"] = await getAuth();
           patchFile(uf.id, {
             status: attempt > 0 ? "retrying" : "uploading",
             progress: 0,
@@ -230,108 +233,90 @@ export function UploadForm({
   );
 
   const runQueue = useCallback(async () => {
+    if (running.current) return;
     const currentQueue = queueRef.current;
     const pending = currentQueue?.filter((f) => f.status === "pending") ?? [];
     if (pending.length === 0) return;
 
-    const needsAuth = pending.some((
-      f,
-    ) => (f.optimize ? mediaRequireAuth : requireAuth));
-
-    if (!needsAuth) {
-      const hashes = await hashBatch(
-        pending,
-        (id, status) => patchFile(id, { status }),
-      );
-
-      const toUpload: UploadFile[] = [];
-      const preflightBatch = async (uf: UploadFile) => {
-        const proceed = await checkOne(uf, hashes.get(uf.id)!, undefined);
-        if (proceed) toUpload.push(uf);
-      };
-      for (let i = 0; i < pending.length; i += PREFLIGHT_CONCURRENCY) {
-        await Promise.all(
-          pending.slice(i, i + PREFLIGHT_CONCURRENCY).map(preflightBatch),
-        );
-      }
-
-      const uploadWithSlot = (uf: UploadFile) => {
-        activeCount.current = (activeCount.current ?? 0) + 1;
-        return uploadOne(uf, undefined).finally(() => {
-          activeCount.current = (activeCount.current ?? 0) - 1;
-        });
-      };
-      for (let i = 0; i < toUpload.length; i += concurrency) {
-        await Promise.all(
-          toUpload.slice(i, i + concurrency).map(uploadWithSlot),
-        );
-      }
-      return;
-    }
-
-    // Whatever the user signed in with, or a generated key. Never prompts.
-    const signer = ensureIdentity();
-
-    const regularPending = pending.filter((f) => !f.optimize);
-    const mediaPending = pending.filter((f) => f.optimize);
-
-    for (
-      const [group, verb, content] of [
-        [regularPending, "upload", "Upload files"] as const,
-        [mediaPending, "media", "Optimize and upload media"] as const,
-      ]
-    ) {
-      if (group.length === 0) continue;
-
-      const hashes = await hashBatch(
-        group,
-        (id, status) => patchFile(id, { status }),
-      );
-
-      for (let i = 0; i < group.length; i += MAX_X_TAGS_PER_EVENT) {
-        const batch = group.slice(i, i + MAX_X_TAGS_PER_EVENT);
-        const batchHashes = batch.map((f) => hashes.get(f.id)!);
-
-        for (const uf of batch) patchFile(uf.id, { status: "signing" });
-
-        let authHeader: string;
+    running.current = true;
+    setIsRunning(true);
+    // Claim the snapshot immediately: queued files cannot be removed mid-run.
+    for (const file of pending) patchFile(file.id, { status: "queued" });
+    const preflight = createLimiter(PREFLIGHT_CONCURRENCY);
+    const transfer = createLimiter(concurrency);
+    const jobs: Promise<void>[] = [];
+    type Prepared = { file: UploadFile; hash: string };
+    const batches = { upload: [] as Prepared[], media: [] as Prepared[] };
+    const fail = (file: UploadFile, err: unknown) =>
+      patchFile(file.id, {
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    const enqueue = (
+      { file, hash }: Prepared,
+      getAuth?: () => Promise<string>,
+    ) => {
+      jobs.push((async () => {
         try {
-          authHeader = await signBatch(signer, batchHashes, verb, content);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          for (const uf of batch) {
-            patchFile(uf.id, { status: "error", error: msg });
+          const proceed = await preflight(async () =>
+            checkOne(file, hash, await getAuth?.())
+          );
+          if (proceed) {
+            patchFile(file.id, { status: "queued" });
+            await transfer(() => uploadOne(file, getAuth));
           }
+        } catch (err) {
+          fail(file, err);
+        }
+      })());
+    };
+    const flush = async (verb: "upload" | "media") => {
+      const batch = batches[verb];
+      if (!batch.length) return;
+      batches[verb] = [];
+      for (const { file } of batch) patchFile(file.id, { status: "signing" });
+      try {
+        const getAuth = batchAuthorization(
+          ensureIdentity(),
+          batch.map(({ hash }) => hash),
+          verb,
+          verb === "media" ? "Optimize and upload media" : "Upload files",
+        );
+        await getAuth();
+        for (const item of batch) enqueue(item, getAuth);
+      } catch (err) {
+        for (const { file } of batch) fail(file, err);
+      }
+    };
+    try {
+      for (const file of pending) {
+        let hash: string;
+        try {
+          patchFile(file.id, { status: "hashing" });
+          hash = await sha256Hex(file.file);
+        } catch (err) {
+          fail(file, err);
           continue;
         }
-
-        // Preflight with auth
-        const toUpload: UploadFile[] = [];
-        const preflightBatch = async (uf: UploadFile) => {
-          const proceed = await checkOne(uf, hashes.get(uf.id)!, authHeader);
-          if (proceed) toUpload.push(uf);
-        };
-        for (let j = 0; j < batch.length; j += PREFLIGHT_CONCURRENCY) {
-          await Promise.all(
-            batch.slice(j, j + PREFLIGHT_CONCURRENCY).map(preflightBatch),
-          );
+        const item = { file, hash };
+        if (!(file.optimize ? mediaRequireAuth : requireAuth)) {
+          enqueue(item);
+          continue;
         }
-
-        // Upload files that passed preflight
-        const uploadWithSlot = async (uf: UploadFile) => {
-          while ((activeCount.current ?? 0) >= concurrency) {
-            await new Promise<void>((res) => setTimeout(res, 50));
-          }
-          activeCount.current = (activeCount.current ?? 0) + 1;
-          try {
-            await uploadOne(uf, authHeader);
-          } finally {
-            activeCount.current = (activeCount.current ?? 0) - 1;
-          }
-        };
-
-        await Promise.all(toUpload.map(uploadWithSlot));
+        const verb = file.optimize ? "media" : "upload";
+        batches[verb].push(item);
+        patchFile(file.id, { status: "signing" });
+        if (
+          new Set(batches[verb].map(({ hash }) => hash)).size >=
+            MAX_X_TAGS_PER_EVENT
+        ) await flush(verb);
       }
+      await flush("upload");
+      await flush("media");
+    } finally {
+      await Promise.all(jobs);
+      running.current = false;
+      setIsRunning(false);
     }
   }, [
     requireAuth,
@@ -358,7 +343,8 @@ export function UploadForm({
     "retrying",
   ];
 
-  const isWorking = queue.some((f) => WORKING_STATUSES.includes(f.status));
+  const isWorking = isRunning ||
+    queue.some((f) => WORKING_STATUSES.includes(f.status));
   const hasDoneOrError = queue.some((f) =>
     TERMINAL_STATUSES.includes(f.status)
   );
