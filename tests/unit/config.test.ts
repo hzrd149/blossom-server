@@ -48,6 +48,11 @@ Deno.test("ConfigSchema: video metadata copying and landing optimization preset 
   assertEquals(ConfigSchema.safeParse({ media: { video: { keepMetadata: "true" } } }).success, false);
 });
 
+Deno.test("ConfigSchema: landing stats are shown by default and can be hidden", () => {
+  assertEquals(ConfigSchema.parse({}).landing.showStats, true);
+  assertEquals(ConfigSchema.parse({ landing: { showStats: false } }).landing.showStats, false);
+});
+
 Deno.test("loadConfig: legacy media config inherits upload pubkey setting", async () => {
   const dir = await Deno.makeTempDir();
   const configPath = join(dir, "config.yml");

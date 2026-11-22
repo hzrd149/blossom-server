@@ -28,6 +28,19 @@
 - Reject cross-site admin mutations and throttle failed `/admin` logins per IP with exponential backoff (#74).
 - Revalidate the landing page and public assets so browsers receive updates after deployment.
 
+## 6.4.2 - 2026-11-06
+
+### Minor Changes
+
+- Add the `landing.showStats` option to hide the "Server Stats" section of the landing page; contributed by [@nogringo](https://github.com/nogringo) in
+  [#70](https://github.com/hzrd149/blossom-server/pull/70).
+
+### Patch Changes
+
+- Fix the `docker-compose.yml` health check, which always marked the container unhealthy because the image has no `wget`. It now probes with Deno and also
+  passes when the landing page is disabled; contributed by [@nogringo](https://github.com/nogringo) in [#69](https://github.com/hzrd149/blossom-server/pull/69).
+- Fix the landing page showing two nested scrollbars by disabling the window.nostr.js page overflow style injection.
+
 ## 6.4.1 - 2026-10-06
 
 ### Patch Changes
