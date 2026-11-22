@@ -18,6 +18,11 @@ const NAV: { to: string; label: string; match: (path: string) => boolean }[] = [
   { to: "/users", label: "Users", match: (p) => p.startsWith("/users") },
   { to: "/reports", label: "Reports", match: (p) => p.startsWith("/reports") },
   {
+    to: "/moderation",
+    label: "Moderation",
+    match: (p) => p.startsWith("/moderation"),
+  },
+  {
     to: "/rules",
     label: "Storage rules",
     match: (p) => p.startsWith("/rules"),

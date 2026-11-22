@@ -21,6 +21,64 @@ import {
   shortHash,
 } from "../lib/format.ts";
 import { Link, navigate } from "../router.tsx";
+import type { BlobModerationStatus } from "../../contracts/moderation.ts";
+import {
+  BanBlobButton,
+  categoryForReport,
+  ModerationBadges,
+} from "../components/moderation.tsx";
+import { useToast } from "../components/toasts.tsx";
+
+/** Ban status of a hash that is not stored (banned blobs are always deleted). */
+function ModerationPanel({ status }: { status: BlobModerationStatus }) {
+  const notify = useToast();
+  const queryClient = useQueryClient();
+  const unban = useMutation({
+    mutationFn: () => adminApi.unbanBlob(status.sha256),
+    onSuccess: () =>
+      notify(
+        "Blob unbanned. It can be uploaded again; deleted files are not restored.",
+      ),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
+  });
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <div className="flex flex-wrap gap-2">
+        {status.ban
+          ? <ModerationBadges status={status} />
+          : (
+            <span className="text-base-content/60">
+              This hash is not banned.
+            </span>
+          )}
+      </div>
+      {status.ban && (
+        <p>
+          Banned as <strong>{status.ban.category}</strong>{" "}
+          {formatRelative(status.ban.created)}
+          {status.ban.note ? ` — ${status.ban.note}` : ""}.
+        </p>
+      )}
+      <ErrorAlert error={unban.error} />
+      <div className="flex flex-wrap gap-2">
+        {status.ban
+          ? (
+            <ConfirmButton
+              className="btn"
+              title="Unban blob?"
+              description="The hash can be uploaded again. Deleted files are not restored."
+              confirmLabel="Unban"
+              onConfirm={() => unban.mutateAsync()}
+            >
+              Unban
+            </ConfirmButton>
+          )
+          : <BanBlobButton sha256={status.sha256} />}
+      </div>
+    </div>
+  );
+}
 
 function Section(
   { title, children, actions }: {
@@ -149,6 +207,11 @@ export function BlobPage({ sha256 }: { sha256: string }) {
   });
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: adminQueryKeys.all });
+  // Banned blobs are deleted, so ban status is only shown for hashes that are not stored.
+  const moderation = useQuery({
+    ...adminQueries.blobModeration(hash),
+    enabled: error instanceof AdminApiError && error.status === 404,
+  });
   const reportAction = useMutation({
     mutationFn: (
       { id, action }: { id: number; action: "dismiss" | "delete-blob" },
@@ -162,13 +225,20 @@ export function BlobPage({ sha256 }: { sha256: string }) {
   if (isPending) return <Loading />;
   if (error instanceof AdminApiError && error.status === 404) {
     return (
-      <EmptyState>
-        <div className="font-mono break-all">{hash}</div>
-        This hash is not stored on the server.{" "}
-        <Link to={`/users/${hash}`} className="link">
-          Look it up as a user instead
-        </Link>.
-      </EmptyState>
+      <>
+        <EmptyState>
+          <div className="font-mono break-all">{hash}</div>
+          This hash is not stored on the server.{" "}
+          <Link to={`/users/${hash}`} className="link">
+            Look it up as a user instead
+          </Link>.
+        </EmptyState>
+        {moderation.data && (
+          <Section title="Moderation">
+            <ModerationPanel status={moderation.data} />
+          </Section>
+        )}
+      </>
     );
   }
   if (!blob) return <ErrorAlert error={error} />;
@@ -186,7 +256,18 @@ export function BlobPage({ sha256 }: { sha256: string }) {
             >
               Open
             </a>
-            <CopyButton value={blob.sha256} label="Copy hash" />
+            <CopyButton
+              value={blob.sha256}
+              label="Copy hash"
+              className="btn btn-ghost"
+            />
+            <BanBlobButton
+              sha256={blob.sha256}
+              defaultCategory={blob.reports.length
+                ? categoryForReport(blob.reports[0].type)
+                : undefined}
+              onBanned={() => navigate("/moderation?tab=blobs")}
+            />
             <ConfirmButton
               title="Delete this blob?"
               description={`The blob is removed for all ${blob.owners.length} owner(s) and deleted from storage. This cannot be undone.`}

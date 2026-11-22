@@ -29,6 +29,8 @@ import {
 } from "../lib/format.ts";
 import { Link, setSearch, useLocation } from "../router.tsx";
 import { useToast } from "../components/toasts.tsx";
+import { BanBlobButton, categoryForReport } from "../components/moderation.tsx";
+import type { BanCategory } from "../../contracts/moderation.ts";
 
 type Sort = ReportsQuery["sort"];
 
@@ -121,6 +123,48 @@ export function ReportsPage() {
       action: "delete-blob",
     });
 
+  /** Ban the blobs of the given reports (one call per distinct blob); returns the toast text. */
+  const banBlobs = async (
+    reports: ReportItem[],
+    input: { category: BanCategory; note: string },
+  ): Promise<string> => {
+    const blobs = onePerBlob(reports);
+    const done = new Set<string>();
+    let deleted = 0;
+    let resolved = 0;
+    try {
+      for (const report of blobs) {
+        const result = await adminApi.banReportedBlob(report.id, input);
+        done.add(report.blob);
+        deleted += result.deleted.length;
+        resolved += result.reportsResolved;
+      }
+    } catch (err) {
+      // Keep the failed and unprocessed rows selected so the action can be retried.
+      setSelected((current) =>
+        new Set(
+          items.filter((r) => current.has(r.id) && !done.has(r.blob)).map((r) =>
+            r.id
+          ),
+        )
+      );
+      const reason = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `${
+          plural(done.size, "blob")
+        } of ${blobs.length} banned before an error: ${reason}`,
+      );
+    }
+    setSelected(new Set());
+    return `${plural(blobs.length, "blob")} banned. ${
+      plural(deleted, "stored blob")
+    } deleted, ${plural(resolved, "report")} resolved.`;
+  };
+  const sharedCategory = (reports: ReportItem[]): BanCategory => {
+    const categories = new Set(reports.map((r) => categoryForReport(r.type)));
+    return categories.size === 1 ? [...categories][0] : "other";
+  };
+
   useEffect(() => {
     if (data && params.page > 1 && !data.items.length) {
       setSearch({ page: Math.max(1, Math.ceil(data.total / data.pageSize)) });
@@ -159,6 +203,14 @@ export function ReportsPage() {
             >
               Delete blobs ({selectedBlobs.length})
             </ConfirmButton>
+            <BanBlobButton
+              className="btn btn-sm btn-error"
+              disabled={selectedBlobs.length === 0}
+              title={`Ban ${plural(selectedBlobs.length, "reported blob")}`}
+              label={`Ban blobs (${selectedBlobs.length})`}
+              defaultCategory={sharedCategory(selectedBlobs)}
+              submit={(input) => banBlobs(selectedBlobs, input)}
+            />
           </>
         }
       >
@@ -390,6 +442,13 @@ export function ReportsPage() {
                         >
                           Delete
                         </ConfirmButton>
+                        <BanBlobButton
+                          className="btn btn-ghost btn-xs text-error"
+                          label="Ban"
+                          title="Ban reported blob"
+                          defaultCategory={categoryForReport(report.type)}
+                          submit={(input) => banBlobs([report], input)}
+                        />
                       </div>
                     </td>
                   </tr>

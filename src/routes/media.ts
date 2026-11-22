@@ -32,6 +32,8 @@ import { byteCapGuard } from "../utils/streams.ts";
 import { mediaGate } from "../optimize/limits.ts";
 import type { Config } from "../config/schema.ts";
 import type { ServerRuntime } from "../runtime.ts";
+import type { ModerationService } from "../moderation/service.ts";
+import { BLOB_BLOCKED_REASON, isAuthPubkeyBanned, rejectBannedPubkey, rejectBlockedBlob } from "./moderation-guard.ts";
 
 interface BlobDescriptor {
   url: string;
@@ -143,12 +145,17 @@ async function storePreparedThumbnail(
   opts: {
     db: Client;
     storage: IBlobStorage;
+    moderation: ModerationService;
     thumbnail: PreparedThumbnail;
     parentSha256: string;
     now: number;
     baseUrl: string;
   },
 ): Promise<Nip94Tag> {
+  // A thumbnail that is itself banned is skipped (the caller removes the file).
+  if (await opts.moderation.isHashBanned(opts.thumbnail.sha256)) {
+    throw new Error(`thumbnail ${opts.thumbnail.sha256} is banned`);
+  }
   await opts.storage.commitFile(
     opts.thumbnail.path,
     opts.thumbnail.sha256,
@@ -174,6 +181,7 @@ async function createAndStoreThumbnail(
   opts: {
     db: Client;
     storage: IBlobStorage;
+    moderation: ModerationService;
     inputPath: string;
     inputType: string | null;
     parentSha256: string;
@@ -194,6 +202,7 @@ async function createAndStoreThumbnail(
     const tag = await storePreparedThumbnail({
       db: opts.db,
       storage: opts.storage,
+      moderation: opts.moderation,
       thumbnail,
       parentSha256: opts.parentSha256,
       now: opts.now,
@@ -221,7 +230,7 @@ export function buildMediaRouter(
 
   // Hono does not support HEAD-only routes directly; register as GET and
   // the framework strips the body automatically for HEAD requests.
-  app.get("/media", (ctx) => {
+  app.get("/media", async (ctx) => {
     if (!config.media.enabled) {
       return errorResponse(
         ctx,
@@ -239,6 +248,15 @@ export function buildMediaRouter(
         }
         throw err;
       }
+    }
+
+    if (isAuthPubkeyBanned(ctx, runtime.moderation)) {
+      return rejectBannedPubkey(ctx);
+    }
+
+    const xSha256 = ctx.req.header("x-sha-256")?.toLowerCase();
+    if (xSha256 && /^[0-9a-f]{64}$/.test(xSha256) && (await runtime.moderation.isHashBanned(xSha256))) {
+      return rejectBlockedBlob(ctx);
     }
 
     if (getPool().available === 0) {
@@ -334,6 +352,11 @@ export function buildMediaRouter(
         `PUT /media — pubkey=${auth?.pubkey?.slice(0, 8) ?? "anon"}`,
       );
 
+      if (isAuthPubkeyBanned(ctx, runtime.moderation)) {
+        debug(debugPrefix, "rejected: pubkey is banned");
+        return rejectBannedPubkey(ctx);
+      }
+
       const contentLengthHeader = ctx.req.header("content-length");
       if (!contentLengthHeader) {
         await ctx.req.raw.body?.cancel();
@@ -397,6 +420,12 @@ export function buildMediaRouter(
         await ctx.req.raw.body?.cancel();
         debug(debugPrefix, `rejected: invalid X-SHA-256 format — "${xSha256}"`);
         return errorResponse(ctx, 400, "Invalid X-SHA-256 header format");
+      }
+
+      // A declared input hash with a local ban is rejected before any body bytes are read.
+      if (xSha256 && (await runtime.moderation.isHashBanned(xSha256))) {
+        debug(debugPrefix, `rejected: declared hash is banned — ${xSha256.slice(0, 8)}`);
+        return rejectBlockedBlob(ctx);
       }
 
       const body = ctx.req.raw.body;
@@ -507,6 +536,12 @@ export function buildMediaRouter(
         }
       }
 
+      // Moderation: the input hash.
+      if (await runtime.moderation.isHashBanned(originalHash)) {
+        debug(debugPrefix, `rejected: input blob is banned — ${originalHash.slice(0, 8)}`);
+        return errorResponse(ctx, 403, BLOB_BLOCKED_REASON);
+      }
+
       const existingOptimizedHash = await getMediaDerivative(db, originalHash);
       if (existingOptimizedHash) {
         debug(
@@ -602,6 +637,12 @@ export function buildMediaRouter(
       const optimizedMime = detectOptimizedMime(optPath);
       const optimizedExt = mimeToExt(optimizedMime);
 
+      // Moderation: the optimized output.
+      if (await runtime.moderation.isHashBanned(optimizedHash)) {
+        debug(debugPrefix, `rejected: optimized blob is banned — ${optimizedHash.slice(0, 8)}`);
+        return errorResponse(ctx, 403, BLOB_BLOCKED_REASON);
+      }
+
       if (await hasBlob(db, optimizedHash)) {
         debug(
           debugPrefix,
@@ -624,6 +665,7 @@ export function buildMediaRouter(
             thumbnailTag = await createAndStoreThumbnail({
               db,
               storage,
+              moderation: runtime.moderation,
               inputPath: optPath,
               inputType: existing.type,
               parentSha256: existing.sha256,
@@ -709,6 +751,7 @@ export function buildMediaRouter(
           thumbnailTag = await storePreparedThumbnail({
             db,
             storage,
+            moderation: runtime.moderation,
             thumbnail: thumbnailToStore,
             parentSha256: optimizedHash,
             now,

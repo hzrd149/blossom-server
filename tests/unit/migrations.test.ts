@@ -12,6 +12,7 @@ Deno.test("migrations are recorded once and owner upload time is per owner", asy
     const applied = (await db.execute("SELECT name FROM schema_migrations ORDER BY name")).rows.map((r) => r[0]);
     assertEquals(applied.includes("001_initial.sql"), true);
     assertEquals(applied.includes("007_owner_uploaded.sql"), true);
+    assertEquals(applied.includes("008_moderation.sql"), true);
 
     // A dedup grant to a second owner records the grant time, not the first upload time.
     await insertBlob(db, blob("a".repeat(64), 1_000), "p1", 1_000);

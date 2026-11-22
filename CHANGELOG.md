@@ -16,6 +16,8 @@
   other settings) and applies the rules without a restart; otherwise the console generates the updated file to copy or download. The console also tests whether
   an upload would be accepted, previews or runs pruning on demand, and applies hand edits to `storage.rules` without a restart. Rules accept optional `enabled`
   and `note` fields.
+- Add moderation: ban pubkeys and blob hashes from a new admin console Moderation page (and from the users, blob, and reports pages); banned pubkeys cannot
+  upload, mirror, or report, and banned blobs are deleted and cannot be uploaded again. See `docs/moderation/`.
 - Add `nip05Domains` to storage rules to allow every pubkey listed in a domain's `/.well-known/nostr.json`, refreshed every `storage.nip05.refreshIntervalMs`.
 - Add storage rule `basis: uploaded` to expire blobs a fixed time after upload instead of after last access.
 - Add `network.trustedProxies` and `network.clientIpHeader` to resolve client IPs behind reverse proxies.

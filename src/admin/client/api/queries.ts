@@ -6,6 +6,10 @@ import type {
   UserReportsQuery,
   UsersQuery,
 } from "../../contracts/users.ts";
+import type {
+  BannedBlobsQuery,
+  ModerationPageQuery,
+} from "../../contracts/moderation.ts";
 import { adminApi } from "./client.ts";
 
 /** Shared prefixes let mutations invalidate related cached reads. */
@@ -19,6 +23,7 @@ export const adminQueryKeys = {
   blobs: ["admin", "blobs"] as const,
   rules: ["admin", "rules"] as const,
   prune: ["admin", "prune"] as const,
+  moderation: ["admin", "moderation"] as const,
 };
 
 /** Use with useQuery, prefetchQuery, or ensureQueryData. */
@@ -80,5 +85,27 @@ export const adminQueries = {
       queryKey: adminQueryKeys.prune,
       queryFn: ({ signal }) => adminApi.pruneStatus(signal),
       refetchInterval: (query) => query.state.data?.running ? 2_000 : 30_000,
+    }),
+  bannedPubkeys: (params: Partial<ModerationPageQuery>) =>
+    queryOptions({
+      queryKey: [...adminQueryKeys.moderation, "pubkeys", params],
+      queryFn: ({ signal }) => adminApi.bannedPubkeys(params, signal),
+      placeholderData: keepPreviousData,
+    }),
+  pubkeyBan: (pubkey: string) =>
+    queryOptions({
+      queryKey: [...adminQueryKeys.moderation, "pubkey", pubkey],
+      queryFn: ({ signal }) => adminApi.pubkeyBan(pubkey, signal),
+    }),
+  bannedBlobs: (params: Partial<BannedBlobsQuery>) =>
+    queryOptions({
+      queryKey: [...adminQueryKeys.moderation, "blobs", params],
+      queryFn: ({ signal }) => adminApi.bannedBlobs(params, signal),
+      placeholderData: keepPreviousData,
+    }),
+  blobModeration: (sha256: string) =>
+    queryOptions({
+      queryKey: [...adminQueryKeys.moderation, "blob", sha256],
+      queryFn: ({ signal }) => adminApi.blobModeration(sha256, signal),
     }),
 };

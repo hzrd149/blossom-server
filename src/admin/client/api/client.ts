@@ -24,6 +24,21 @@ import type {
   SaveRulesBody,
 } from "../../contracts/rules.ts";
 
+import type {
+  BanBlobBody,
+  BanBlobResultDto,
+  BannedBlobDto,
+  BannedBlobsQuery,
+  BannedPubkeyDto,
+  BanPubkeyBody,
+  BanPubkeyResultDto,
+  BlobModerationStatus,
+  ModerationPage,
+  ModerationPageQuery,
+  PubkeyBanStatus,
+  ReportBanBody,
+} from "../../contracts/moderation.ts";
+
 export class AdminApiError extends Error {
   constructor(
     public readonly status: number,
@@ -109,6 +124,32 @@ export const adminApi = {
     request<{ success: true; deleted: number }>("DELETE", `users/${pubkey}`),
   reportAction: (id: number, action: "dismiss" | "delete-blob") =>
     request<{ success: true }>("POST", `reports/${id}/${action}`),
+  banReportedBlob: (id: number, body: ReportBanBody = {}) =>
+    request<BanBlobResultDto & { success: true }>(
+      "POST",
+      `reports/${id}/ban-blob`,
+      body,
+    ),
+
+  bannedPubkeys: (params: Partial<ModerationPageQuery>, signal: AbortSignal) =>
+    get<ModerationPage<BannedPubkeyDto>>(
+      `bans/pubkeys${query(params)}`,
+      signal,
+    ),
+  pubkeyBan: (pubkey: string, signal: AbortSignal) =>
+    get<PubkeyBanStatus>(`bans/pubkeys/${pubkey}`, signal),
+  banPubkey: (body: BanPubkeyBody) =>
+    request<BanPubkeyResultDto>("POST", "bans/pubkeys", body),
+  unbanPubkey: (pubkey: string) =>
+    request<{ success: true }>("DELETE", `bans/pubkeys/${pubkey}`),
+  bannedBlobs: (params: Partial<BannedBlobsQuery>, signal: AbortSignal) =>
+    get<ModerationPage<BannedBlobDto>>(`bans/blobs${query(params)}`, signal),
+  banBlob: (body: BanBlobBody) =>
+    request<BanBlobResultDto>("POST", "bans/blobs", body),
+  unbanBlob: (sha256: string) =>
+    request<{ success: true }>("DELETE", `bans/blobs/${sha256}`),
+  blobModeration: (sha256: string, signal: AbortSignal) =>
+    get<BlobModerationStatus>(`moderation/blobs/${sha256}`, signal),
 
   rules: (signal: AbortSignal) => get<RulesView>("rules", signal),
   saveRules: (body: SaveRulesBody) => request<RulesView>("PUT", "rules", body),

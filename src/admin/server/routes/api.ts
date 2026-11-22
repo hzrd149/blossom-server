@@ -9,6 +9,16 @@ import type { AdminApiError } from "../../contracts/errors.ts";
 import { RenderRulesBodySchema, RulePreviewBodySchema, SaveRulesBodySchema } from "../../contracts/rules.ts";
 import type { ManagementServices } from "../../services/index.ts";
 import { UserKeySchema, UserPageQuerySchema, UserReportsQuerySchema, UsersQuerySchema } from "../../contracts/users.ts";
+import {
+  BanBlobBodySchema,
+  BannedBlobsQuerySchema,
+  BanPubkeyBodySchema,
+  ModerationPageQuerySchema,
+  parseBlobRef,
+  ReportBanBodySchema,
+} from "../../contracts/moderation.ts";
+import { HEX64_RE, normalizePubkey } from "../../../policy/moderation-schema.ts";
+import { ModerationInputError } from "../../../moderation/service.ts";
 
 class InvalidRequest extends Error {
   constructor(message: string, readonly issues: AdminApiError["issues"] = undefined) {
@@ -30,10 +40,27 @@ async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.
   return parsed.data;
 }
 
+/** Like parseBody, but an empty body parses as {}. */
+async function parseOptionalBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.output<T>> {
+  const text = await c.req.text();
+  let body: unknown = {};
+  if (text.trim()) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new InvalidRequest("Request body must be JSON");
+    }
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) throw new InvalidRequest("Invalid request body", zodIssues(parsed.error));
+  return parsed.data;
+}
+
 export function buildAdminApi(services: ManagementServices): Hono {
   const app = new Hono();
   app.onError((err, c) => {
     if (err instanceof InvalidRequest) return c.json<AdminApiError>({ error: err.message, issues: err.issues }, 400);
+    if (err instanceof ModerationInputError) return c.json<AdminApiError>({ error: err.message }, 400);
     if (err instanceof z.ZodError) return c.json<AdminApiError>({ error: "Invalid request", issues: zodIssues(err) }, 400);
     if (err instanceof InvalidConfigError) return c.json<AdminApiError>({ error: "Invalid configuration", issues: err.issues }, 400);
     if (err instanceof ConfigChangedError || err instanceof ConfigNotWritableError) {
@@ -87,6 +114,10 @@ export function buildAdminApi(services: ManagementServices): Hono {
     const id = Number(c.req.param("id"));
     if (!Number.isSafeInteger(id) || id < 1) return c.json({ error: "Invalid report id" }, 400);
     const action = c.req.param("action");
+    if (action === "ban-blob") {
+      const result = await services.moderation.banReportedBlob(id, await parseOptionalBody(c, ReportBanBodySchema));
+      return result ? c.json({ success: true, ...result }) : c.json({ error: "Report not found" }, 404);
+    }
     if (action !== "dismiss" && action !== "delete-blob") return c.json({ error: "Not found" }, 404);
     const found = action === "dismiss" ? await services.reports.dismiss(id) : await services.reports.deleteContent(id);
     if (!found) return c.json({ error: "Report not found" }, 404);
@@ -108,6 +139,37 @@ export function buildAdminApi(services: ManagementServices): Hono {
   app.post("/prune/run", (c) => {
     if (!services.prune.trigger()) return c.json<AdminApiError>({ error: "A prune cycle is already running" }, 409);
     return c.json({ started: true }, 202);
+  });
+
+  // Moderation (docs/moderation/local-bans.md): local pubkey and blob bans.
+  const hashParam = (c: Context): string => {
+    const hash = c.req.param("sha256")?.toLowerCase() ?? "";
+    if (!HEX64_RE.test(hash)) throw new InvalidRequest("Expected a 64-character hex SHA-256");
+    return hash;
+  };
+  const pubkeyParam = (c: Context): string => {
+    const pubkey = normalizePubkey(c.req.param("pubkey") ?? "");
+    if (!pubkey) throw new InvalidRequest("Expected a 64-character hex pubkey or an npub");
+    return pubkey;
+  };
+  app.get("/bans/pubkeys", async (c) => c.json(await services.moderation.listBannedPubkeys(ModerationPageQuerySchema.parse(c.req.query()))));
+  app.post("/bans/pubkeys", async (c) => c.json(await services.moderation.banPubkey(await parseBody(c, BanPubkeyBodySchema))));
+  app.get("/bans/pubkeys/:pubkey", async (c) => c.json(await services.moderation.pubkeyStatus(pubkeyParam(c))));
+  app.delete("/bans/pubkeys/:pubkey", async (c) => {
+    if (!(await services.moderation.unbanPubkey(pubkeyParam(c)))) return c.json<AdminApiError>({ error: "Pubkey is not banned" }, 404);
+    return c.json({ success: true });
+  });
+  app.get("/bans/blobs", async (c) => c.json(await services.moderation.listBannedBlobs(BannedBlobsQuerySchema.parse(c.req.query()))));
+  app.post("/bans/blobs", async (c) => c.json(await services.moderation.banBlob(await parseBody(c, BanBlobBodySchema))));
+  app.delete("/bans/blobs/:sha256", async (c) => {
+    if (!(await services.moderation.unbanBlob(hashParam(c)))) return c.json<AdminApiError>({ error: "Blob is not banned" }, 404);
+    return c.json({ success: true });
+  });
+
+  app.get("/moderation/blobs/:ref", async (c) => {
+    const hash = parseBlobRef(c.req.param("ref"));
+    if (!hash) throw new InvalidRequest("Expected a 64-character hex SHA-256");
+    return c.json(await services.moderation.blobStatus(hash));
   });
 
   app.all("*", (c) => c.json({ error: "Not found" }, 404));

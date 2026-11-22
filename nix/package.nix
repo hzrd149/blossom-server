@@ -6,7 +6,7 @@
 let
   inherit (pkgs) lib;
 
-  adminBundleHash = "sha256-BOABMilIwt0G7mi8+zI3RA0+jKQL337hpL6SRyaG4ik=";
+  adminBundleHash = "sha256-SAew3Ihq8QFLjYE4tCr3oRrerjqntZoSlS1Yd7OjpNg=";
   adminBundle = (pkgs.buildDenoBundle {
     pname = "blossom-server-admin";
     inherit version src;

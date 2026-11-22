@@ -20,6 +20,7 @@ import {
   StatTile,
 } from "../components/ui.tsx";
 import { safeNpub, UserBadge } from "../components/user.tsx";
+import { BanUserButton } from "../components/moderation.tsx";
 import { formatBytes, formatDate, formatNumber } from "../lib/format.ts";
 import { eventStore } from "../nostr/event-store.ts";
 import { Link, setSearch, useLocation } from "../router.tsx";
@@ -108,12 +109,19 @@ export function UsersPage() {
                 {data.items.map((user) => (
                   <tr key={user.pubkey}>
                     <td>
-                      <Link
-                        to={`/users/${user.pubkey}`}
-                        className="link link-hover"
-                      >
-                        <UserBadge pubkey={user.pubkey} />
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to={`/users/${user.pubkey}`}
+                          className="link link-hover min-w-0"
+                        >
+                          <UserBadge pubkey={user.pubkey} />
+                        </Link>
+                        {user.banned && (
+                          <span className="badge badge-error badge-sm">
+                            Banned
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>{formatNumber(user.blobCount)}</td>
                     <td>{formatBytes(user.totalSize)}</td>
@@ -340,12 +348,58 @@ function UserDetail({ pubkey }: { pubkey: string }) {
       queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
   });
   const npub = safeNpub(pubkey);
+  const isAnonymous = pubkey === "anonymous";
+  const ban = useQuery({
+    ...adminQueries.pubkeyBan(pubkey),
+    enabled: !isAnonymous,
+  });
+  const unban = useMutation({
+    mutationFn: () => adminApi.unbanPubkey(pubkey),
+    onSuccess: () => notify("User unbanned. Removed content is not restored."),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
+  });
+  const banned = ban.data?.ban ?? null;
   return (
     <>
       <PageToolbar
-        actions={<Link to="/users" className="btn btn-ghost">All users</Link>}
-      />
-      <ErrorAlert error={error ?? remove.error} />
+        actions={
+          <>
+            {!isAnonymous && ban.data && !banned && (
+              <BanUserButton pubkey={pubkey} />
+            )}
+            {banned && (
+              <ConfirmButton
+                className="btn"
+                title="Unban user?"
+                description="The user can upload, mirror, and report again. Content removed by the ban is not restored."
+                confirmLabel="Unban"
+                onConfirm={() => unban.mutateAsync()}
+              >
+                Unban
+              </ConfirmButton>
+            )}
+            <Link to="/users" className="btn btn-ghost">All users</Link>
+          </>
+        }
+      >
+        {banned && (
+          <span className="badge badge-error">
+            Banned{banned.reason ? `: ${banned.reason}` : ""}
+          </span>
+        )}
+      </PageToolbar>
+      {banned && (
+        <div role="note" className="alert alert-error alert-soft mb-3 text-sm">
+          <span>
+            Banned{" "}
+            {formatDate(banned.created)}. This user cannot upload, mirror, or
+            file reports.
+            {banned.note && <>{" "}Note: {banned.note}</>}
+          </span>
+        </div>
+      )}
+      <ErrorAlert error={error ?? remove.error ?? unban.error} />
       {isPending ? <Loading /> : user && (
         <>
           <div

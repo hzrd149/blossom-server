@@ -11,6 +11,7 @@ export const ADMIN_PAGES = {
   user: "/users/:pubkey",
   blob: "/blobs/:sha256",
   rules: "/rules",
+  moderation: "/moderation",
   settings: "/settings",
 } as const;
 

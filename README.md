@@ -367,6 +367,11 @@ Successful upload, mirror, and media responses return a `BlobDescriptor`:
 
 All error responses use `Content-Type: text/plain`. The reason is included in both the response body and an `X-Reason` header.
 
+### Moderation
+
+Banning pubkeys and blobs from the admin console, and where bans are enforced, is specified in [`docs/moderation/`](docs/moderation/README.md) for operators and
+for developers of other servers and tools that integrate with this one.
+
 ## Admin Dashboard
 
 Enable the React admin console, served by the existing Hono/Deno application:

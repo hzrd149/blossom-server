@@ -6,6 +6,7 @@ import { BlobPage } from "./pages/blob.tsx";
 import { ContentPage } from "./pages/content.tsx";
 import { DashboardPage } from "./pages/dashboard.tsx";
 import { RulesPage } from "./pages/rules.tsx";
+import { ModerationPage } from "./pages/moderation.tsx";
 import { SettingsPage } from "./pages/settings.tsx";
 import { UserPage, UsersPage } from "./pages/users.tsx";
 import { EmptyState } from "./components/ui.tsx";
@@ -28,6 +29,7 @@ const ROUTES: {
     render: ({ sha256 }) => <BlobPage key={sha256} sha256={sha256} />,
   },
   { pattern: ADMIN_PAGES.rules, render: () => <RulesPage /> },
+  { pattern: ADMIN_PAGES.moderation, render: () => <ModerationPage /> },
   { pattern: ADMIN_PAGES.settings, render: () => <SettingsPage /> },
 ];
 

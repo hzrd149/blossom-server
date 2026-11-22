@@ -9,6 +9,7 @@ import type { Config } from "./config/schema.ts";
 import type { IBlobStorage } from "./storage/interface.ts";
 import { RuleStore } from "./policy/rule-store.ts";
 import { PruneScheduler, type PruneSchedulerOptions } from "./prune/scheduler.ts";
+import { ModerationService } from "./moderation/service.ts";
 import { createNip05Allowlist, logNip05Results, type Nip05Allowlist, type Nip05RefreshTimers, startNip05Refresh } from "./allowlist/nip05.ts";
 
 export interface ServerRuntime {
@@ -22,6 +23,8 @@ export interface ServerRuntime {
   startNip05(options?: { initialDelayMs?: number }): void;
   /** Stop the NIP-05 refresh loop and the rule-change subscription. */
   stopNip05(): void;
+  /** Local pubkey and blob bans. Initialized (banned pubkeys loaded into memory). */
+  moderation: ModerationService;
 }
 
 export interface ServerRuntimeOptions {
@@ -32,12 +35,15 @@ export interface ServerRuntimeOptions {
   nip05Timers?: Nip05RefreshTimers;
 }
 
-export function createServerRuntime(
+export async function createServerRuntime(
   db: Client,
   storage: IBlobStorage,
   config: Config,
   options: ServerRuntimeOptions = {},
 ): Promise<ServerRuntime> {
+  const moderation = new ModerationService(db, storage);
+  await moderation.init();
+
   const rules = new RuleStore(config.storage.rules);
   const nip05 = createNip05Allowlist(rules, { fetchImpl: options.nip05Fetch, timeoutMs: config.storage.nip05.timeoutMs });
   // A domain added through the admin console (or a config reload) is fetched right away instead of after the next interval.
@@ -45,8 +51,9 @@ export function createServerRuntime(
     nip05.refreshMissing().then((result) => logNip05Results(result.domains)).catch((err) => console.warn("[nip05] refresh failed:", err));
   });
   let stopRefresh: (() => void) | undefined;
-  return Promise.resolve({
+  return {
     rules,
+    moderation,
     prune: new PruneScheduler(db, storage, config, rules, options.prune),
     nip05,
     startNip05({ initialDelayMs } = {}) {
@@ -57,7 +64,7 @@ export function createServerRuntime(
       unsubscribe();
       stopRefresh?.();
     },
-  });
+  };
 }
 
 /** Stop background work owned by the runtime. */

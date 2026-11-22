@@ -55,7 +55,7 @@ export function buildBlossomRouter(
 
   // BUD-09: PUT /report — mounted before blob catch-all so /report is not caught by /:sha256.
   if (config.report.enabled) {
-    app.route("/", buildReportRouter(db));
+    app.route("/", buildReportRouter(db, runtime.moderation));
   }
 
   // BUD-02 + BUD-06: PUT /upload, HEAD /upload

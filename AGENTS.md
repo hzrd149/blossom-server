@@ -39,8 +39,7 @@
 - Live rules come from `runtime.rules.current()`, not `config.storage.rules` (which includes disabled rules and is not the live snapshot). Rule changes reset
   prune cursors. NIP-05 fetched members are in-memory additions, not persisted pubkeys.
 - Storage rules live in YAML, not the DB. `src/config/editor.ts` edits raw YAML, preserving comments and `${VAR}` placeholders, with atomic writes and
-  hash-based conflict detection; read-only configurations support copying rendered output. Moderation publishing/subscription settings also use this editor; do
-  not assume all non-rule config is read-only.
+  hash-based conflict detection; read-only configurations support copying rendered output.
 - Browser-safe policy schemas live in `src/policy/`; server config defaults live in `src/config/schema.ts`.
 - Migrations in `src/db/migrations/` run alphabetically and are recorded by filename in `schema_migrations`. Add new migrations rather than changing applied
   ones. The runner splits on `;` without SQL parsing: no semicolons in comments or trigger bodies.
@@ -67,8 +66,9 @@
 
 ## Change and release conventions
 
-- Read the relevant spec in `docs/moderation/` before changing bans or shared lists; keep behavior and status headers synchronized, following
-  `docs/moderation/README.md`. Published wire formats require a new format version rather than in-place changes.
+- Read `docs/moderation/local-bans.md` before changing pubkey or blob bans; keep behavior and status headers synchronized, following
+  `docs/moderation/README.md`. Bans live in the database (`src/db/moderation/`, via `ModerationDatabase`) and are enforced through `runtime.moderation`; domain
+  code never holds the libsql `Client`.
 - For customer-facing changes, read `CHANGELOG.md`'s `Unreleased` section first. Extend an existing entry for an unreleased feature rather than adding another
   fix/polish entry. Use `Major Changes`, `Minor Changes`, or `Patch Changes`; describe operator/user impact in one short sentence, naming relevant config
   keys/endpoints. Skip internal refactors, tests, tooling, and UI polish. Add a version heading only when releasing.

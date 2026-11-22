@@ -27,6 +27,8 @@ export interface UserSummary {
   lastUpload: number | null;
   firstReport: number | null;
   lastReport: number | null;
+  /** The pubkey has a local ban (set by the API; absent in raw database rows). */
+  banned?: boolean;
 }
 export interface UserBlob {
   sha256: string;
