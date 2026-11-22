@@ -38,7 +38,8 @@ COPY src/ ./src/
 # load FFI bindings under QEMU emulation (ARM64 builds on amd64 runners) causes
 # illegal instruction crashes. The .so binary will be fetched automatically on
 # first use at container runtime, which runs natively on the target architecture.
-RUN deno cache main.ts && deno task build
+# Serialize asset tasks to avoid concurrent esbuild installation into a cold cache.
+RUN deno cache main.ts && deno task --jobs 1 build
 
 # Data volume — SQLite DB and blob storage. Mounted at runtime.
 VOLUME ["/app/data"]
