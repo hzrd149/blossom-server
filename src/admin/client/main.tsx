@@ -2,8 +2,6 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app.tsx";
 import { ToastProvider } from "./components/toasts.tsx";
 import { QueryClientProvider } from "@tanstack/react-query";
-// The admin uses production bundles locally too; keep the debugger available.
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools/production";
 import { queryClient } from "./api/query-client.ts";
 import {
   AccountsProvider,
@@ -27,6 +25,5 @@ createRoot(root).render(
         </ActionsProvider>
       </AccountsProvider>
     </EventStoreProvider>
-    <ReactQueryDevtools initialIsOpen={false} />
   </QueryClientProvider>,
 );

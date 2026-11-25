@@ -15,7 +15,6 @@
     "applesauce-accounts": "npm:applesauce-accounts@7.1.0",
     "applesauce-actions": "npm:applesauce-actions@7.1.1",
     "@tanstack/react-query": "npm:@tanstack/react-query@5.107.1",
-    "@tanstack/react-query-devtools/production": "npm:@tanstack/react-query-devtools@5.107.1/production",
     "react": "npm:react@19.3.1",
     "react-dom/client": "npm:react-dom@19.3.1/client",
     "@types/react": "npm:@types/react@19.3.0",
