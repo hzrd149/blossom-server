@@ -116,6 +116,7 @@ export function ContentPage() {
       <form onSubmit={submit} className="mb-3 flex flex-wrap gap-2">
         <input
           className="input input-bordered flex-1 min-w-48"
+          aria-label="Filter content"
           placeholder="Filter by hash or MIME type (e.g. video/)"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

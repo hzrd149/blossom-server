@@ -8,9 +8,30 @@ import { createPruneState, pruneStorage } from "../../src/prune/prune.ts";
 import type { IBlobStorage } from "../../src/storage/interface.ts";
 import { OperationMetrics } from "../../src/metrics/operations.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
+import { insertReport, listAllReports } from "../../src/db/reports.ts";
+import { dismissReport } from "../../src/db/admin.ts";
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
+
+for (const ownerless of [false, true]) {
+  Deno.test(`pruneStorage retains active and dismissed reports after ${ownerless ? "ownerless" : "expiry"} deletion`, async () => {
+    await withDb(async (db) => {
+      await seed(db, 2, 30 * DAY);
+      for (let i = 0; i < 2; i++) {
+        await insertReport(db, { event_id: sha(i + 10), reporter: "a".repeat(64), blob: sha(i), type: "spam", content: "", created: 1 });
+      }
+      const reports = await listAllReports(db);
+      await dismissReport(db, reports[0].id);
+      const retained = await listAllReports(db);
+      if (ownerless) await db.execute("DELETE FROM owners");
+      const result = await pruneStorage(db, recordingStorage(), ownerless ? [] : [{ type: "*", expiration: "1 week" }], ownerless);
+      assertEquals(result, { deleted: 2, errors: 0 });
+      assertEquals(await blobHashes(db), []);
+      assertEquals(await listAllReports(db), retained);
+    });
+  });
+}
 
 for (const ownerless of [false, true]) {
   Deno.test(`pruneStorage retains metadata on ${ownerless ? "ownerless" : "expiry"} storage failure and retries`, async () => {

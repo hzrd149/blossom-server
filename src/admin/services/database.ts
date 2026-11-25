@@ -21,8 +21,8 @@ export function createManagementDatabase(db: Client) {
     getAdminCounts: () => admin.getAdminCounts(db),
     listReports: (options?: Parameters<typeof reports.listAllReports>[1]) => reports.listAllReports(db, options),
     getReport: (id: number) => reports.getReport(db, id),
-    deleteReport: (id: number) => reports.deleteReport(db, id),
-    deleteReportsByBlob: (hash: string) => reports.deleteReportsByBlob(db, hash),
+    dismissReport: (id: number) => admin.dismissReport(db, id),
+    cleanupReports: (target: Parameters<typeof admin.cleanupReports>[1]) => admin.cleanupReports(db, target),
   };
 }
 

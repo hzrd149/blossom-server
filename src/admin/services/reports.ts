@@ -8,12 +8,12 @@ export function createReportService(db: ManagementDatabase, content: ContentServ
       const page = await db.listAdminReports(query);
       return { ...page, items: page.items.map((item) => ({ ...item, path: blobPath(item.blob, item.blobType) })) };
     },
-    dismiss: (id: number) => db.deleteReport(id),
+    dismiss: (id: number) => db.dismissReport(id),
+    cleanup: db.cleanupReports,
     async deleteContent(id: number): Promise<boolean> {
       const report = await db.getReport(id);
       if (!report) return false;
       await content.forceDelete(report.blob);
-      await db.deleteReportsByBlob(report.blob);
       return true;
     },
   };

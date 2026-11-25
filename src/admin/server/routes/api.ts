@@ -4,7 +4,7 @@ import { z } from "zod";
 import { InvalidConfigError } from "../../../config/loader.ts";
 import { ConfigChangedError, ConfigNotWritableError } from "../../../config/editor.ts";
 import { ContentQuerySchema } from "../../contracts/content.ts";
-import { ReportsQuerySchema } from "../../contracts/reports.ts";
+import { ReportCleanupSchema, ReportsQuerySchema } from "../../contracts/reports.ts";
 import type { AdminApiError } from "../../contracts/errors.ts";
 import { RenderRulesBodySchema, RulePreviewBodySchema, SaveRulesBodySchema } from "../../contracts/rules.ts";
 import type { ManagementServices } from "../../services/index.ts";
@@ -109,6 +109,10 @@ export function buildAdminApi(services: ManagementServices): Hono {
     const pubkey = c.req.param("pubkey");
     if (!/^[a-f0-9]{64}$/.test(pubkey)) return c.json({ error: "Invalid pubkey" }, 400);
     return c.json({ success: true, deleted: await services.users.deleteContent(pubkey) });
+  });
+  app.post("/reports/cleanup", async (c) => {
+    const { target } = await parseBody(c, ReportCleanupSchema);
+    return c.json({ success: true, deleted: await services.reports.cleanup(target) });
   });
   app.post("/reports/:id/:action", async (c) => {
     const id = Number(c.req.param("id"));

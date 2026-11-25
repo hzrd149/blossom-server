@@ -141,13 +141,13 @@ Deno.test("admin moderation: blob bans, report ban-blob action, and blob status"
     const idFor = (eventId: string) => reports.find((r) => r.event_id === eventId)!.id;
 
     const fromReport = await json(`reports/${idFor(h(101))}/ban-blob`, "POST");
-    assertEquals([fromReport.success, fromReport.banned, fromReport.reportsResolved], [true, [h(11)], 1]);
+    assertEquals([fromReport.success, fromReport.banned, fromReport.reportsResolved], [true, [h(11)], 0]);
     assertEquals((await json(`moderation/blobs/${h(11)}`)).ban.category, "nudity");
     await json(`reports/${idFor(h(102))}/ban-blob`, "POST");
     assertEquals((await json(`moderation/blobs/${h(12)}`)).ban.category, "other");
-    // Both reports on h(12) were resolved by the ban.
-    assertEquals((await listAllReports(db, { limit: 10 })).length, 0);
-    await json(`reports/${idFor(h(103))}/ban-blob`, "POST", { category: "spam" }, 404);
+    // All reports survive bans and remain actionable.
+    assertEquals((await listAllReports(db, { limit: 10 })).map((r) => r.dismissed), [false, false, false]);
+    await json(`reports/${idFor(h(103))}/ban-blob`, "POST", { category: "spam" });
     await json("reports/999/nope", "POST", undefined, 404);
 
     assertEquals(await json(`bans/blobs/${h(10)}`, "DELETE"), { success: true });

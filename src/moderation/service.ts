@@ -56,7 +56,7 @@ export interface BanBlobResult {
   banned: string[];
   /** Hashes whose stored records were deleted. */
   deleted: string[];
-  /** Reports resolved for the banned hashes. */
+  /** @deprecated Always zero: bans retain reports. Kept for API compatibility. */
   reportsResolved: number;
 }
 
@@ -130,7 +130,7 @@ export class ModerationService {
 
   /**
    * Ban a hash and its related media (derivative, original, thumbnails): record bans, delete
-   * stored records and files (all owners), and resolve reports.
+   * stored records and files (all owners), preserving reports.
    */
   async banBlob(input: BanBlobInput): Promise<BanBlobResult> {
     if (!HEX64_RE.test(input.sha256)) throw new ModerationInputError("Expected a 64-character lowercase hex SHA-256");
@@ -142,9 +142,8 @@ export class ModerationService {
 
     const deleted: string[] = [];
     for (const hash of hashes) deleted.push(...await removeStoredBlob(this.database, this.storage, hash));
-    const reportsResolved = await this.database.deleteReportsForBlobs(hashes);
     console.log(`[moderation] Banned blob ${input.sha256} (${input.category}) and ${hashes.length - 1} related hash(es)`);
-    return { banned: hashes, deleted: [...new Set(deleted)], reportsResolved };
+    return { banned: hashes, deleted: [...new Set(deleted)], reportsResolved: 0 };
   }
 
   /** Lift a blob ban (this hash only). Deleted files are not restored. */

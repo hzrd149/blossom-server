@@ -2,6 +2,9 @@ import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import { initDb, runMigrations } from "../../src/db/client.ts";
 import { insertBlob } from "../../src/db/blobs.ts";
+import { createClient } from "@libsql/client/sqlite3";
+import { getReport, insertReport } from "../../src/db/reports.ts";
+import { dismissReport } from "../../src/db/admin.ts";
 
 const blob = (sha256: string, uploaded: number) => ({ sha256, size: 1, type: "image/png", uploaded, nip94: null });
 
@@ -13,6 +16,7 @@ Deno.test("migrations are recorded once and owner upload time is per owner", asy
     assertEquals(applied.includes("001_initial.sql"), true);
     assertEquals(applied.includes("007_owner_uploaded.sql"), true);
     assertEquals(applied.includes("008_moderation.sql"), true);
+    assertEquals(applied.includes("009_report_dismissal.sql"), true);
 
     // A dedup grant to a second owner records the grant time, not the first upload time.
     await insertBlob(db, blob("a".repeat(64), 1_000), "p1", 1_000);
@@ -28,6 +32,30 @@ Deno.test("migrations are recorded once and owner upload time is per owner", asy
     await db.execute("UPDATE owners SET uploaded = NULL WHERE pubkey = 'p2'");
     await runMigrations(db);
     assertEquals((await db.execute("SELECT uploaded FROM owners WHERE pubkey = 'p2'")).rows[0][0], null);
+  } finally {
+    db.close();
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("report dismissal migration preserves existing reports as active and persists dismissal", async () => {
+  const dir = await Deno.makeTempDir({ prefix: "blossom-migrations-" });
+  const path = join(dir, "test.db");
+  let db = createClient({ url: `file:${path}` });
+  try {
+    // Build the pre-dismissal report schema, including a report whose blob is missing.
+    const sql = await Deno.readTextFile(new URL("../../src/db/migrations/003_reports.sql", import.meta.url));
+    for (const statement of sql.split(";").map((s) => s.trim()).filter(Boolean)) await db.execute(statement);
+    await insertReport(db, { event_id: "a".repeat(64), reporter: "b".repeat(64), blob: "c".repeat(64), type: "spam", content: "Evidence", created: 123 });
+    await runMigrations(db);
+    const report = await getReport(db, 1);
+    assertEquals(report?.dismissed, false);
+    assertEquals(report?.content, "Evidence");
+    assertEquals(await dismissReport(db, 1), true);
+    await runMigrations(db);
+    db.close();
+    db = await initDb({ path });
+    assertEquals(await getReport(db, 1), { ...report!, dismissed: true });
   } finally {
     db.close();
     await Deno.remove(dir, { recursive: true });

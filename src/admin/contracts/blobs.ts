@@ -8,6 +8,7 @@ export interface ReportDto {
   type: string | null;
   content: string;
   created: number;
+  dismissed: boolean;
 }
 
 export interface BlobRetention {

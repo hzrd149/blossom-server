@@ -165,13 +165,13 @@ Deno.test("admin actions retain force-delete and moderation behavior through man
     const dismissed = await request(`reports/${reports[0].id}/dismiss`, "POST");
     assertEquals(await dismissed.json(), { success: true });
     assert(await getBlob(db, hash), "Dismissing reports must retain content");
-    assertEquals((await listAllReports(db)).length, 0);
+    assertEquals((await listAllReports(db)).map((r) => r.dismissed), [true]);
     await insertReport(db, report);
     reports = await listAllReports(db);
     const deleted = await request(`reports/${reports[0].id}/delete-blob`, "POST");
     assertEquals(await deleted.json(), { success: true });
     assertEquals(await getBlob(db, hash), null);
-    assertEquals((await listAllReports(db)).length, 0);
+    assertEquals((await listAllReports(db)).map((r) => r.dismissed), [true]);
     const missing = await request("reports/999/dismiss", "POST");
     assertEquals(missing.status, 404);
     await missing.body?.cancel();

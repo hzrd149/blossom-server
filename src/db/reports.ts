@@ -32,6 +32,7 @@ export interface ReportRecord {
   content: string;
   /** Unix timestamp from the event .created_at field */
   created: number;
+  dismissed: boolean;
 }
 
 /**
@@ -41,7 +42,7 @@ export interface ReportRecord {
  */
 export async function insertReport(
   db: Client,
-  report: Omit<ReportRecord, "id">,
+  report: Omit<ReportRecord, "id" | "dismissed">,
 ): Promise<void> {
   await db.execute({
     sql: `INSERT OR IGNORE INTO reports (event_id, reporter, blob, type, content, created)
@@ -103,7 +104,7 @@ export async function listAllReports(
   const safeDir = sortDir === "ASC" ? "ASC" : "DESC";
 
   let sql = `
-    SELECT id, event_id, reporter, blob, type, content, created
+    SELECT id, event_id, reporter, blob, type, content, created, dismissed
     FROM reports
     ${where}
     ORDER BY ${safeCol} ${safeDir}
@@ -127,6 +128,7 @@ export async function listAllReports(
     type: (row[4] as ReportType | null) ?? null,
     content: (row[5] as string) ?? "",
     created: row[6] as number,
+    dismissed: Boolean(row[7]),
   }));
 }
 
@@ -168,7 +170,7 @@ export async function getReport(
   id: number,
 ): Promise<ReportRecord | null> {
   const rs = await db.execute({
-    sql: `SELECT id, event_id, reporter, blob, type, content, created FROM reports WHERE id = ?`,
+    sql: `SELECT id, event_id, reporter, blob, type, content, created, dismissed FROM reports WHERE id = ?`,
     args: [id],
   });
   const row = rs.rows[0];
@@ -181,6 +183,7 @@ export async function getReport(
     type: (row[4] as ReportType | null) ?? null,
     content: (row[5] as string) ?? "",
     created: row[6] as number,
+    dismissed: Boolean(row[7]),
   };
 }
 
@@ -198,8 +201,7 @@ export async function deleteReport(db: Client, id: number): Promise<boolean> {
 
 /**
  * Delete all report rows for a given blob hash.
- * Called after an admin force-deletes a blob so that associated reports are
- * automatically dismissed in the same action.
+ * Low-level operation; content removal must retain reports.
  */
 export async function deleteReportsByBlob(
   db: Client,

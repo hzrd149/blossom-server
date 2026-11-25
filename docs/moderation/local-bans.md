@@ -71,7 +71,7 @@ Creating a blob ban:
 1. Deletes the stored file and its database record (all owners), if present.
 2. Applies the same ban to related derived blobs recorded by the server: the optimized derivative of the blob, the original the blob was derived from, and their
    thumbnails. Each related blob gets its own ban row with the same category.
-3. Resolves any open reports for the banned hashes.
+3. Retains all reports for the banned hashes, without changing their dismissal state.
 
 Banning an already banned hash updates its category, and its note when a new one is given. Removing a blob ban allows the hash to be uploaded again. It does not
 restore deleted files.
@@ -124,6 +124,13 @@ Mounted under `/admin/api`, protected by the console's HTTP Basic Auth.
 
 Report moderation gains a `ban-blob` action (`POST /reports/:id/ban-blob`, optional body `{ category?, note? }`) alongside `dismiss` and `delete-blob`. The
 category defaults to the report type when it is a ban category, otherwise `other`. The blob and user pages gain ban actions.
+
+Reports survive content deletion, bans, and pruning. Dismissal marks a report as dismissed instead of deleting it. The Reports page shows all reports by
+default, with independent status (`all`, `active`, `dismissed`) and blob availability (`all`, `stored`, `missing`) filters.
+
+Administrators can explicitly delete reports using `POST /reports/cleanup` with `{ target: "missing" | "dismissed" }`. This action applies server-wide,
+independently of list filters or selection, and returns `{ success: true, deleted }`. Missing-blob cleanup checks for absence from the blob database at deletion
+time; dismissed cleanup deletes only dismissed reports. Neither action deletes blobs. Previously deleted reports cannot be recovered.
 
 ## Open questions
 

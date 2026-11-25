@@ -13,7 +13,6 @@ import {
   CopyButton,
   EmptyState,
   ErrorAlert,
-  HashLink,
   Loading,
   PageToolbar,
   Paginator,
@@ -178,167 +177,8 @@ function NostrProfile({ pubkey }: { pubkey: string }) {
   );
 }
 
-function UserBlobs({ pubkey }: { pubkey: string }) {
-  const [page, setPage] = useState(1);
-  const { data, error, isPending } = useQuery(
-    adminQueries.userBlobs(pubkey, { page }),
-  );
-  const queryClient = useQueryClient();
-  const remove = useMutation({
-    mutationFn: adminApi.deleteBlob,
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
-  });
-  return (
-    <>
-      <ErrorAlert error={error ?? remove.error} />
-      {isPending ? <Loading /> : data && (
-        <>
-          <div className="overflow-x-auto">
-            <table className="table table-sm">
-              <thead>
-                <tr>
-                  <th>Blob</th>
-                  <th>Type</th>
-                  <th>Size</th>
-                  <th>Ownership recorded</th>
-                  <th>Owners</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((blob) => (
-                  <tr key={blob.sha256}>
-                    <td>
-                      <HashLink hash={blob.sha256} />
-                    </td>
-                    <td>{blob.type ?? "unknown"}</td>
-                    <td>{formatBytes(blob.size)}</td>
-                    <td>{date(blob.uploaded)}</td>
-                    <td>{blob.ownerCount}</td>
-                    <td>
-                      <ConfirmButton
-                        className="btn btn-ghost btn-sm text-error"
-                        title="Delete blob for all owners?"
-                        description={`This permanently deletes the blob for all ${blob.ownerCount} owner(s).`}
-                        confirmLabel="Delete blob"
-                        onConfirm={() => remove.mutateAsync(blob.sha256)}
-                      >
-                        Delete
-                      </ConfirmButton>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!data.items.length && <EmptyState>No owned blobs.</EmptyState>}
-          <Paginator
-            page={page}
-            pageSize={data.pageSize}
-            total={data.total}
-            onPage={setPage}
-          />
-        </>
-      )}
-    </>
-  );
-}
-
-function UserReports(
-  { pubkey, scope }: { pubkey: string; scope: "filed" | "received" },
-) {
-  const [page, setPage] = useState(1);
-  const { data, error, isPending } = useQuery(
-    adminQueries.userReports(pubkey, { page, scope }),
-  );
-  const queryClient = useQueryClient();
-  const action = useMutation({
-    mutationFn: (
-      { id, action }: { id: number; action: "dismiss" | "delete-blob" },
-    ) => adminApi.reportAction(id, action),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
-  });
-  return (
-    <>
-      <ErrorAlert error={error ?? action.error} />
-      {isPending ? <Loading /> : data && (
-        <>
-          <ul className="divide-y divide-base-300">
-            {data.items.map((report) => (
-              <li key={report.id} className="py-3 space-y-2">
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <HashLink hash={report.blob} />
-                  <span className="badge badge-sm">
-                    {report.type ?? "unspecified"}
-                  </span>
-                  <span>{formatDate(report.created)}</span>
-                  <Link
-                    to={`/users/${report.reporter}`}
-                    className="link link-hover"
-                  >
-                    <UserBadge pubkey={report.reporter} />
-                  </Link>
-                </div>
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {report.content}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <CopyButton
-                    value={report.eventId}
-                    label="Copy report event ID"
-                  />
-                  <ConfirmButton
-                    className="btn"
-                    title="Dismiss report?"
-                    description="Removes this report from the server."
-                    confirmLabel="Dismiss"
-                    onConfirm={() =>
-                      action.mutateAsync({ id: report.id, action: "dismiss" })}
-                  >
-                    Dismiss
-                  </ConfirmButton>
-                  <ConfirmButton
-                    className="btn btn-error btn-outline"
-                    title="Delete reported blob?"
-                    description="Permanently deletes the blob for every owner and removes its reports."
-                    confirmLabel="Delete blob"
-                    onConfirm={() =>
-                      action.mutateAsync({
-                        id: report.id,
-                        action: "delete-blob",
-                      })}
-                  >
-                    Delete blob
-                  </ConfirmButton>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {!data.items.length && <EmptyState>No retained reports.</EmptyState>}
-          <Paginator
-            page={page}
-            pageSize={data.pageSize}
-            total={data.total}
-            onPage={setPage}
-          />
-        </>
-      )}
-    </>
-  );
-}
-
 function UserDetail({ pubkey }: { pubkey: string }) {
   const { data: user, error, isPending } = useQuery(adminQueries.user(pubkey));
-  const tabs = [["profile", "Profile"], ["blobs", "Uploads"], [
-    "filed",
-    "Reports filed",
-  ], [
-    "received",
-    "Reports on blobs",
-  ]] as const;
-  const [tab, setTab] = useState<typeof tabs[number][0]>("profile");
   const notify = useToast();
   const queryClient = useQueryClient();
   const remove = useMutation({
@@ -379,6 +219,17 @@ function UserDetail({ pubkey }: { pubkey: string }) {
                 Unban
               </ConfirmButton>
             )}
+            {!isAnonymous && user && user.blobCount > 0 && (
+              <ConfirmButton
+                className="btn btn-error btn-outline"
+                title="Delete this user's content?"
+                description="Force-deletes up to 10,000 owned blobs per run, including shared blobs for ALL owners. This does not ban the user or prevent future uploads."
+                confirmLabel="Delete content"
+                onConfirm={() => remove.mutateAsync()}
+              >
+                Delete user content
+              </ConfirmButton>
+            )}
             <Link to="/users" className="btn btn-ghost">All users</Link>
           </>
         }
@@ -402,152 +253,75 @@ function UserDetail({ pubkey }: { pubkey: string }) {
       <ErrorAlert error={error ?? remove.error ?? unban.error} />
       {isPending ? <Loading /> : user && (
         <>
-          <div
-            role="tablist"
-            aria-label="User details"
-            className="tabs tabs-border mb-4"
-          >
-            {tabs.map(([value, label], index) => (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                id={`user-tab-${value}`}
-                aria-controls={`user-panel-${value}`}
-                aria-selected={tab === value}
-                tabIndex={tab === value ? 0 : -1}
-                className={`tab ${tab === value ? "tab-active" : ""}`}
-                onClick={() => setTab(value)}
-                onKeyDown={(event) => {
-                  const next = event.key === "ArrowRight"
-                    ? (index + 1) % tabs.length
-                    : event.key === "ArrowLeft"
-                    ? (index + tabs.length - 1) % tabs.length
-                    : event.key === "Home"
-                    ? 0
-                    : event.key === "End"
-                    ? tabs.length - 1
-                    : null;
-                  if (next === null) return;
-                  event.preventDefault();
-                  setTab(tabs[next][0]);
-                  document.getElementById(`user-tab-${tabs[next][0]}`)?.focus();
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div
-            role="tabpanel"
-            id={`user-panel-${tab}`}
-            aria-labelledby={`user-tab-${tab}`}
-            tabIndex={0}
-          >
-            {tab === "profile" && (
-              <>
-                <section className="rounded-box border border-base-300 p-3 mb-3">
-                  {pubkey === "anonymous"
-                    ? (
-                      <p>
-                        Anonymous uploads — a shared group, not an individual
-                        identity.
-                      </p>
-                    )
-                    : <NostrProfile pubkey={pubkey} />}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <code className="break-all text-xs">{npub ?? pubkey}</code>
-                    <CopyButton value={npub ?? pubkey} label="Copy identity" />
-                    {npub && <CopyButton value={pubkey} label="Copy hex" />}
-                  </div>
-                </section>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-                  <StatTile
-                    label="Owned blobs"
-                    value={formatNumber(user.blobCount)}
-                    hint={`${user.sharedBlobCount} shared with others`}
-                  />
-                  <StatTile
-                    label="Owned storage"
-                    value={formatBytes(user.totalSize)}
-                  />
-                  <StatTile
-                    label="Reports filed"
-                    value={formatNumber(user.reportCount)}
-                  />
-                  <StatTile
-                    label="Reports on owned blobs"
-                    value={formatNumber(user.receivedReportCount)}
-                  />
-                </div>
-                <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm mb-3">
-                  <div>
-                    <dt className="inline text-base-content/60">
-                      First ownership:
-                    </dt>
-                    <dd className="inline">{date(user.firstUpload)}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline text-base-content/60">
-                      Latest ownership:
-                    </dt>
-                    <dd className="inline">{date(user.lastUpload)}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline text-base-content/60">
-                      First retained report:
-                    </dt>
-                    <dd className="inline">{date(user.firstReport)}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline text-base-content/60">
-                      Latest retained report:
-                    </dt>
-                    <dd className="inline">{date(user.lastReport)}</dd>
-                  </div>
-                </dl>
-                <p className="text-xs text-base-content/60 mb-3">
-                  Current records only, not a complete activity history.
-                  Ownership dates for older records may be backfilled from the
-                  blob's original upload date. Report dates are supplied by the
-                  reporter.
+          <section className="rounded-box border border-base-300 p-3 mb-3">
+            {pubkey === "anonymous"
+              ? (
+                <p>
+                  Anonymous uploads — a shared group, not an individual
+                  identity.
                 </p>
-              </>
-            )}
-            {tab === "blobs" && (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      to={`/content?owner=${pubkey}`}
-                      className="btn"
-                    >
-                      Open content browser
-                    </Link>
-                    {pubkey !== "anonymous" && user.blobCount > 0 && (
-                      <ConfirmButton
-                        className="btn btn-error btn-outline"
-                        title="Delete this user's content?"
-                        description="Force-deletes up to 10,000 owned blobs per run, including shared blobs for ALL owners. This does not ban the user or prevent future uploads."
-                        confirmLabel="Delete content"
-                        onConfirm={() => remove.mutateAsync()}
-                      >
-                        Delete user content
-                      </ConfirmButton>
-                    )}
-                  </div>
-                </div>
-                <UserBlobs pubkey={pubkey} />
-              </>
-            )}
-            {(tab === "filed" || tab === "received") && (
-              <UserReports
-                key={tab}
-                pubkey={pubkey}
-                scope={tab === "filed" ? "filed" : "received"}
-              />
-            )}
+              )
+              : <NostrProfile pubkey={pubkey} />}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <code className="break-all text-xs">{npub ?? pubkey}</code>
+              <CopyButton value={npub ?? pubkey} label="Copy identity" />
+              {npub && <CopyButton value={pubkey} label="Copy hex" />}
+            </div>
+          </section>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <StatTile
+              label="Owned blobs"
+              value={formatNumber(user.blobCount)}
+              hint={`${user.sharedBlobCount} shared with others`}
+              to={`/content?owner=${pubkey}`}
+            />
+            <StatTile
+              label="Owned storage"
+              value={formatBytes(user.totalSize)}
+              to={`/content?owner=${pubkey}`}
+            />
+            <StatTile
+              label="Reports filed"
+              value={formatNumber(user.reportCount)}
+              to={`/reports?reporter=${pubkey}`}
+            />
+            <StatTile
+              label="Reports on owned blobs"
+              value={formatNumber(user.receivedReportCount)}
+              to={`/reports?owner=${pubkey}`}
+            />
           </div>
+          <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm mb-3">
+            <div>
+              <dt className="inline text-base-content/60">
+                First ownership:
+              </dt>
+              <dd className="inline">{date(user.firstUpload)}</dd>
+            </div>
+            <div>
+              <dt className="inline text-base-content/60">
+                Latest ownership:
+              </dt>
+              <dd className="inline">{date(user.lastUpload)}</dd>
+            </div>
+            <div>
+              <dt className="inline text-base-content/60">
+                First retained report:
+              </dt>
+              <dd className="inline">{date(user.firstReport)}</dd>
+            </div>
+            <div>
+              <dt className="inline text-base-content/60">
+                Latest retained report:
+              </dt>
+              <dd className="inline">{date(user.lastReport)}</dd>
+            </div>
+          </dl>
+          <p className="text-xs text-base-content/60 mb-3">
+            Current records only, not a complete activity history. Ownership
+            dates for older records may be backfilled from the blob's original
+            upload date. Report dates are supplied by the reporter.
+          </p>
         </>
       )}
     </>

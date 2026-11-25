@@ -1,5 +1,12 @@
 # blossom-server
 
+## Unreleased
+
+### Patch Changes
+
+- Retain admin reports after dismissal and blob removal, with status, availability, reporter, and owner filters, profile links to filtered views, and explicit
+  cleanup for dismissed reports or missing blobs.
+
 ## 6.5.0 - 2026-11-21
 
 ### Minor Changes

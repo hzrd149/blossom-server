@@ -59,7 +59,7 @@ function Preview({ report }: { report: ReportItem }) {
   );
 }
 
-/** One report id per distinct blob, so bulk blob deletion never hits a report the previous call removed. */
+/** One action per distinct blob, even when several reports reference it. */
 function onePerBlob(reports: ReportItem[]): ReportItem[] {
   const byBlob = new Map<string, ReportItem>();
   for (const report of reports) {
@@ -109,7 +109,7 @@ export function ReportsPage() {
           ? `${plural(ids.length, "report")} dismissed.`
           : `${
             plural(ids.length, "blob")
-          } deleted for all owners and their reports removed.`,
+          } deleted for all owners. Reports retained.`,
       );
     },
     onSettled: () =>
@@ -123,6 +123,16 @@ export function ReportsPage() {
       action: "delete-blob",
     });
 
+  const cleanup = useMutation({
+    mutationFn: adminApi.cleanupReports,
+    onSuccess: (result) => {
+      setSelected(new Set());
+      notify(`${plural(result.deleted, "report")} permanently deleted.`);
+    },
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
+  });
+
   /** Ban the blobs of the given reports (one call per distinct blob); returns the toast text. */
   const banBlobs = async (
     reports: ReportItem[],
@@ -131,13 +141,11 @@ export function ReportsPage() {
     const blobs = onePerBlob(reports);
     const done = new Set<string>();
     let deleted = 0;
-    let resolved = 0;
     try {
       for (const report of blobs) {
         const result = await adminApi.banReportedBlob(report.id, input);
         done.add(report.blob);
         deleted += result.deleted.length;
-        resolved += result.reportsResolved;
       }
     } catch (err) {
       // Keep the failed and unprocessed rows selected so the action can be retried.
@@ -158,7 +166,7 @@ export function ReportsPage() {
     setSelected(new Set());
     return `${plural(blobs.length, "blob")} banned. ${
       plural(deleted, "stored blob")
-    } deleted, ${plural(resolved, "report")} resolved.`;
+    } deleted. Reports retained.`;
   };
   const sharedCategory = (reports: ReportItem[]): BanCategory => {
     const categories = new Set(reports.map((r) => categoryForReport(r.type)));
@@ -180,7 +188,7 @@ export function ReportsPage() {
               className="btn btn-sm"
               disabled={selected.size === 0}
               title={`Dismiss ${plural(selected.size, "report")}?`}
-              description="Removes only the selected reports. Their blobs remain available."
+              description="Marks the selected reports as dismissed. Reports and blobs are retained."
               confirmLabel="Dismiss"
               onConfirm={() => dismiss([...selected])}
             >
@@ -197,7 +205,7 @@ export function ReportsPage() {
                   selectedBlobs.reduce((sum, r) => sum + r.ownerCount, 0),
                   "owner",
                 )
-              } and removes every report on them. This cannot be undone.`}
+              }. Reports are retained. This cannot be undone.`}
               confirmLabel="Delete blobs"
               onConfirm={() => deleteBlobs(selectedBlobs)}
             >
@@ -237,6 +245,42 @@ export function ReportsPage() {
           </>
         )}
       </PageToolbar>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <ConfirmButton
+          className="btn btn-error btn-outline"
+          disabled={cleanup.isPending}
+          title="Clear reports for missing blobs?"
+          description="Permanently deletes all reports across the server whose blobs are not stored, including active and dismissed reports. Current filters and selection do not limit this action. This cannot be undone."
+          confirmLabel="Delete reports"
+          onConfirm={() => cleanup.mutateAsync("missing")}
+        >
+          Clear reports for missing blobs
+        </ConfirmButton>
+        <ConfirmButton
+          className="btn btn-error btn-outline"
+          disabled={cleanup.isPending}
+          title="Clear dismissed reports?"
+          description="Permanently deletes all dismissed reports across the server, whether their blobs are stored or missing. Current filters and selection do not limit this action. Blobs are not deleted. This cannot be undone."
+          confirmLabel="Delete reports"
+          onConfirm={() => cleanup.mutateAsync("dismissed")}
+        >
+          Clear dismissed reports
+        </ConfirmButton>
+      </div>
+      {(params.reporter || params.owner) && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+          {params.reporter && (
+            <span className="inline-flex items-center gap-2">
+              Filed by <UserBadge pubkey={params.reporter} />
+            </span>
+          )}
+          {params.owner && (
+            <span className="inline-flex items-center gap-2">
+              On blobs owned by <UserBadge pubkey={params.owner} />
+            </span>
+          )}
+        </div>
+      )}
       <form
         className="flex flex-wrap gap-2 mb-3"
         onSubmit={(event) => {
@@ -264,14 +308,36 @@ export function ReportsPage() {
             <option key={type} value={type}>{type}</option>
           ))}
         </select>
-        {(params.q || params.type !== "all") && (
+        <select
+          aria-label="Report status"
+          className="select w-auto"
+          value={params.status}
+          onChange={(e) => setSearch({ status: e.target.value, page: 1 })}
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+        <select
+          aria-label="Blob availability"
+          className="select w-auto"
+          value={params.availability}
+          onChange={(e) => setSearch({ availability: e.target.value, page: 1 })}
+        >
+          <option value="all">All blobs</option>
+          <option value="stored">Stored</option>
+          <option value="missing">Not stored</option>
+        </select>
+        {(params.q || params.reporter || params.owner ||
+          params.type !== "all" || params.status !== "all" ||
+          params.availability !== "all") && (
           <Link to="/reports" className="btn btn-ghost">Reset</Link>
         )}
         {isFetching && !isPending && (
           <span className="loading loading-spinner loading-sm self-center" />
         )}
       </form>
-      <ErrorAlert error={error ?? action.error} />
+      <ErrorAlert error={error ?? action.error ?? cleanup.error} />
       {isPending
         ? <Loading />
         : !data
@@ -366,7 +432,13 @@ export function ReportsPage() {
                           className="link link-hover text-xs text-error"
                           title="Show all reports on this blob"
                           onClick={() =>
-                            setSearch({ q: report.blob, type: null, page: 1 })}
+                            setSearch({
+                              q: report.blob,
+                              type: null,
+                              status: null,
+                              availability: null,
+                              page: 1,
+                            })}
                         >
                           {plural(report.blobReportCount, "report")} on blob
                         </button>
@@ -379,6 +451,9 @@ export function ReportsPage() {
                         }`}
                       >
                         {report.type ?? "unspecified"}
+                      </span>
+                      <span className="badge badge-ghost badge-sm ml-1">
+                        {report.dismissed ? "Dismissed" : "Active"}
                       </span>
                       <p
                         className={`mt-1 text-sm line-clamp-2 break-words ${
@@ -421,7 +496,8 @@ export function ReportsPage() {
                         <ConfirmButton
                           className="btn btn-ghost btn-xs"
                           title="Dismiss report?"
-                          description="Removes only this report. The blob remains available."
+                          description="Marks this report as dismissed. The report and blob are retained."
+                          disabled={report.dismissed || action.isPending}
                           confirmLabel="Dismiss"
                           onConfirm={() => dismiss([report.id])}
                         >
@@ -432,11 +508,9 @@ export function ReportsPage() {
                           title="Delete reported blob?"
                           description={`Permanently deletes this blob for all ${
                             plural(report.ownerCount, "owner")
-                          } and removes ${
-                            report.blobReportCount > 1
-                              ? `all ${report.blobReportCount} reports`
-                              : "the report"
-                          } on it.`}
+                          }. All reports are retained.`}
+                          disabled={report.blobSize === null ||
+                            action.isPending}
                           confirmLabel="Delete blob"
                           onConfirm={() => deleteBlobs([report])}
                         >
@@ -466,8 +540,9 @@ export function ReportsPage() {
             onPage={(page) => setSearch({ page })}
           />
           <p className="text-xs text-base-content/60">
-            Retained reports only; dismissed reports are removed. Dates are
-            supplied by reporters. Image previews are blurred until hovered.
+            Reports survive dismissal, deletion, bans, and pruning until
+            explicitly cleaned up. Dates are supplied by reporters. Image
+            previews are blurred until hovered.
           </p>
         </>
       )}

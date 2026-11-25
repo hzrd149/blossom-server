@@ -7,19 +7,44 @@ import type { Client } from "@libsql/client";
 import type { ReportItem, ReportsPage, ReportsQuery } from "../admin/contracts/reports.ts";
 import type { UserPageQuery, UserReportsQuery, UsersQuery, UserSummary } from "../admin/contracts/users.ts";
 import type { ReportRecord } from "./reports.ts";
+import type { ReportCleanupTarget } from "../admin/contracts/reports.ts";
 
 /** Report rows before the service layer attaches the public blob path. */
-export type AdminReportsRows = Omit<ReportsPage, "items"> & { items: Omit<ReportItem, "path">[] };
+export type AdminReportsRows = Omit<ReportsPage, "items"> & {
+  items: Omit<ReportItem, "path">[];
+};
 
-export async function listAdminReports(db: Client, query: ReportsQuery): Promise<AdminReportsRows> {
+export async function listAdminReports(
+  db: Client,
+  query: ReportsQuery,
+): Promise<AdminReportsRows> {
   const conditions = [
     "(instr(lower(r.blob), lower(?)) > 0 OR instr(lower(r.reporter), lower(?)) > 0 OR instr(lower(r.content), lower(?)) > 0 OR instr(lower(r.event_id), lower(?)) > 0)",
   ];
   const args = [query.q, query.q, query.q, query.q];
+  if (query.reporter) {
+    conditions.push("r.reporter = ?");
+    args.push(query.reporter);
+  }
+  if (query.owner) {
+    conditions.push(
+      "EXISTS (SELECT 1 FROM owners o WHERE o.blob = r.blob AND o.pubkey = ?)",
+    );
+    args.push(query.owner);
+  }
   if (query.type === "unspecified") conditions.push("r.type IS NULL");
   else if (query.type !== "all") {
     conditions.push("r.type = ?");
     args.push(query.type);
+  }
+  if (query.status === "active") conditions.push("r.dismissed = 0");
+  else if (query.status === "dismissed") conditions.push("r.dismissed = 1");
+  if (query.availability === "stored") {
+    conditions.push("EXISTS (SELECT 1 FROM blobs b WHERE b.sha256 = r.blob)");
+  } else if (query.availability === "missing") {
+    conditions.push(
+      "NOT EXISTS (SELECT 1 FROM blobs b WHERE b.sha256 = r.blob)",
+    );
   }
   const where = `WHERE ${conditions.join(" AND ")}`;
   const sort = ["created", "type", "reporter", "blob"].includes(query.sort) ? query.sort : "created";
@@ -32,7 +57,10 @@ export async function listAdminReports(db: Client, query: ReportsQuery): Promise
       ORDER BY r.${sort} ${query.dir === "asc" ? "ASC" : "DESC"}, r.id DESC LIMIT ? OFFSET ?`,
       args: [...args, query.pageSize, (query.page - 1) * query.pageSize],
     },
-    { sql: `SELECT COUNT(*) AS total, COUNT(DISTINCT r.blob) AS blobs, COUNT(DISTINCT r.reporter) AS reporters FROM reports r ${where}`, args },
+    {
+      sql: `SELECT COUNT(*) AS total, COUNT(DISTINCT r.blob) AS blobs, COUNT(DISTINCT r.reporter) AS reporters FROM reports r ${where}`,
+      args,
+    },
   ], "read");
   return {
     items: rows.rows.map((r) => ({
@@ -43,6 +71,7 @@ export async function listAdminReports(db: Client, query: ReportsQuery): Promise
       type: r.type as string | null,
       content: String(r.content),
       created: Number(r.created),
+      dismissed: Boolean(r.dismissed),
       blobType: r.blob_type as string | null,
       blobSize: r.blob_size == null ? null : Number(r.blob_size),
       ownerCount: Number(r.owner_count),
@@ -54,6 +83,25 @@ export async function listAdminReports(db: Client, query: ReportsQuery): Promise
     page: query.page,
     pageSize: query.pageSize,
   };
+}
+
+/** Explicit report-only administration; never called from content removal. */
+export async function dismissReport(db: Client, id: number): Promise<boolean> {
+  const result = await db.execute({
+    sql: "UPDATE reports SET dismissed = 1 WHERE id = ?",
+    args: [id],
+  });
+  return result.rowsAffected > 0;
+}
+
+/** Eligibility is checked by the DELETE itself, including blobs re-uploaded since listing. */
+export async function cleanupReports(
+  db: Client,
+  target: ReportCleanupTarget,
+): Promise<number> {
+  const condition = target === "dismissed" ? "dismissed = 1" : "NOT EXISTS (SELECT 1 FROM blobs b WHERE b.sha256 = reports.blob)";
+  const result = await db.execute(`DELETE FROM reports WHERE ${condition}`);
+  return result.rowsAffected;
 }
 
 const USER_STATS = `WITH owned AS (
@@ -88,31 +136,56 @@ function userRow(row: Record<string, unknown>): UserSummary {
 }
 
 export async function listUsers(db: Client, query: UsersQuery) {
-  const sort = ["pubkey", "blobCount", "totalSize", "reportCount", "lastUpload"].includes(query.sort) ? query.sort : "totalSize";
+  const sort = ["pubkey", "blobCount", "totalSize", "reportCount", "lastUpload"].includes(
+      query.sort,
+    )
+    ? query.sort
+    : "totalSize";
   const where = `WHERE instr(pubkey, ?) > 0 ${query.role === "owners" ? "AND blobCount > 0" : query.role === "reporters" ? "AND reportCount > 0" : ""}`;
   const [rows, count] = await db.batch([
     {
       sql: `${USER_STATS} SELECT * FROM users ${where} ORDER BY ${sort} ${query.dir === "asc" ? "ASC" : "DESC"}, pubkey ASC LIMIT ? OFFSET ?`,
       args: [query.q, query.pageSize, (query.page - 1) * query.pageSize],
     },
-    { sql: `${USER_STATS} SELECT COUNT(*) FROM users ${where}`, args: [query.q] },
+    {
+      sql: `${USER_STATS} SELECT COUNT(*) FROM users ${where}`,
+      args: [query.q],
+    },
   ], "read");
-  return { items: rows.rows.map(userRow), total: Number(count.rows[0][0]), page: query.page, pageSize: query.pageSize };
+  return {
+    items: rows.rows.map(userRow),
+    total: Number(count.rows[0][0]),
+    page: query.page,
+    pageSize: query.pageSize,
+  };
 }
 
-export async function getUser(db: Client, pubkey: string): Promise<UserSummary | null> {
-  const rows = await db.execute({ sql: `${USER_STATS} SELECT * FROM users WHERE pubkey = ?`, args: [pubkey] });
+export async function getUser(
+  db: Client,
+  pubkey: string,
+): Promise<UserSummary | null> {
+  const rows = await db.execute({
+    sql: `${USER_STATS} SELECT * FROM users WHERE pubkey = ?`,
+    args: [pubkey],
+  });
   return rows.rows[0] ? userRow(rows.rows[0]) : null;
 }
 
-export async function listUserBlobs(db: Client, pubkey: string, query: UserPageQuery) {
+export async function listUserBlobs(
+  db: Client,
+  pubkey: string,
+  query: UserPageQuery,
+) {
   const [rows, count] = await db.batch([
     {
       sql: `SELECT b.sha256, b.type, b.size, o.uploaded, (SELECT COUNT(*) FROM owners x WHERE x.blob = b.sha256) AS ownerCount
       FROM owners o JOIN blobs b ON b.sha256 = o.blob WHERE o.pubkey = ? ORDER BY o.uploaded DESC, b.sha256 ASC LIMIT ? OFFSET ?`,
       args: [pubkey, query.pageSize, (query.page - 1) * query.pageSize],
     },
-    { sql: "SELECT COUNT(*) FROM owners o JOIN blobs b ON b.sha256 = o.blob WHERE o.pubkey = ?", args: [pubkey] },
+    {
+      sql: "SELECT COUNT(*) FROM owners o JOIN blobs b ON b.sha256 = o.blob WHERE o.pubkey = ?",
+      args: [pubkey],
+    },
   ], "read");
   return {
     items: rows.rows.map((r) => ({
@@ -128,7 +201,11 @@ export async function listUserBlobs(db: Client, pubkey: string, query: UserPageQ
   };
 }
 
-export async function listUserReports(db: Client, pubkey: string, query: UserReportsQuery) {
+export async function listUserReports(
+  db: Client,
+  pubkey: string,
+  query: UserReportsQuery,
+) {
   const where = query.scope === "filed" ? "reporter = ?" : "EXISTS (SELECT 1 FROM owners o WHERE o.blob = r.blob AND o.pubkey = ?)";
   const [rows, count] = await db.batch([
     {
@@ -145,8 +222,14 @@ export async function listUserReports(db: Client, pubkey: string, query: UserRep
     type: r.type as ReportRecord["type"],
     content: String(r.content),
     created: Number(r.created),
+    dismissed: Boolean(r.dismissed),
   }));
-  return { items, total: Number(count.rows[0][0]), page: query.page, pageSize: query.pageSize };
+  return {
+    items,
+    total: Number(count.rows[0][0]),
+    page: query.page,
+    pageSize: query.pageSize,
+  };
 }
 
 export interface BlobOwnerRecord {
@@ -166,17 +249,35 @@ export interface BlobRelations {
   thumbnailOf: string | null;
 }
 
-export async function getBlobRelations(db: Client, sha256: string): Promise<BlobRelations> {
+export async function getBlobRelations(
+  db: Client,
+  sha256: string,
+): Promise<BlobRelations> {
   const results = await db.batch([
-    { sql: "SELECT pubkey, uploaded FROM owners WHERE blob = ? ORDER BY uploaded ASC, pubkey ASC", args: [sha256] },
+    {
+      sql: "SELECT pubkey, uploaded FROM owners WHERE blob = ? ORDER BY uploaded ASC, pubkey ASC",
+      args: [sha256],
+    },
     { sql: "SELECT timestamp FROM accessed WHERE blob = ?", args: [sha256] },
-    { sql: "SELECT original_sha256 FROM media_derivatives WHERE optimized_sha256 = ? LIMIT 100", args: [sha256] },
-    { sql: "SELECT thumbnail_sha256 FROM media_thumbnails WHERE parent_sha256 = ? LIMIT 1", args: [sha256] },
-    { sql: "SELECT parent_sha256 FROM media_thumbnails WHERE thumbnail_sha256 = ? LIMIT 1", args: [sha256] },
+    {
+      sql: "SELECT original_sha256 FROM media_derivatives WHERE optimized_sha256 = ? LIMIT 100",
+      args: [sha256],
+    },
+    {
+      sql: "SELECT thumbnail_sha256 FROM media_thumbnails WHERE parent_sha256 = ? LIMIT 1",
+      args: [sha256],
+    },
+    {
+      sql: "SELECT parent_sha256 FROM media_thumbnails WHERE thumbnail_sha256 = ? LIMIT 1",
+      args: [sha256],
+    },
   ], "read");
   const [owners, accessed, derived, thumbnail, thumbnailOf] = results;
   return {
-    owners: owners.rows.map((row) => ({ pubkey: row[0] as string, uploaded: (row[1] as number | null) ?? null })),
+    owners: owners.rows.map((row) => ({
+      pubkey: row[0] as string,
+      uploaded: (row[1] as number | null) ?? null,
+    })),
     accessed: (accessed.rows[0]?.[0] as number | undefined) ?? null,
     derivedFrom: derived.rows.map((row) => row[0] as string),
     thumbnail: (thumbnail.rows[0]?.[0] as string | undefined) ?? null,
@@ -185,7 +286,11 @@ export async function getBlobRelations(db: Client, sha256: string): Promise<Blob
 }
 
 /** Count current owners/reporters and retained reports for the dashboard. */
-export async function getAdminCounts(db: Client): Promise<{ userCount: number; reportCount: number; reportedBlobCount: number }> {
+export async function getAdminCounts(
+  db: Client,
+): Promise<
+  { userCount: number; reportCount: number; reportedBlobCount: number }
+> {
   const [users, reports] = await db.batch([
     "SELECT COUNT(*) FROM (SELECT pubkey FROM owners UNION SELECT reporter FROM reports)",
     "SELECT COUNT(*), COUNT(DISTINCT blob) FROM reports",

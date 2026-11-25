@@ -111,6 +111,7 @@ export interface BanPubkeyResultDto {
 export interface BanBlobResultDto {
   banned: string[];
   deleted: string[];
+  /** @deprecated Always zero: bans retain reports. Kept for API compatibility. */
   reportsResolved: number;
 }
 

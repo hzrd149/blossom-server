@@ -124,6 +124,10 @@ export const adminApi = {
     request<{ success: true; deleted: number }>("DELETE", `users/${pubkey}`),
   reportAction: (id: number, action: "dismiss" | "delete-blob") =>
     request<{ success: true }>("POST", `reports/${id}/${action}`),
+  cleanupReports: (target: "missing" | "dismissed") =>
+    request<{ success: true; deleted: number }>("POST", "reports/cleanup", {
+      target,
+    }),
   banReportedBlob: (id: number, body: ReportBanBody = {}) =>
     request<BanBlobResultDto & { success: true }>(
       "POST",

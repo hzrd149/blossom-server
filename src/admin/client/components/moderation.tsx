@@ -271,9 +271,9 @@ export function banBlobMessage(result: BanBlobResultDto): string {
   const related = result.banned.length - 1;
   return `Blob banned${
     related > 0 ? ` with ${plural(related, "related blob")}` : ""
-  }. ${plural(result.deleted.length, "stored blob")} deleted, ${
-    plural(result.reportsResolved, "report")
-  } resolved.`;
+  }. ${
+    plural(result.deleted.length, "stored blob")
+  } deleted. Reports retained.`;
 }
 
 function BanBlobForm(
@@ -360,9 +360,9 @@ function BanBlobForm(
       </Field>
       <p className="text-sm text-base-content/80">
         The blob is deleted for all owners, together with its optimized
-        derivative, original, and thumbnails, which are banned too. Open reports
-        on them are resolved. The hash can no longer be uploaded or mirrored.
-        Unbanning does not restore deleted files.
+        derivative, original, and thumbnails, which are banned too. Reports are
+        retained. The hash can no longer be uploaded or mirrored. Unbanning does
+        not restore deleted files.
       </p>
       <ErrorAlert error={ban.error} title="Blob was not banned" />
       <div className="modal-action mt-0">

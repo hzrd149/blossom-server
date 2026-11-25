@@ -21,6 +21,7 @@ export function toReportDto(report: ReportRecord): ReportDto {
     type: report.type,
     content: report.content,
     created: report.created,
+    dismissed: report.dismissed,
   };
 }
 

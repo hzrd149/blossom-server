@@ -3,7 +3,8 @@ import { join } from "@std/path";
 import { type Client, createClient } from "@libsql/client";
 import { runMigrations } from "../../src/db/client.ts";
 import { insertBlob, insertBlobRecord, insertMediaDerivative, insertMediaThumbnail } from "../../src/db/blobs.ts";
-import { insertReport } from "../../src/db/reports.ts";
+import { insertReport, listAllReports } from "../../src/db/reports.ts";
+import { dismissReport } from "../../src/db/admin.ts";
 import { LocalStorage } from "../../src/storage/local.ts";
 import { ModerationInputError, ModerationService } from "../../src/moderation/service.ts";
 
@@ -86,7 +87,7 @@ Deno.test("pubkey ban with remove drops ownership and deletes only orphaned blob
   });
 });
 
-Deno.test("blob ban cascades to original, derivative, and thumbnails, and resolves reports", async () => {
+Deno.test("blob ban cascades to original, derivative, and thumbnails, and retains reports", async () => {
   await withService(async (ctx) => {
     const [original, optimized, thumb] = [h(10), h(11), h(12)];
     await store(ctx, optimized, [P1]);
@@ -94,11 +95,15 @@ Deno.test("blob ban cascades to original, derivative, and thumbnails, and resolv
     await insertMediaDerivative(ctx.db, original, optimized);
     await insertMediaThumbnail(ctx.db, optimized, thumb);
     await insertReport(ctx.db, { event_id: "e".repeat(64), reporter: P2, blob: optimized, type: "illegal", content: "", created: 1 });
+    await insertReport(ctx.db, { event_id: "f".repeat(64), reporter: P2, blob: thumb, type: "illegal", content: "", created: 2 });
+    await dismissReport(ctx.db, (await listAllReports(ctx.db))[0].id);
+    const reports = await listAllReports(ctx.db);
 
     const result = await ctx.service.banBlob({ sha256: optimized, category: "illegal", note: "csam report" });
     assertEquals(result.banned.sort(), [original, optimized, thumb].sort());
     assertEquals(result.deleted.sort(), [optimized, thumb].sort());
-    assertEquals(result.reportsResolved, 1);
+    assertEquals(result.reportsResolved, 0);
+    assertEquals(await listAllReports(ctx.db), reports);
     assertEquals(await exists(ctx, optimized), { row: false, file: false });
     assertEquals(await exists(ctx, thumb), { row: false, file: false });
 

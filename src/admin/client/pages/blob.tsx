@@ -334,14 +334,14 @@ export function BlobPage({ sha256 }: { sha256: string }) {
                       <button
                         type="button"
                         className="btn btn-ghost"
-                        disabled={reportAction.isPending}
+                        disabled={report.dismissed || reportAction.isPending}
                         onClick={() =>
                           reportAction.mutate({
                             id: report.id,
                             action: "dismiss",
                           })}
                       >
-                        Dismiss
+                        {report.dismissed ? "Dismissed" : "Dismiss"}
                       </button>
                     </li>
                   ))}
